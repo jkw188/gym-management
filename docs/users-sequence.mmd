@@ -1,0 +1,78 @@
+sequenceDiagram
+    actor Admin
+    participant UI as React /admin/users
+    participant Guard as JWT + RolesGuard
+    participant Controller as UsersController
+    participant Service as UsersService
+    participant Repository as UsersRepository
+    participant Password as PasswordService
+    participant DB as MongoDB accounts/roles/auth_sessions
+
+    Admin->>UI: Mở danh sách / lọc / phân trang
+    UI->>Guard: GET /api/users hoặc /roles hoặc /:id + Bearer
+    Guard->>DB: Đọc session, account, role hiện hành
+    alt Phiên sai hoặc không phải ADMIN
+        Guard-->>UI: 401 UNAUTHENTICATED hoặc 403 FORBIDDEN
+    else ADMIN hợp lệ
+        Guard->>Controller: Cho phép request
+        Controller->>Service: list / listRoles / detail
+        Service->>Repository: Query với timeout, filter literal, sort created_at DESC + _id DESC
+        Repository->>DB: Đọc accounts/roles, không thay đổi dữ liệu
+        DB-->>Service: Kết quả
+        Service-->>UI: 200 DTO allowlist, version hiện tại
+    end
+
+    Admin->>UI: Nhập fullName, phone, email?, password, confirm, role
+    UI->>UI: Kiểm tra confirm, khóa nút trong khi chờ
+    UI->>Guard: POST /api/users (không gửi confirm)
+    Guard->>Controller: ADMIN hiện hành
+    Controller->>Service: CreateUserDto hợp lệ, không field thừa
+    Service->>Repository: Kiểm tra role seed và định danh đã chuẩn hóa
+    Service->>Password: Hash Argon2id, không trim password
+    Password-->>Service: passwordHash
+    Service->>Repository: createAccount
+    Repository->>DB: Insert ACTIVE, version=0, auth_version=0; unique phone/email
+    alt Định danh trùng kể cả request đồng thời
+        DB-->>Service: Duplicate key
+        Service-->>UI: 409 PHONE_ALREADY_EXISTS / EMAIL_ALREADY_EXISTS
+    else Insert thành công
+        DB-->>Service: Account mới
+        Service-->>UI: 201 UserDto không hash/auth_version/token
+        UI->>UI: Hiện ID; tải lại list riêng, không tự gửi lại POST
+    end
+    Note over Service,DB: Không tạo member/trainer/membership/session. Role thiếu: 409 ROLE_NOT_CONFIGURED.
+
+    Admin->>UI: Sửa fullName / phone / email, xác nhận lưu
+    UI->>Guard: PATCH /api/users/:id + version bản đã mở
+    Guard->>Controller: ADMIN hiện hành
+    Controller->>Service: UpdateUserDto; cấm role/status/password/id/liên kết
+    Service->>Repository: Đọc và chuẩn hóa, xác định field thực sự đổi
+    alt Dữ liệu chuẩn hóa không đổi
+        Repository->>DB: Đọc có _id + version; không ghi timestamps/version
+        DB-->>Repository: Account tại version hiện hành hoặc null
+        Repository-->>Service: Kết quả no-op
+        Service-->>UI: 200 cùng bản hiện tại (hoặc 404/409 nếu đã thay đổi)
+    else Có thay đổi
+        Service->>Repository: updateAccount(id, version, changes)
+        Repository->>DB: findOneAndUpdate({_id, version}, set/unset + inc version)
+        Note over Repository,DB: Cùng lệnh tăng auth_version nếu phone/email thực sự đổi; email=null dùng $unset.
+        alt Không match
+            Repository-->>Service: null
+            Service->>Repository: Đọc account để phân biệt mất với version cũ
+            Repository->>DB: findAccountById
+            DB-->>Service: Account hoặc null
+            Service-->>UI: 404 USER_NOT_FOUND hoặc 409 VERSION_CONFLICT
+            UI->>Admin: Giữ bản nháp; chỉ tải lại sau xác nhận bỏ dữ liệu chưa lưu
+        else Thành công
+            DB-->>Service: Bản mới
+            Service-->>UI: 200 UserDto
+            alt Đổi định danh chính Admin hiện tại
+                UI->>UI: Xóa access trong memory, chặn refresh đang chờ khôi phục phiên cũ
+                UI->>Admin: Về login, yêu cầu đăng nhập bằng thông tin mới
+            else Chỉ đổi tên hoặc sửa account khác
+                UI->>UI: Thông báo đã lưu, tải lại list
+            end
+        end
+    end
+    Note over Guard,DB: Request sau đọc auth_version mới: access/refresh cũ bị 401 nếu định danh đã đổi.
+    Note over UI,DB: DB lỗi: 503 SERVICE_UNAVAILABLE và requestId an toàn. Không có DELETE; khóa/mở khóa US-07, đổi role US-08.

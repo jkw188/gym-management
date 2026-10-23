@@ -1,9 +1,11 @@
 node_modules/
 dist/
 coverage/
+.cache/
 .env
 .env.*
 !.env.example
 *.tsbuildinfo
 *.log
 .DS_Store
+AGENTS.md

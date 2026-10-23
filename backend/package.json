@@ -10,19 +10,53 @@
     "start:dev": "nest start --watch",
     "build": "nest build",
     "start:prod": "node dist/main.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "ensure-indexes": "npm run build && node scripts/admin.cjs ensure-indexes",
+    "seed:admin": "npm run build && node scripts/admin.cjs seed-admin",
+    "test": "jest --runInBand",
+    "test:unit": "jest --runInBand test/foundation.spec.ts test/auth.spec.ts test/users.spec.ts",
+    "test:integration": "jest --runInBand test/foundation.integration-spec.ts test/auth.integration-spec.ts test/users.integration-spec.ts",
+    "typecheck:test": "tsc --project tsconfig.test.json --noEmit"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
-    "@nestjs/core": "^11.0.0",
-    "@nestjs/platform-express": "^11.0.0",
     "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/mongoose": "^11.0.4",
+    "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/swagger": "^11.4.7",
+    "argon2": "^0.44.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.4",
+    "cookie-parser": "1.4",
+    "express": "^5.3.0",
+    "mongoose": "^9.11.3",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
   },
+  "overrides": {
+    "@nestjs/swagger": {
+      "js-yaml": "^5.5.0"
+    }
+  },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.2.7",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/passport": "^1.0.17",
+    "@types/passport-jwt": "^4.0.1",
+    "@types/supertest": "^6.0.3",
+    "jest": "^30.5.2",
+    "mongodb-memory-server": "^10.4.3",
+    "supertest": "^7.3.1",
+    "ts-jest": "^29.4.15",
     "typescript": "~5.9.3"
   }
 }

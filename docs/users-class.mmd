@@ -1,0 +1,96 @@
+classDiagram
+    class UsersPage {
+        listFilterAndPaging()
+        loadCurrentDetail()
+        requireLoginOnOwnIdentityChange()
+    }
+    class UserForm {
+        validateConfirmPassword()
+        preserveDraftOnConflict()
+        submitOriginalVersion()
+    }
+    class UsersApi {
+        list()
+        roles()
+        detail()
+        create()
+        update()
+    }
+    class JwtAuthGuard {
+        verifyJwtSessionAndAuthVersion()
+    }
+    class RolesGuard {
+        requireCurrentAdmin()
+    }
+    class UsersController {
+        list(ListUsersDto)
+        roles()
+        detail(id)
+        create(CreateUserDto)
+        update(id, UpdateUserDto)
+    }
+    class UsersService {
+        list()
+        listRoles()
+        detail()
+        create()
+        update()
+        checkIdentifiers()
+    }
+    class UserResponseMapper {
+        <<module>>
+        mapUserResponse(account, role)
+    }
+    class UsersRepository {
+        listAccounts()
+        listRoles()
+        createAccount()
+        updateAccount(id, version, changes)
+        findAccountAtVersion()
+    }
+    class PasswordService {
+        validate()
+        hash()
+        verify()
+    }
+    class Account {
+        ObjectId id
+        ObjectId role_id
+        string full_name
+        string phone
+        string email
+        string password_hash
+        string status
+        Int32 version
+        Int32 auth_version
+        Date created_at
+        Date updated_at
+    }
+    class Role {
+        ObjectId id
+        RoleCode code
+        string name
+    }
+    class AuthSession {
+        ObjectId account_id
+        Int32 auth_version
+        string refresh_hash
+        Date expires_at
+    }
+    UsersPage --> UserForm
+    UsersPage --> UsersApi
+    UserForm --> UsersApi
+    UsersApi --> UsersController : authenticated ApiClient
+    JwtAuthGuard --> Account : current status/auth_version
+    JwtAuthGuard --> AuthSession : current session
+    RolesGuard --> Role : current ADMIN
+    UsersController --> UsersService : validated DTO
+    UsersService --> UsersRepository
+    UsersService --> UserResponseMapper : allowlist HTTP fields
+    UsersService --> PasswordService : initial password
+    UsersRepository --> Account : unique indexes + atomic CAS
+    UsersRepository --> Role : read seeded roles
+    Account "*" --> "1" Role : role_id
+    AuthSession "*" --> "1" Account : account_id
+    note for UsersController "POST/GET/PATCH only. No DELETE, role/status/password update."
+    note for Account "Existing EN-01 schema. US-06 never creates or syncs member/trainer profiles."

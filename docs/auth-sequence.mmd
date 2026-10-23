@@ -1,0 +1,44 @@
+sequenceDiagram
+    actor User as Member / Staff / Trainer / Admin
+    participant React as React AuthProvider
+    participant Controller as AuthController
+    participant Auth as AuthService / JwtStrategy
+    participant Users as UsersService
+    participant Sessions as AuthSessionsRepository
+    participant DB as MongoDB
+    User->>React: Nhập phone / password
+    React->>Controller: POST /api/auth/login (Origin, JSON, credentials)
+    Controller->>Controller: Origin / DTO / limiter (IP + normalized phone)
+    Controller->>Auth: login(normalizedPhone, password)
+    Auth->>Users: findCredentialsByPhone / findRoleById
+    Users->>DB: Đọc account + password_hash và role
+    DB-->>Auth: Account / role hiện tại
+    Auth->>Auth: Argon2id verify (dummy hash nếu không có account)
+    alt Sai thông tin / LOCKED / role hỏng
+        Auth-->>React: 401 INVALID_CREDENTIALS (thông báo chung)
+    else Hợp lệ
+        Auth->>Sessions: create(account_id, SHA256(refresh), auth_version, expires_at)
+        Sessions->>DB: Insert auth_sessions (hạn tuyệt đối 7 ngày)
+        DB-->>Auth: Session đã lưu
+        Auth->>Auth: Ký HS256 {sub, sid, av, iat, exp}, iss / aud
+        Auth-->>React: Access token trong memory + user + HttpOnly cookie
+        React-->>User: /admin, /staff, /trainer hoặc /member
+    end
+    Note over React,DB: Khôi phục khi reload: checking, refresh rồi me; chỉ render bảo vệ sau thành công
+    React->>Controller: POST /api/auth/refresh {}, cookie gym_refresh
+    Controller->>Auth: refresh(cookie)
+    Auth->>Sessions: Tìm bằng SHA256(cookie)
+    Auth->>Users: Kiểm tra ACTIVE, role và auth_version hiện tại
+    Auth->>Sessions: CAS theo hash cũ + chưa revoked + chưa hết hạn
+    Sessions->>DB: Atomic findOneAndUpdate refresh_hash
+    alt CAS thành công
+        Auth-->>React: Access mới + cookie mới, giữ expires_at
+        React->>Controller: GET /api/auth/me, Bearer
+        Controller->>Auth: JwtAuthGuard / JwtStrategy
+        Auth->>DB: Đọc session và account / role hiện tại
+        Auth-->>React: Principal hiện hành
+    else Token cũ / CAS thua
+        Auth-->>React: 401; không revoke toàn phiên, không xóa cookie
+    end
+    Note over React,Auth: Single-flight refresh, mỗi request retry tối đa 1 lần; 403 giữ vai trò và hiển thị thiếu quyền
+    Note over Auth,DB: Mọi request bảo vệ kiểm session / status / auth_version; RolesGuard dùng role hiện tại từ DB

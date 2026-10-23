@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
+import { DatabaseModule } from './config/database.module';
+import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { MembersModule } from './modules/members/members.module';
@@ -18,6 +20,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    DatabaseModule,
+    HealthModule,
     AuthModule,
     UsersModule,
     MembersModule,
