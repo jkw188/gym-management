@@ -10,7 +10,6 @@ import request from 'supertest';
 import { configureHttp } from '../src/common/http/configure-http';
 import { PasswordService } from '../src/common/security/password.service';
 import { Roles } from '../src/modules/auth/auth.decorators';
-import { AuthService } from '../src/modules/auth/auth.service';
 import { AuthSessionsRepository } from '../src/modules/auth/auth-sessions.repository';
 import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
 import { AuthSession } from '../src/modules/auth/schemas/auth-session.schema';

@@ -21,6 +21,11 @@ describe('US-02 configuration, cookies and limiter', () => {
     expect(refreshCookieOptions('development', 'https://gym.example', expires).secure).toBe(true);
   });
 
+  it('US-03 TC08: logout clears the cookie with the same name/path/flags, Secure in production', () => {
+    expect(refreshCookieOptions('development', 'http://localhost:5173')).toEqual({ httpOnly: true, sameSite: 'lax', path: '/api/auth', secure: false });
+    expect(refreshCookieOptions('production', 'https://gym.example')).toEqual({ httpOnly: true, sameSite: 'lax', path: '/api/auth', secure: true });
+  });
+
   it('TC05–06: shares normalized phone buckets, also caps IP and resets after 60 seconds', () => {
     const limiter = new LoginLimiter();
     for (let i = 0; i < 5; i++) expect(limiter.consume('ip1', '+84901234567', 0)).toBe(0);

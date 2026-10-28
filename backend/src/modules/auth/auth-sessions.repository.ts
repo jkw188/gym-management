@@ -30,4 +30,10 @@ export class AuthSessionsRepository implements OnModuleInit {
       expires_at: { $gt: new Date() }, auth_version: session.auth_version },
     { $set: { refresh_hash: nextHash } }, { returnDocument: 'after', runValidators: true }).exec();
   }
+
+  async revoke(sessionId: Types.ObjectId): Promise<void> {
+    const filter = { _id: sessionId, revoked_at: null };
+    const update = { $currentDate: { revoked_at: true as const } };
+    await this.sessions.updateOne(filter, update).exec();
+  }
 }

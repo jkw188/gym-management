@@ -15,7 +15,7 @@
     "seed:admin": "npm run build && node scripts/admin.cjs seed-admin",
     "test": "jest --runInBand",
     "test:unit": "jest --runInBand test/foundation.spec.ts test/auth.spec.ts test/users.spec.ts",
-    "test:integration": "jest --runInBand test/foundation.integration-spec.ts test/auth.integration-spec.ts test/users.integration-spec.ts",
+    "test:integration": "jest --runInBand test/foundation.integration-spec.ts test/auth.integration-spec.ts test/logout.integration-spec.ts test/users.integration-spec.ts",
     "typecheck:test": "tsc --project tsconfig.test.json --noEmit"
   },
   "dependencies": {

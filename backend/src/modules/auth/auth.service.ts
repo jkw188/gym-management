@@ -12,6 +12,23 @@ import { AuthSession } from './schemas/auth-session.schema';
 
 const unauthorized = () => new ApplicationError(401, 'UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
 type CurrentAccount = NonNullable<Awaited<ReturnType<UsersService['findById']>>>;
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
+const REFRESH_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+const BEARER = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/;
+
+function parseAccessClaims(claims: unknown): AccessClaims {
+  if (!claims || typeof claims !== 'object') throw unauthorized();
+  const { sub, sid, av, iat, exp } = claims as Partial<AccessClaims>;
+
+  const validIds = typeof sub === 'string' && OBJECT_ID.test(sub) && typeof sid === 'string' && OBJECT_ID.test(sid);
+  const validNumbers = Number.isInteger(av) && Number(av) >= 0 && Number.isInteger(iat) && Number.isInteger(exp);
+  const validLifetime = Number(exp) > Number(iat) && Number(exp) - Number(iat) <= 900;
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  const notFromFuture = Number(iat) <= nowInSeconds + 30;
+
+  if (!validIds || !validNumbers || !validLifetime || !notFromFuture) throw unauthorized();
+  return { sub: sub as string, sid: sid as string, av: Number(av), iat: Number(iat), exp: Number(exp) };
+}
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -55,16 +72,12 @@ export class AuthService implements OnModuleInit {
   }
 
   async validateAccess(claims: unknown): Promise<AuthPrincipal> {
-    if (!claims || typeof claims !== 'object') throw unauthorized();
-    const { sub, sid, av, iat, exp } = claims as Partial<AccessClaims>;
-    if (typeof sub !== 'string' || !/^[a-f0-9]{24}$/i.test(sub) || typeof sid !== 'string' || !/^[a-f0-9]{24}$/i.test(sid) ||
-      !Number.isInteger(av) || Number(av) < 0 || !Number.isInteger(iat) || !Number.isInteger(exp) ||
-      Number(exp) - Number(iat) > 900 || Number(exp) <= Number(iat) || Number(iat) > Math.floor(Date.now() / 1000) + 30) throw unauthorized();
+    const { sub, sid, av } = parseAccessClaims(claims);
     return this.current(await this.sessions.findById(sid), sub, av);
   }
 
   async refresh(token: unknown) {
-    if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw unauthorized();
+    if (typeof token !== 'string' || !REFRESH_TOKEN.test(token)) throw unauthorized();
     const previousHash = this.hash(token);
     const session = await this.sessions.findByHash(previousHash);
     const user = await this.current(session);
@@ -73,6 +86,61 @@ export class AuthService implements OnModuleInit {
     if (!rotated) throw unauthorized();
     // Recheck account/session after the write, including changes concurrent with rotation.
     return this.issue(rotated, await this.current(rotated, user.id), refreshToken);
+  }
+
+  async logout(authorization: string | undefined, refreshToken: unknown): Promise<void> {
+    if (authorization !== undefined) {
+      const session = await this.findSessionByBearer(authorization);
+      await this.sessions.revoke(session._id);
+      return;
+    }
+
+    if (refreshToken === undefined) {
+      return;
+    }
+
+    const session = await this.findSessionByRefreshToken(refreshToken);
+    await this.sessions.revoke(session._id);
+  }
+
+  private async findSessionByBearer(authorization: string): Promise<AuthSession> {
+    const match = BEARER.exec(authorization);
+    const token = match?.[1];
+    if (!token) {
+      throw unauthorized();
+    }
+
+    let payload: unknown;
+    try {
+      payload = await this.jwt.verifyAsync(token, {
+        algorithms: ['HS256'],
+        ignoreExpiration: true,
+        issuer: this.config.getOrThrow<string>('jwtIssuer'),
+        audience: this.config.getOrThrow<string>('jwtAudience'),
+      });
+    } catch {
+      throw unauthorized();
+    }
+
+    const claims = parseAccessClaims(payload);
+    const session = await this.sessions.findById(claims.sid);
+    if (!session || session.account_id.toHexString() !== claims.sub) {
+      throw unauthorized();
+    }
+    return session;
+  }
+
+  private async findSessionByRefreshToken(token: unknown): Promise<AuthSession> {
+    if (typeof token !== 'string' || !REFRESH_TOKEN.test(token)) {
+      throw unauthorized();
+    }
+
+    const tokenHash = this.hash(token);
+    const session = await this.sessions.findByHash(tokenHash);
+    if (!session) {
+      throw unauthorized();
+    }
+    return session;
   }
 
   private async issue(session: AuthSession, user: AuthPrincipal, refreshToken: string) {

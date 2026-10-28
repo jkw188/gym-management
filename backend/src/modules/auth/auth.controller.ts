@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiNoContentResponse, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CookieOptions, Request, Response } from 'express';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ErrorResponseDto } from '../../common/http/error.dto';
@@ -11,11 +11,31 @@ import { AuthService } from './auth.service';
 import { AuthPrincipal } from './auth.types';
 import { LoginLimiter } from './login-limiter.service';
 import { AuthResponseDto, LoginDto, PrincipalDto } from './login.dto';
+import { LOGOUT_BODY_SCHEMA } from './logout.dto';
 
-export function refreshCookieOptions(nodeEnv: string, frontendOrigin: string, expiresAt: Date): CookieOptions {
+export function refreshCookieOptions(nodeEnv: string, frontendOrigin: string, expiresAt?: Date): CookieOptions {
   const hostname = new URL(frontendOrigin).hostname;
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(hostname);
-  return { httpOnly: true, sameSite: 'lax', path: '/api/auth', secure: nodeEnv === 'production' || !local, expires: expiresAt };
+  const options: CookieOptions = { httpOnly: true, sameSite: 'lax', path: '/api/auth', secure: nodeEnv === 'production' || !local };
+  if (expiresAt) {
+    options.expires = expiresAt;
+  }
+  return options;
+}
+
+function refreshCookie(req: Request): unknown {
+  const cookies: unknown = req.cookies;
+  if (cookies && typeof cookies === 'object' && 'gym_refresh' in cookies) {
+    return cookies.gym_refresh;
+  }
+  return undefined;
+}
+
+function requireEmptyBody(body: Record<string, unknown>, endpoint: string) {
+  const fieldCount = Object.keys(body).length;
+  if (fieldCount > 0) {
+    throw new ApplicationError(400, 'VALIDATION_ERROR', `${endpoint} body phải là object rỗng`);
+  }
 }
 
 @ApiTags('auth')
@@ -50,10 +70,22 @@ export class AuthController {
   @ApiBody({ schema: { type: 'object', additionalProperties: false, maxProperties: 0 } })
   @ApiOkResponse({ type: AuthResponseDto })
   async refresh(@Body() body: Record<string, unknown>, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    if (Object.keys(body).length) throw new ApplicationError(400, 'VALIDATION_ERROR', 'Refresh body phải là object rỗng');
-    const cookies: unknown = req.cookies;
-    const token = cookies && typeof cookies === 'object' && 'gym_refresh' in cookies ? cookies.gym_refresh : undefined;
-    return this.respond(await this.auth.refresh(token), res);
+    requireEmptyBody(body, 'Refresh');
+    return this.respond(await this.auth.refresh(refreshCookie(req)), res);
+  }
+
+  @Public() @UseGuards(AuthOriginGuard) @Post('logout') @HttpCode(204)
+  @ApiBearerAuth() @ApiBody({ schema: LOGOUT_BODY_SCHEMA }) @ApiNoContentResponse()
+  async logout(@Body() body: Record<string, unknown>, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
+    requireEmptyBody(body, 'Logout');
+
+    const authorization = req.headers.authorization;
+    const refreshToken = refreshCookie(req);
+    await this.auth.logout(authorization, refreshToken);
+
+    const nodeEnv = this.config.getOrThrow<string>('nodeEnv');
+    const frontendOrigin = this.config.getOrThrow<string>('frontendOrigin');
+    res.clearCookie('gym_refresh', refreshCookieOptions(nodeEnv, frontendOrigin));
   }
 
   @Get('me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })
