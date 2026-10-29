@@ -59,6 +59,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
     <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
     <dl><dt>Số điện thoại</dt><dd>{user?.phone}</dd><dt>Vai trò</dt><dd>{roleNames[role]}</dd>
       {user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
-    {role === 'ADMIN' ? <Link to="/admin/users">Quản lý tài khoản</Link> : <p>Các chức năng quản lý cho vai trò này sẽ được bổ sung sau.</p>}
+    {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
+    {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
+    {role === 'STAFF' && <p>Các chức năng quản lý cho vai trò này sẽ được bổ sung sau.</p>}
   </section>;
 }

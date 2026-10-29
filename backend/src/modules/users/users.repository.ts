@@ -10,6 +10,9 @@ import { Role, ROLE_CODES, RoleCode } from './schemas/role.schema';
 import { ListUsersDto } from './users.dto';
 
 export interface CreateAccountInput { roleId: string; fullName: string; phone: string; email?: string; passwordHash: string }
+export interface AccountChanges {
+  fullName?: string; phone?: string; email?: string | null; birthDate?: string | null; address?: string | null;
+}
 
 @Injectable()
 export class UsersRepository implements OnModuleInit {
@@ -78,12 +81,17 @@ export class UsersRepository implements OnModuleInit {
     return this.accounts.findOne({ _id: new Types.ObjectId(id), version }).maxTimeMS(5000).exec();
   }
 
-  updateAccount(id: string, version: number, changes: { fullName?: string; phone?: string; email?: string | null }) {
-    const update: UpdateQuery<Account> = { $set: {}, $inc: { version: 1 } };
-    if (changes.fullName !== undefined) update.$set!.full_name = changes.fullName;
-    if (changes.phone !== undefined) update.$set!.phone = changes.phone;
-    if (changes.email === null) update.$unset = { email: '' };
-    else if (changes.email !== undefined) update.$set!.email = changes.email;
+  updateAccount(id: string, version: number, changes: AccountChanges) {
+    const fields = { full_name: changes.fullName, phone: changes.phone, email: changes.email,
+      birth_date: changes.birthDate, address: changes.address };
+    const set: Record<string, string> = {};
+    const unset: Record<string, ''> = {};
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === null) unset[field] = '';
+      else if (value !== undefined) set[field] = value;
+    }
+    const update: UpdateQuery<Account> = { $set: set, $inc: { version: 1 } };
+    if (Object.keys(unset).length) update.$unset = unset;
     if (changes.phone !== undefined || changes.email !== undefined) update.$inc!.auth_version = 1;
     return this.accounts.findOneAndUpdate({ _id: new Types.ObjectId(id), version }, update,
       { returnDocument: 'after', runValidators: true, maxTimeMS: 5000 }).exec();

@@ -7,7 +7,7 @@ import { PasswordService } from '../../common/security/password.service';
 import { normalizeEmail, normalizeFullName, normalizePhone } from '../../common/utils/normalization';
 import { Account } from './schemas/account.schema';
 import { CreateUserDto, ListUsersDto, UpdateUserDto } from './users.dto';
-import { isDuplicateKey } from '../../common/http/http-error.filter';
+import { duplicateIdentifier, rethrowDuplicate, versionConflict } from './account-errors';
 
 @Injectable()
 export class UsersService {
@@ -48,7 +48,7 @@ export class UsersService {
     try {
       const account = await this.repository.createAccount({ roleId: role.id.toHexString(), fullName, phone, email, passwordHash });
       return mapUserResponse(account, role);
-    } catch (error) { return this.rethrowDuplicate(error); }
+    } catch (error) { return rethrowDuplicate(error); }
   }
 
   async update(id: string, input: UpdateUserDto) {
@@ -61,7 +61,7 @@ export class UsersService {
     const email = input.email === undefined ? undefined : input.email === null ? null : normalizeEmail(input.email) ?? null;
     const account = await this.repository.findAccountById(id);
     if (!account) throw this.notFound();
-    if (Number(account.version) !== input.version) throw this.versionConflict();
+    if (Number(account.version) !== input.version) throw versionConflict();
     const role = await this.repository.findRoleById(account.role_id.toHexString());
     if (!role) throw this.roleNotConfigured();
     const changes: { fullName?: string; phone?: string; email?: string | null } = {};
@@ -79,7 +79,7 @@ export class UsersService {
       const updated = await this.repository.updateAccount(id, input.version, changes);
       if (!updated) return this.failedUpdate(id);
       return mapUserResponse(updated, role);
-    } catch (error) { return this.rethrowDuplicate(error); }
+    } catch (error) { return rethrowDuplicate(error); }
   }
 
   private async response(account: Account) {
@@ -89,24 +89,8 @@ export class UsersService {
   }
 
   private async checkIdentifiers(phone?: string, email?: string, excludeId?: string) {
-    if (phone && await this.repository.findIdentifier('phone', phone, excludeId)) throw this.duplicate('phone');
-    if (email && await this.repository.findIdentifier('email', email, excludeId)) throw this.duplicate('email');
-  }
-
-  private duplicate(field: 'phone' | 'email') {
-    const message = field === 'phone' ? 'Số điện thoại đã tồn tại' : 'Email đã tồn tại';
-    return new ApplicationError(409, field === 'phone' ? 'PHONE_ALREADY_EXISTS' : 'EMAIL_ALREADY_EXISTS', message, [{ field, message }]);
-  }
-
-  private rethrowDuplicate(error: unknown): never {
-    if (isDuplicateKey(error) && typeof error === 'object' && error !== null && 'keyPattern' in error) {
-      const pattern = error.keyPattern;
-      if (pattern && typeof pattern === 'object') {
-        if ('phone' in pattern) throw this.duplicate('phone');
-        if ('email' in pattern) throw this.duplicate('email');
-      }
-    }
-    throw error;
+    if (phone && await this.repository.findIdentifier('phone', phone, excludeId)) throw duplicateIdentifier('phone');
+    if (email && await this.repository.findIdentifier('email', email, excludeId)) throw duplicateIdentifier('email');
   }
 
   private validateId(id: string) {
@@ -114,10 +98,9 @@ export class UsersService {
   }
   private notFound() { return new ApplicationError(404, 'USER_NOT_FOUND', 'Không tìm thấy tài khoản'); }
   private roleNotConfigured() { return new ApplicationError(409, 'ROLE_NOT_CONFIGURED', 'Vai trò chưa được cấu hình, vui lòng kiểm tra seed'); }
-  private versionConflict() { return new ApplicationError(409, 'VERSION_CONFLICT', 'Tài khoản đã thay đổi. Hãy tải lại trước khi sửa tiếp.'); }
   private async failedUpdate(id: string): Promise<never> {
     if (!await this.repository.findAccountById(id)) throw this.notFound();
-    throw this.versionConflict();
+    throw versionConflict();
   }
   async findById(id: string) { const account = await this.repository.findAccountById(id); return account ? mapAccount(account) : null; }
   async findByPhone(phone: string) { const account = await this.repository.findAccountByPhone(phone); return account ? mapAccount(account) : null; }

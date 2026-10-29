@@ -4,7 +4,7 @@ import { normalizeEmail, normalizeFullName, normalizePhone } from '../../../comm
 export type AccountStatus = 'ACTIVE' | 'LOCKED';
 export interface Account {
   _id: Types.ObjectId; id: Types.ObjectId; role_id: Types.ObjectId;
-  full_name: string; phone: string; email?: string; password_hash: string;
+  full_name: string; phone: string; email?: string; birth_date?: string; address?: string; password_hash: string;
   status: AccountStatus; version: number; auth_version: number; created_at: Date; updated_at: Date;
 }
 
@@ -15,6 +15,8 @@ export const AccountSchema = new Schema<Account>({
   full_name: { type: String, required: true, set: normalizeFullName },
   phone: { type: String, required: true, maxlength: 20, set: normalizePhone },
   email: { type: String, maxlength: 190, set: normalizeEmail },
+  birth_date: { type: String, match: /^\d{4}-\d{2}-\d{2}$/ },
+  address: { type: String, maxlength: 255 },
   password_hash: { type: String, required: true, maxlength: 255, select: false,
     validate: (value: string) => /^\$argon2id\$/.test(value) },
   status: { type: String, enum: ['ACTIVE', 'LOCKED'], required: true, default: 'ACTIVE' },

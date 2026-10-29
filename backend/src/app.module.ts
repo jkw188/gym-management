@@ -5,6 +5,7 @@ import { DatabaseModule } from './config/database.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { ProfileModule } from './modules/profile/profile.module';
 import { MembersModule } from './modules/members/members.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { TrainersModule } from './modules/trainers/trainers.module';
@@ -24,6 +25,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     HealthModule,
     AuthModule,
     UsersModule,
+    ProfileModule,
     MembersModule,
     MembershipsModule,
     TrainersModule,

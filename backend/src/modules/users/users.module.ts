@@ -12,6 +12,6 @@ import { UsersController } from './users.controller';
   imports: [MongooseModule.forFeature([{ name: 'Account', schema: AccountSchema }, { name: 'Role', schema: RoleSchema }])],
   controllers: [UsersController],
   providers: [UsersRepository, UsersService, PasswordService, SeedAdminService],
-  exports: [UsersService, PasswordService, SeedAdminService],
+  exports: [UsersService, UsersRepository, PasswordService, SeedAdminService],
 })
 export class UsersModule {}

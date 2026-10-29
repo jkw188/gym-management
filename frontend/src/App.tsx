@@ -5,6 +5,7 @@ import { HomeRedirect, LogoutButton, ProtectedRoute, RoleShell } from './feature
 import { LoginPage } from './features/auth/LoginPage';
 import { rolePaths } from './features/auth/auth.routes';
 import type { RoleCode } from './features/auth/auth.types';
+import { ProfilePage } from './features/profile/ProfilePage';
 import { UsersPage } from './features/users/UsersPage';
 
 export default function App() {
@@ -13,6 +14,8 @@ export default function App() {
     <Routes><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
       <Route path="/health" element={<FoundationStatus />} />
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
+      <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/profile" element={<ProfilePage role="MEMBER" />} /></Route>
+      <Route element={<ProtectedRoute role="TRAINER" />}><Route path="/trainer/profile" element={<ProfilePage role="TRAINER" />} /></Route>
       {(Object.entries(rolePaths) as [RoleCode, string][]).map(([role, path]) => <Route key={role} element={<ProtectedRoute role={role} />}>
         <Route path={path} element={<RoleShell role={role} />} /></Route>)}
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
