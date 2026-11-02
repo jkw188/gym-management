@@ -107,8 +107,10 @@ export class AuthService implements OnModuleInit {
   async changePassword(user: AuthPrincipal, currentPassword: string, newPassword: string): Promise<never> {
     // US-67-TC03: chỉ kiểm tra, không trim hay normalize giá trị mật khẩu.
     this.passwords.validate(newPassword, 'newPassword');
-    if (newPassword.trim().length === 0) {
-      invalidField('newPassword', 'Mật khẩu không được chỉ gồm khoảng trắng');
+    // Spec 1.2, F02: luật này chỉ áp dụng cho mật khẩu mới. currentPassword không kiểm tra luật này
+    // vì tài khoản cũ có thể đang dùng mật khẩu có khoảng trắng, chỉ cần verify đúng nguyên văn với hash.
+    if (/\s/.test(newPassword)) {
+      invalidField('newPassword', 'Mật khẩu không được chứa khoảng trắng');
     }
 
     const credentials = await this.users.findCredentialsById(user.id);
