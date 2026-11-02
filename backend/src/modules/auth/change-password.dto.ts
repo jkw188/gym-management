@@ -11,3 +11,6 @@ export class ChangePasswordDto {
   @ApiProperty({ format: 'password', writeOnly: true, minLength: 12, maxLength: 128 })
   @IsString() newPassword!: string;
 }
+
+// US-67-F01: không khai báo field nào, nên ValidationPipe toàn cục từ chối mọi query (accountId, userId...).
+export class ChangePasswordQueryDto {}

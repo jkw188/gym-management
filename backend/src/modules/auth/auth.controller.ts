@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiBody, ApiNoContentResponse, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CookieOptions, Request, Response } from 'express';
@@ -9,7 +9,7 @@ import { CurrentUser, Public, Roles } from './auth.decorators';
 import { AuthOriginGuard } from './auth.guards';
 import { AuthService } from './auth.service';
 import { AuthPrincipal } from './auth.types';
-import { ChangePasswordDto } from './change-password.dto';
+import { ChangePasswordDto, ChangePasswordQueryDto } from './change-password.dto';
 import { ChangePasswordErrorFilter } from './change-password-error.filter';
 import { LoginLimiter } from './login-limiter.service';
 import { AuthResponseDto, LoginDto, PrincipalDto } from './login.dto';
@@ -92,11 +92,7 @@ export class AuthController {
 
   @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
   @UseFilters(ChangePasswordErrorFilter)
-  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Req() req: Request) {
-    // US-67-F01: endpoint này không nhận query, kể cả accountId/userId.
-    if (Object.keys(req.query).length > 0) {
-      throw new ApplicationError(400, 'VALIDATION_ERROR', 'Đổi mật khẩu không nhận tham số trên URL');
-    }
+  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto) {
     return this.auth.changePassword(user, dto.currentPassword, dto.newPassword);
   }
 

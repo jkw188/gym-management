@@ -4,8 +4,14 @@ import { ApplicationError, invalidField } from '../errors/application-error';
 
 @Injectable()
 export class PasswordService {
+  // Một nơi duy nhất giữ policy độ dài. Array.from đếm theo ký tự, nên một emoji tính là 1.
+  private hasValidLength(password: string): boolean {
+    const length = Array.from(password).length;
+    return length >= 12 && length <= 128;
+  }
+
   validate(password: string, field = 'password'): void {
-    if (typeof password !== 'string' || Array.from(password).length < 12 || Array.from(password).length > 128) {
+    if (typeof password !== 'string' || !this.hasValidLength(password)) {
       invalidField(field, 'Mật khẩu phải từ 12 đến 128 ký tự');
     }
   }
@@ -26,8 +32,7 @@ export class PasswordService {
   // US-67-TC11: khác verify ở chỗ phân biệt "sai mật khẩu" (false) với "hệ thống hỏng" (503).
   // Giữ nguyên verify vì đăng nhập (US-02) đang dùng hàm đó.
   async verifyOrThrow(hash: string, password: string): Promise<boolean> {
-    const length = Array.from(password).length;
-    if (length < 12 || length > 128) return false;
+    if (!this.hasValidLength(password)) return false;
 
     // Hash mất, hash hỏng hay argon2 lỗi đều ném lỗi trong try và cùng thành 503.
     try {
