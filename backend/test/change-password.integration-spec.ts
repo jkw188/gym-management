@@ -30,6 +30,7 @@ const validNewPassword = 'MậtKhẩuMớiUS-67-456';
 describe('US-67 đổi mật khẩu', () => {
   let mongo: MongoMemoryServer;
   let app: INestApplication;
+  let secondApp: INestApplication | undefined;
   let accounts: Model<Account>;
   let roles: Model<Role>;
   let repository: UsersRepository;
@@ -61,12 +62,15 @@ describe('US-67 đổi mật khẩu', () => {
     // Mỗi test dùng limiter đăng nhập mới để số lần login của test trước không ảnh hưởng test sau.
     const limiter = new LoginLimiter();
     jest.spyOn(app.get(LoginLimiter), 'consume').mockImplementation(limiter.consume.bind(limiter));
-    await Promise.all([accounts.deleteMany({}), roles.deleteMany({})]);
+    // Xóa dữ liệu mọi collection, gồm cả counter giới hạn của bước 3, để các test không ảnh hưởng nhau.
+    const collections = await accounts.db.db!.collections();
+    await Promise.all(collections.map(collection => collection.deleteMany({})));
   });
 
   afterEach(() => jest.restoreAllMocks());
 
   afterAll(async () => {
+    await secondApp?.close();
     await app?.close();
     await mongo?.stop();
     process.env = savedEnv;
@@ -685,5 +689,143 @@ describe('US-67 đổi mật khẩu', () => {
     expect(blockedWrites).toBe(1);
     expect(await readAccount(id)).toEqual(before);
     await me(token).expect(200);
+  });
+
+  // --- Bước 3: giới hạn số lần, xóa cookie, không lộ thông tin xác thực ---
+
+  const wrongCurrent = 'SaiMậtKhẩuHiệnTại-999';
+
+  function expectRateLimited(response: request.Response) {
+    expect(response.status).toBe(429);
+    const retryAfter = Number(response.headers['retry-after']);
+    expect(Number.isInteger(retryAfter)).toBe(true);
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(15 * 60);
+  }
+
+  // US-67-TC10 và F05: 5 lần sai trên account+IP thì lần sau bị 429, không khóa tài khoản.
+  it('US-67-TC10: sai mật khẩu hiện tại 5 lần thì lần thứ 6 bị 429, tài khoản không bị khóa', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      const response = await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword });
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
+    }
+
+    expectRateLimited(await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword }));
+    const after = await readRawAccount(id);
+    expect(after.status).toBe('ACTIVE');
+    expect(after.password_hash).toBe(before.password_hash);
+    await me(token).expect(200);
+  });
+
+  it('US-67-TC10: đã bị giới hạn thì gửi đúng mật khẩu hiện tại vẫn bị 429 và mật khẩu không đổi', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword }).expect(400);
+    }
+
+    expectRateLimited(await changePassword(token, { currentPassword, newPassword: validNewPassword }));
+
+    expect((await readRawAccount(id)).password_hash).toBe(before.password_hash);
+  });
+
+  it('US-67-TC10: giới hạn theo account+IP không chặn tài khoản khác', async () => {
+    const limited = await createAndLogin('MEMBER');
+    const other = await createAndLogin('MEMBER', currentPassword, otherPhone);
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await changePassword(limited.token, { currentPassword: wrongCurrent, newPassword: validNewPassword }).expect(400);
+    }
+
+    const response = await changePassword(other.token, { currentPassword: wrongCurrent, newPassword: validNewPassword });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
+  });
+
+  it('US-67-TC10: counter dùng chung giữa hai app instance', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const { AppModule } = await import('../src/app.module');
+    // Instance thứ hai đóng ở afterAll: đóng sớm sẽ làm mất kết nối DB của app chính trong cùng tiến trình test.
+    secondApp = await NestFactory.create(AppModule, { logger: false, abortOnError: false, bodyParser: false });
+    configureHttp(secondApp);
+    await secondApp.init();
+    const instances = { first: app, second: secondApp };
+    const sendTo = (target: INestApplication) => request(target.getHttpServer())
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: wrongCurrent, newPassword: validNewPassword });
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await sendTo(attempt % 2 === 0 ? instances.second : instances.first).expect(400);
+    }
+    expectRateLimited(await sendTo(instances.second));
+    expectRateLimited(await sendTo(instances.first));
+    expect((await readRawAccount(id)).status).toBe('ACTIVE');
+  });
+
+  // F05: tối đa 20 request/IP/15 phút. PASSWORD_UNCHANGED không phải verify sai nên không chạm giới hạn 5 lần.
+  it('US-67-TC10: request thứ 21 từ cùng IP bị 429', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+    for (let attempt = 1; attempt <= 20; attempt += 1) {
+      await changePassword(token, { currentPassword, newPassword: currentPassword }).expect(400);
+    }
+
+    expectRateLimited(await changePassword(token, { currentPassword, newPassword: validNewPassword }));
+
+    expect((await readRawAccount(id)).password_hash).toBe(before.password_hash);
+  });
+
+  // Bảng API dòng "Thành công": xóa gym_refresh với cùng flags và path của US-02.
+  it('US-67-TC13: đổi thành công xóa cookie gym_refresh đúng flags và path', async () => {
+    const { token } = await createAndLogin('MEMBER');
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    const raw = (response.headers['set-cookie'] as unknown as string[])[0];
+    expect(raw).toMatch(/^gym_refresh=;/);
+    expect(raw).toMatch(/Path=\/api\/auth/);
+    expect(raw).toMatch(/HttpOnly/);
+    expect(raw).toMatch(/SameSite=Lax/);
+    expect(raw).toMatch(/Expires=Thu, 01 Jan 1970/);
+  });
+
+  it('US-67-TC13: sai mật khẩu hiện tại không xóa cookie', async () => {
+    const { token } = await createAndLogin('MEMBER');
+
+    const response = await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword }).expect(400);
+
+    expect(response.headers['set-cookie']).toBeUndefined();
+  });
+
+  // US-67-TC12: mật khẩu thô không được xuất hiện trong phản hồi, log và mọi collection của DB.
+  it('US-67-TC12: phản hồi, log và DB không chứa mật khẩu thô hoặc hash trong phản hồi', async () => {
+    const logSpies = [
+      jest.spyOn(console, 'log').mockImplementation(() => undefined),
+      jest.spyOn(console, 'warn').mockImplementation(() => undefined),
+      jest.spyOn(console, 'error').mockImplementation(() => undefined),
+    ];
+    const { id, token } = await createAndLogin('MEMBER');
+
+    const failed = await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword }).expect(400);
+    const succeeded = await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    const secrets = [wrongCurrent, currentPassword, validNewPassword];
+    const hash = (await readRawAccount(id)).password_hash as string;
+    for (const response of [failed, succeeded]) {
+      const text = JSON.stringify(response.body);
+      secrets.forEach(secret => expect(text).not.toContain(secret));
+      expect(text).not.toContain(hash);
+      expect(text).not.toContain('accessToken');
+    }
+    const logged = JSON.stringify(logSpies.flatMap(spy => spy.mock.calls));
+    secrets.forEach(secret => expect(logged).not.toContain(secret));
+    const collections = await accounts.db.db!.collections();
+    const stored = await Promise.all(collections.map(collection => collection.find().toArray()));
+    secrets.forEach(secret => expect(JSON.stringify(stored)).not.toContain(secret));
   });
 });
