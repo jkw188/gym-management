@@ -1,5 +1,5 @@
 // Tầng kiểm tra dữ liệu: định dạng body của POST /api/auth/change-password (US-67).
-// Độ dài mật khẩu kiểm ở service vì phải đếm theo ký tự Unicode, không đếm theo UTF-16 như @Length.
+// Độ dài mật khẩu kiểm ở service để dùng chung một policy trong PasswordService.validate.
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, MinLength } from 'class-validator';
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import * as argon2 from 'argon2';
-import { invalidField } from '../errors/application-error';
+import { ApplicationError, invalidField } from '../errors/application-error';
 
 @Injectable()
 export class PasswordService {
@@ -21,5 +21,20 @@ export class PasswordService {
       if (!hash.startsWith('$argon2id$')) return false;
       return await argon2.verify(hash, password);
     } catch { return false; }
+  }
+
+  // US-67-TC11: khác verify ở chỗ phân biệt "sai mật khẩu" (false) với "hệ thống hỏng" (503).
+  // Giữ nguyên verify vì đăng nhập (US-02) đang dùng hàm đó.
+  async verifyOrThrow(hash: string, password: string): Promise<boolean> {
+    const length = Array.from(password).length;
+    if (length < 12 || length > 128) return false;
+
+    const unavailable = () => new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    if (!hash.startsWith('$argon2id$')) throw unavailable();
+    try {
+      return await argon2.verify(hash, password);
+    } catch {
+      throw unavailable();
+    }
   }
 }

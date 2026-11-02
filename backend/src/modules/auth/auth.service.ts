@@ -119,11 +119,11 @@ export class AuthService implements OnModuleInit {
     }
 
     // US-67-TC02: sai mật khẩu hiện tại hoặc mật khẩu mới trùng cũ thì không đổi gì.
-    const currentIsValid = await this.passwords.verify(credentials.passwordHash, currentPassword);
+    const currentIsValid = await this.passwords.verifyOrThrow(credentials.passwordHash, currentPassword);
     if (!currentIsValid) {
       throw new ApplicationError(400, 'CURRENT_PASSWORD_INVALID', 'Mật khẩu hiện tại không đúng');
     }
-    const newIsSameAsOld = await this.passwords.verify(credentials.passwordHash, newPassword);
+    const newIsSameAsOld = await this.passwords.verifyOrThrow(credentials.passwordHash, newPassword);
     if (newIsSameAsOld) {
       throw new ApplicationError(400, 'PASSWORD_UNCHANGED', 'Mật khẩu mới phải khác mật khẩu hiện tại');
     }
