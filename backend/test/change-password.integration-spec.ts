@@ -19,8 +19,9 @@ const origin = 'http://localhost:5173';
 const databaseName = 'gym_management_test_us67';
 const memberPhone = '0901234567';
 const otherPhone = '0907654321';
-const currentPassword = 'Mật khẩu US-67 123';
-const validNewPassword = 'Mật khẩu mới US-67 456';
+// Spec 1.2: mật khẩu mới không được chứa khoảng trắng, nên hai hằng số dùng làm mật khẩu mới đều viết liền.
+const currentPassword = 'MậtKhẩuUS-67-123';
+const validNewPassword = 'MậtKhẩuMớiUS-67-456';
 
 describe('US-67 đổi mật khẩu - bước 1', () => {
   let mongo: MongoMemoryServer;
@@ -175,19 +176,35 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
     expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
   });
 
+  // Spec 1.2, F02: tài khoản cũ có mật khẩu chứa khoảng trắng vẫn đổi được, current không áp luật khoảng trắng.
   it('US-67-TC03: mật khẩu hiện tại có khoảng trắng gửi đúng nguyên văn thì được chấp nhận', async () => {
     const spaced = '  Mật khẩu có khoảng trắng  ';
     const { token } = await createAndLogin('MEMBER', spaced);
 
-    // Dùng lại chính mật khẩu đó: PASSWORD_UNCHANGED chứng tỏ current đã verify đúng mà chưa cần ghi DB.
-    const response = await changePassword(token, { currentPassword: spaced, newPassword: spaced });
+    const response = await changePassword(token, { currentPassword: spaced, newPassword: validNewPassword });
+
+    expect(response.status).not.toBe(404); // Endpoint phải tồn tại thì kết quả bên dưới mới có ý nghĩa.
+    expect(response.body.error?.code).not.toBe('CURRENT_PASSWORD_INVALID');
+    expect(response.body.error?.code).not.toBe('VALIDATION_ERROR');
+  });
+
+  // Spec 1.2, F02: current sai vì mọi lý do đều trả CURRENT_PASSWORD_INVALID, kể cả sai độ dài policy.
+  it.each([
+    ['ngắn hơn 12 ký tự', 'a'.repeat(11)],
+    ['dài hơn 128 ký tự', 'a'.repeat(129)],
+  ])('US-67-TC03: mật khẩu hiện tại %s trả CURRENT_PASSWORD_INVALID', async (_label, wrongCurrent) => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+
+    const response = await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword });
 
     expect(response.status).toBe(400);
-    expect(response.body.error.code).toBe('PASSWORD_UNCHANGED');
+    expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
+    expect(await readAccount(id)).toEqual(before);
   });
 
   it.each([
-    ['chỉ thêm khoảng trắng hai đầu', currentPassword, `  ${currentPassword}  `],
+    ['chỉ bớt khoảng trắng hai đầu so với mật khẩu cũ', `  ${currentPassword}  `, currentPassword],
     ['chỉ khác dạng chuẩn hóa Unicode', currentPassword.normalize('NFC'), currentPassword.normalize('NFD')],
   ])('US-67-TC03: mật khẩu mới %s là mật khẩu khác, không bị PASSWORD_UNCHANGED', async (_label, oldPassword, newPassword) => {
     const { token } = await createAndLogin('MEMBER', oldPassword);
@@ -199,12 +216,18 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
     expect(response.body.error?.code).not.toBe('VALIDATION_ERROR');
   });
 
-  // Spec 1.1, F02: mật khẩu mới chỉ gồm khoảng trắng bị từ chối.
+  // Spec 1.2, F02: mật khẩu mới chứa khoảng trắng ở bất kỳ vị trí nào đều bị từ chối, kể cả khi toàn khoảng trắng.
   it.each([
+    ['khoảng trắng ở đầu', ` ${validNewPassword}`],
+    ['khoảng trắng ở cuối', `${validNewPassword} `],
+    ['khoảng trắng ở giữa', 'MậtKhẩu Mới-US-67'],
+    ['tab ở giữa', 'MậtKhẩu\tMới-US-67'],
+    ['xuống dòng ở giữa', 'MậtKhẩu\nMới-US-67'],
+    ['khoảng trắng Unicode ở giữa', 'MậtKhẩu　Mới-US-67'],
     ['12 dấu cách', ' '.repeat(12)],
     ['dấu cách, tab và xuống dòng', ' \t\n'.repeat(4)],
     ['12 khoảng trắng Unicode', '　'.repeat(12)],
-  ])('US-67-TC03: mật khẩu mới chỉ gồm %s bị 400 VALIDATION_ERROR', async (_label, newPassword) => {
+  ])('US-67-TC03: mật khẩu mới có %s bị 400 VALIDATION_ERROR', async (_label, newPassword) => {
     const { id, token } = await createAndLogin('MEMBER');
     const before = await readAccount(id);
 
@@ -213,16 +236,6 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
     expect(await readAccount(id)).toEqual(before);
-  });
-
-  // Spec 1.1, F02: khoảng trắng nằm cùng ký tự khác vẫn hợp lệ. Current sai để biết đã qua kiểm tra định dạng.
-  it('US-67-TC03: mật khẩu mới có khoảng trắng xen ký tự khác không bị VALIDATION_ERROR', async () => {
-    const { token } = await createAndLogin('MEMBER');
-
-    const response = await changePassword(token, { currentPassword: 'Sai mật khẩu hiện tại', newPassword: '   ab   cd   ef' });
-
-    expect(response.status).toBe(400);
-    expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
   });
 
   // Spec 1.1: thiếu field hoặc sai kiểu trả 400 VALIDATION_ERROR.
@@ -267,6 +280,24 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(await readAccount(member.id)).toEqual(memberBefore);
+    expect(await readAccount(other.id)).toEqual(otherBefore);
+  });
+
+  // Spec 1.2: accountId trên đường dẫn trả 404, không có route đổi mật khẩu theo id.
+  it('US-67-TC04: gửi accountId của tài khoản khác trên đường dẫn bị 404, không đổi hộ', async () => {
+    const member = await createAndLogin('MEMBER');
+    const other = await createAndLogin('MEMBER', currentPassword, otherPhone);
+    const memberBefore = await readAccount(member.id);
+    const otherBefore = await readAccount(other.id);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/auth/change-password/${other.id}`)
+      .set('Origin', origin)
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({ currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(404);
     expect(await readAccount(member.id)).toEqual(memberBefore);
     expect(await readAccount(other.id)).toEqual(otherBefore);
   });
