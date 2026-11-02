@@ -93,9 +93,18 @@ export class AuthController {
 
   @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
   @UseFilters(ChangePasswordErrorFilter) @ApiOkResponse({ type: ChangePasswordResponseDto })
-  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto, @Req() req: Request) {
+  @ApiResponse({ status: 429, type: ErrorResponseDto, headers: { 'Retry-After': { schema: { type: 'integer' } } } })
+  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto,
+    @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     // _query không dùng trong thân hàm, chỉ khai báo để ValidationPipe từ chối mọi query.
-    return this.auth.changePassword(user, extractAccessToken(req), dto.currentPassword, dto.newPassword);
+    const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const result = await this.auth.changePassword(user, extractAccessToken(req), ip, dto.currentPassword, dto.newPassword);
+
+    // US-67-TC13: chỉ xóa cookie sau khi đổi thành công, cùng flags và path của US-02.
+    const nodeEnv = this.config.getOrThrow<string>('nodeEnv');
+    const frontendOrigin = this.config.getOrThrow<string>('frontendOrigin');
+    res.clearCookie('gym_refresh', refreshCookieOptions(nodeEnv, frontendOrigin));
+    return result;
   }
 
   @Get('me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })

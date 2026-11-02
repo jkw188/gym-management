@@ -8,6 +8,7 @@ import { ROLE_CODES } from '../users/schemas/role.schema';
 import { UsersService } from '../users/users.service';
 import { AuthSessionsRepository } from './auth-sessions.repository';
 import { AccessClaims, AuthPrincipal, AuthResponse } from './auth.types';
+import { ChangePasswordLimiter } from './change-password-limiter.service';
 import { AuthSession } from './schemas/auth-session.schema';
 
 const unauthorized = () => new ApplicationError(401, 'UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
@@ -35,7 +36,8 @@ function parseAccessClaims(claims: unknown): AccessClaims {
 export class AuthService implements OnModuleInit {
   private dummyHash!: string;
   constructor(private readonly users: UsersService, private readonly sessions: AuthSessionsRepository,
-    private readonly passwords: PasswordService, private readonly jwt: JwtService, private readonly config: ConfigService) {}
+    private readonly passwords: PasswordService, private readonly jwt: JwtService, private readonly config: ConfigService,
+    private readonly changePasswordLimiter: ChangePasswordLimiter) {}
 
   async onModuleInit(): Promise<void> { this.dummyHash = await this.passwords.hash(randomBytes(32).toString('base64url')); }
   private hash(token: string) { return createHash('sha256').update(token).digest('hex'); }
@@ -105,7 +107,10 @@ export class AuthService implements OnModuleInit {
   }
 
   // Chủ thể lấy từ phiên đăng nhập, không lấy từ dữ liệu client gửi lên (US-67-TC04).
-  async changePassword(user: AuthPrincipal, accessToken: string | null, currentPassword: string, newPassword: string) {
+  async changePassword(user: AuthPrincipal, accessToken: string | null, ip: string, currentPassword: string, newPassword: string) {
+    // US-67-TC10: đếm mọi request đã qua Guard và kiểm tra định dạng DTO.
+    await this.changePasswordLimiter.consumeRequest(ip);
+
     // US-67-TC03: chỉ kiểm tra, không trim hay normalize giá trị mật khẩu.
     this.passwords.validate(newPassword, 'newPassword');
     // Spec 1.2, F02: luật này chỉ áp dụng cho mật khẩu mới. currentPassword không kiểm tra luật này
@@ -125,10 +130,19 @@ export class AuthService implements OnModuleInit {
     }
 
     // US-67-TC02: sai mật khẩu hiện tại hoặc mật khẩu mới trùng cũ thì không đổi gì.
-    const currentIsValid = await this.passwords.verifyOrThrow(credentials.passwordHash, currentPassword);
+    await this.changePasswordLimiter.reserveAttempt(user.id, ip);
+    let currentIsValid: boolean;
+    try {
+      currentIsValid = await this.passwords.verifyOrThrow(credentials.passwordHash, currentPassword);
+    } catch (error) {
+      // Lỗi hệ thống không phải lỗi của người dùng nên không tính là một lần sai.
+      await this.changePasswordLimiter.releaseAttempt(user.id, ip);
+      throw error;
+    }
     if (!currentIsValid) {
       throw new ApplicationError(400, 'CURRENT_PASSWORD_INVALID', 'Mật khẩu hiện tại không đúng');
     }
+    await this.changePasswordLimiter.releaseAttempt(user.id, ip);
     const newIsSameAsOld = await this.passwords.verifyOrThrow(credentials.passwordHash, newPassword);
     if (newIsSameAsOld) {
       throw new ApplicationError(400, 'PASSWORD_UNCHANGED', 'Mật khẩu mới phải khác mật khẩu hiện tại');

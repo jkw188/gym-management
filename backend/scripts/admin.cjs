@@ -8,6 +8,7 @@ const { default: configuration, ConfigurationError } = require('../dist/config/c
 const { AccountSchema } = require('../dist/modules/users/schemas/account.schema');
 const { RoleSchema } = require('../dist/modules/users/schemas/role.schema');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
+const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -22,7 +23,8 @@ async function run() {
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
       const session = connection.model('AuthSession', AuthSessionSchema);
-      await Promise.all([account.createIndexes(), role.createIndexes(), session.createIndexes()]);
+      const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
+      await Promise.all([account.createIndexes(), role.createIndexes(), session.createIndexes(), rateLimit.createIndexes()]);
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INDEXES_ENSURED' }));
     } finally { await connection.close(); }
     return;
