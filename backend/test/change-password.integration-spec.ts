@@ -633,6 +633,22 @@ describe('US-67 đổi mật khẩu', () => {
     expect((await readRawAccount(id)).password_hash).toBe(before.password_hash);
   });
 
+  // Header nào đã qua Guard thì đổi mật khẩu cũng phải đọc được, hai nơi không được hiểu khác nhau.
+  it.each<[string, (token: string) => string]>([
+    ['chữ bearer viết thường', token => `bearer ${token}`],
+    ['hai dấu cách sau Bearer', token => `Bearer  ${token}`],
+  ])('US-67-TC01: header có %s qua được Guard thì đổi mật khẩu thành công', async (_label, buildHeader) => {
+    const { token } = await createAndLogin('MEMBER');
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/change-password')
+      .set('Authorization', buildHeader(token))
+      .send({ currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(200);
+    await login(validNewPassword).expect(200);
+  });
+
   // US-67-TC11: lỗi khi tạo hash mới hoặc khi ghi thì trả 503, không báo thành công và không đổi account.
   it('US-67-TC11: argon2 lỗi khi tạo hash mới trả 503, mật khẩu và phiên giữ nguyên', async () => {
     const { id, token } = await createAndLogin('MEMBER');
