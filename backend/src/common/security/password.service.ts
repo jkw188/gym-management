@@ -29,12 +29,12 @@ export class PasswordService {
     const length = Array.from(password).length;
     if (length < 12 || length > 128) return false;
 
-    const unavailable = () => new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
-    if (!hash.startsWith('$argon2id$')) throw unavailable();
+    // Hash mất, hash hỏng hay argon2 lỗi đều ném lỗi trong try và cùng thành 503.
     try {
+      if (!hash.startsWith('$argon2id$')) throw new Error('Hash không hợp lệ');
       return await argon2.verify(hash, password);
     } catch {
-      throw unavailable();
+      throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
     }
   }
 }
