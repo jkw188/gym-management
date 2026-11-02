@@ -538,6 +538,37 @@ describe('US-67 đổi mật khẩu', () => {
     expect(await passwords.verify(after.password_hash, winner)).toBe(true);
     expect(after.auth_version).toBe(before.auth_version + 1);
     expect(after.version).toBe(before.version + 1);
+    // Spec 1.5: bên thua nhận một trong hai mã, tùy nó bị chặn ở CAS/so claim hay đã bị Guard chặn.
+    const loser = responses[statuses.indexOf(200) === 0 ? 1 : 0];
+    expect(loser.status).toBe(401);
+    expect(['CREDENTIALS_CHANGED', 'UNAUTHORIZED']).toContain(loser.body.error.code);
+  });
+
+  // Spec 1.5: yêu cầu đến sau khi bên thắng đã ghi xong bị Guard chặn.
+  it('US-67-TC06: yêu cầu đến sau khi đã đổi xong bị Guard chặn với 401 UNAUTHORIZED', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+    const afterWinner = await readRawAccount(id);
+
+    const response = await changePassword(token, { currentPassword: validNewPassword, newPassword: 'MậtKhẩuThứBa-333333' });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('UNAUTHORIZED');
+    expect((await readRawAccount(id)).password_hash).toBe(afterWinner.password_hash);
+  });
+
+  // Tách riêng từng điều kiện CAS: chỉ password_hash đổi, auth_version giữ nguyên.
+  it('US-67-TC06: chỉ password_hash đổi trước CAS cũng bị 401 CREDENTIALS_CHANGED, không ghi đè', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const { _id } = await readRawAccount(id);
+    const otherHash = await passwords.hash('MậtKhẩuKhác-444444');
+    runDuringHashing(() => accounts.collection.updateOne({ _id }, { $set: { password_hash: otherHash } }));
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('CREDENTIALS_CHANGED');
+    expect((await readRawAccount(id)).password_hash).toBe(otherHash);
   });
 
   // Ca chắc chắn xảy ra: yêu cầu kia đã thắng ngay sau khi yêu cầu này đọc account.
@@ -550,6 +581,7 @@ describe('US-67 đổi mật khẩu', () => {
     const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
 
     expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('CREDENTIALS_CHANGED');
     expect((await readRawAccount(id)).password_hash).toBe(winnerHash);
   });
 
@@ -580,6 +612,24 @@ describe('US-67 đổi mật khẩu', () => {
     const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
 
     expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('CREDENTIALS_CHANGED');
+    expect((await readRawAccount(id)).password_hash).toBe(before.password_hash);
+  });
+
+  // Spec 1.5: auth_version đổi sau Guard nhưng trước lúc đọc account thì phiên này đã bị thu hồi.
+  it('US-67-TC09: auth_version đổi giữa Guard và lúc đọc account bị 401 CREDENTIALS_CHANGED, mật khẩu không đổi', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+    const realFind = repository.findCredentialsById.bind(repository);
+    jest.spyOn(repository, 'findCredentialsById').mockImplementationOnce(async accountId => {
+      await accounts.collection.updateOne({ _id: before._id }, { $inc: { auth_version: 1 } });
+      return realFind(accountId);
+    });
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('CREDENTIALS_CHANGED');
     expect((await readRawAccount(id)).password_hash).toBe(before.password_hash);
   });
 
