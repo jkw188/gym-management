@@ -11,7 +11,8 @@ import { AccessClaims, AuthPrincipal, AuthResponse } from './auth.types';
 import { AuthSession } from './schemas/auth-session.schema';
 
 const unauthorized = () => new ApplicationError(401, 'UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
-type CurrentAccount = NonNullable<Awaited<ReturnType<UsersService['findById']>>>;
+const credentialsChanged = () => new ApplicationError(401, 'CREDENTIALS_CHANGED', 'Thông tin đăng nhập đã thay đổi, vui lòng đăng nhập lại');
+type CurrentAccount =NonNullable<Awaited<ReturnType<UsersService['findById']>>>;
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 const REFRESH_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const BEARER = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/;
@@ -104,7 +105,7 @@ export class AuthService implements OnModuleInit {
   }
 
   // Chủ thể lấy từ phiên đăng nhập, không lấy từ dữ liệu client gửi lên (US-67-TC04).
-  async changePassword(user: AuthPrincipal, currentPassword: string, newPassword: string) {
+  async changePassword(user: AuthPrincipal, authorization: string | undefined, currentPassword: string, newPassword: string) {
     // US-67-TC03: chỉ kiểm tra, không trim hay normalize giá trị mật khẩu.
     this.passwords.validate(newPassword, 'newPassword');
     // Spec 1.2, F02: luật này chỉ áp dụng cho mật khẩu mới. currentPassword không kiểm tra luật này
@@ -116,6 +117,11 @@ export class AuthService implements OnModuleInit {
     const credentials = await this.users.findCredentialsById(user.id);
     if (!credentials || credentials.account.status !== 'ACTIVE') {
       throw unauthorized();
+    }
+
+    // US-67-TC09: auth_version đổi giữa lúc Guard kiểm tra và lúc đọc account thì phiên này đã bị thu hồi.
+    if (credentials.account.authVersion !== this.sessionAuthVersion(authorization)) {
+      throw credentialsChanged();
     }
 
     // US-67-TC02: sai mật khẩu hiện tại hoặc mật khẩu mới trùng cũ thì không đổi gì.
@@ -139,11 +145,20 @@ export class AuthService implements OnModuleInit {
     // US-67-TC06, TC09: có thay đổi bảo mật chen vào sau lúc đọc thì không ghi đè.
     const updated = await this.users.updatePasswordIfUnchanged(user.id, credentials.passwordHash, credentials.account.authVersion, newHash);
     if (!updated) {
-      throw new ApplicationError(401, 'CREDENTIALS_CHANGED', 'Thông tin đăng nhập đã thay đổi, vui lòng đăng nhập lại');
+      throw credentialsChanged();
     }
 
     // US-67-F04: không trả token mới; auth_version đã tăng nên mọi phiên cũ bị từ chối ở request tiếp theo.
     return { message: 'Đã đổi mật khẩu, vui lòng đăng nhập lại', reauthenticationRequired: true };
+  }
+
+  // Lấy claim av của access token. Dùng decode vì Guard đã xác minh chữ ký và hạn của chính token này.
+  private sessionAuthVersion(authorization: string | undefined): number {
+    const token = BEARER.exec(authorization ?? '')?.[1];
+    if (!token) {
+      throw unauthorized();
+    }
+    return parseAccessClaims(this.jwt.decode(token)).av;
   }
 
   private async findSessionByBearer(authorization: string): Promise<AuthSession> {

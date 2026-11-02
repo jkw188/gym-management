@@ -92,8 +92,8 @@ export class AuthController {
 
   @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
   @UseFilters(ChangePasswordErrorFilter) @ApiOkResponse({ type: ChangePasswordResponseDto })
-  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto) {
-    return this.auth.changePassword(user, dto.currentPassword, dto.newPassword);
+  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto, @Req() req: Request) {
+    return this.auth.changePassword(user, req.headers.authorization, dto.currentPassword, dto.newPassword);
   }
 
   @Get('me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })
