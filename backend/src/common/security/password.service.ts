@@ -4,7 +4,7 @@ import { ApplicationError, invalidField } from '../errors/application-error';
 
 @Injectable()
 export class PasswordService {
-  // Một nơi duy nhất giữ policy độ dài. Array.from đếm theo ký tự, nên một emoji tính là 1.
+  // Một nơi duy nhất giữ policy độ dài. Array.from đếm theo code point Unicode, nên emoji ghép có thể tính nhiều hơn 1.
   private hasValidLength(password: string): boolean {
     const length = Array.from(password).length;
     return length >= 12 && length <= 128;

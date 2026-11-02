@@ -8,6 +8,7 @@ import { normalizePhone } from '../../common/utils/normalization';
 import { CurrentUser, Public, Roles } from './auth.decorators';
 import { AuthOriginGuard } from './auth.guards';
 import { AuthService } from './auth.service';
+import { extractAccessToken } from './jwt.strategy';
 import { AuthPrincipal } from './auth.types';
 import { ChangePasswordDto, ChangePasswordQueryDto, ChangePasswordResponseDto } from './change-password.dto';
 import { ChangePasswordErrorFilter } from './change-password-error.filter';
@@ -93,7 +94,8 @@ export class AuthController {
   @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
   @UseFilters(ChangePasswordErrorFilter) @ApiOkResponse({ type: ChangePasswordResponseDto })
   async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto, @Req() req: Request) {
-    return this.auth.changePassword(user, req.headers.authorization, dto.currentPassword, dto.newPassword);
+    // _query không dùng trong thân hàm, chỉ khai báo để ValidationPipe từ chối mọi query.
+    return this.auth.changePassword(user, extractAccessToken(req), dto.currentPassword, dto.newPassword);
   }
 
   @Get('me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })

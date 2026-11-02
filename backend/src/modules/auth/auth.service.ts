@@ -12,7 +12,7 @@ import { AuthSession } from './schemas/auth-session.schema';
 
 const unauthorized = () => new ApplicationError(401, 'UNAUTHORIZED', 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn');
 const credentialsChanged = () => new ApplicationError(401, 'CREDENTIALS_CHANGED', 'Thông tin đăng nhập đã thay đổi, vui lòng đăng nhập lại');
-type CurrentAccount =NonNullable<Awaited<ReturnType<UsersService['findById']>>>;
+type CurrentAccount = NonNullable<Awaited<ReturnType<UsersService['findById']>>>;
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 const REFRESH_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const BEARER = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/;
@@ -105,7 +105,7 @@ export class AuthService implements OnModuleInit {
   }
 
   // Chủ thể lấy từ phiên đăng nhập, không lấy từ dữ liệu client gửi lên (US-67-TC04).
-  async changePassword(user: AuthPrincipal, authorization: string | undefined, currentPassword: string, newPassword: string) {
+  async changePassword(user: AuthPrincipal, accessToken: string | null, currentPassword: string, newPassword: string) {
     // US-67-TC03: chỉ kiểm tra, không trim hay normalize giá trị mật khẩu.
     this.passwords.validate(newPassword, 'newPassword');
     // Spec 1.2, F02: luật này chỉ áp dụng cho mật khẩu mới. currentPassword không kiểm tra luật này
@@ -120,7 +120,7 @@ export class AuthService implements OnModuleInit {
     }
 
     // US-67-TC09: auth_version đổi giữa lúc Guard kiểm tra và lúc đọc account thì phiên này đã bị thu hồi.
-    if (credentials.account.authVersion !== this.sessionAuthVersion(authorization)) {
+    if (credentials.account.authVersion !== this.sessionAuthVersion(accessToken)) {
       throw credentialsChanged();
     }
 
@@ -153,12 +153,11 @@ export class AuthService implements OnModuleInit {
   }
 
   // Lấy claim av của access token. Dùng decode vì Guard đã xác minh chữ ký và hạn của chính token này.
-  private sessionAuthVersion(authorization: string | undefined): number {
-    const token = BEARER.exec(authorization ?? '')?.[1];
-    if (!token) {
+  private sessionAuthVersion(accessToken: string | null): number {
+    if (!accessToken) {
       throw unauthorized();
     }
-    return parseAccessClaims(this.jwt.decode(token)).av;
+    return parseAccessClaims(this.jwt.decode(accessToken)).av;
   }
 
   private async findSessionByBearer(authorization: string): Promise<AuthSession> {
