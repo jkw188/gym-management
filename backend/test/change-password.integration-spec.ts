@@ -1,5 +1,6 @@
 // Tầng kiểm thử backend (Jest, MongoDB thật chạy trong bộ nhớ): gọi API đổi mật khẩu của US-67.
 // File này chứa các TC của bước 1 (TC02, TC03, TC04): kiểm tra chủ thể, mật khẩu hiện tại và policy.
+// TC11 ở đây chỉ phủ phần lỗi hệ thống khi đọc và verify; phần ghi DB và mất response thuộc các bước sau.
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -14,6 +15,10 @@ import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
 import { Account } from '../src/modules/users/schemas/account.schema';
 import { Role, RoleCode } from '../src/modules/users/schemas/role.schema';
 import { UsersRepository } from '../src/modules/users/users.repository';
+
+// Dùng require để lấy đúng object module, nhờ đó jest.spyOn giả lập được lỗi của argon2.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const argon2 = require('argon2');
 
 const origin = 'http://localhost:5173';
 const databaseName = 'gym_management_test_us67';
@@ -346,6 +351,71 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(await readAccount(id)).toEqual(before);
+  });
+
+  // US-67-TC11 và bảng API dòng 503: DB hoặc bộ băm hỏng thì trả 503 SERVICE_UNAVAILABLE, không báo sai mật khẩu.
+  function databaseError() {
+    return Object.assign(new Error('private detail'), { name: 'MongoNetworkError' });
+  }
+
+  function expectServiceUnavailable(response: request.Response) {
+    expect(response.status).toBe(503);
+    expect(response.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect(JSON.stringify(response.body)).not.toMatch(/private detail|mongodb/i);
+  }
+
+  it('US-67-TC11: DB lỗi khi đọc mật khẩu trả 503 SERVICE_UNAVAILABLE, mật khẩu và phiên giữ nguyên', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+    jest.spyOn(repository, 'findCredentialsById').mockRejectedValueOnce(databaseError());
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expectServiceUnavailable(response);
+    expect(await readAccount(id)).toEqual(before);
+    await me(token).expect(200);
+  });
+
+  it('US-67-TC11: DB lỗi ngay trong Guard cũng trả 503 SERVICE_UNAVAILABLE', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+    jest.spyOn(repository, 'findAccountById').mockRejectedValueOnce(databaseError());
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expectServiceUnavailable(response);
+    expect(await readAccount(id)).toEqual(before);
+  });
+
+  it('US-67-TC11: argon2 lỗi khi kiểm tra mật khẩu hiện tại trả 503, không báo sai mật khẩu', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+    jest.spyOn(argon2, 'verify').mockRejectedValueOnce(new Error('private detail'));
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expectServiceUnavailable(response);
+    expect(await readAccount(id)).toEqual(before);
+    await me(token).expect(200);
+  });
+
+  // Mật khẩu mới trùng cũ, lần verify thứ hai hỏng: không được coi là "không trùng" rồi đi tiếp để ghi DB.
+  it('US-67-TC11: argon2 lỗi khi so mật khẩu mới với cũ trả 503 và mật khẩu không đổi', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+    const realVerify = argon2.verify;
+    let verifyCount = 0;
+    jest.spyOn(argon2, 'verify').mockImplementation(async (...args: unknown[]) => {
+      verifyCount += 1;
+      if (verifyCount === 2) throw new Error('private detail');
+      return realVerify(...args);
+    });
+
+    const response = await changePassword(token, { currentPassword, newPassword: currentPassword });
+
+    expectServiceUnavailable(response);
+    expect(verifyCount).toBe(2);
     expect(await readAccount(id)).toEqual(before);
   });
 });
