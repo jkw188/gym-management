@@ -1,6 +1,6 @@
 // Tầng kiểm thử backend (Jest, MongoDB thật chạy trong bộ nhớ): gọi API đổi mật khẩu của US-67.
 // File này chứa các TC của bước 1 (TC02, TC03, TC04): kiểm tra chủ thể, mật khẩu hiện tại và policy.
-// TC11 ở đây chỉ phủ phần lỗi hệ thống khi đọc và verify; phần ghi DB và mất response thuộc các bước sau.
+// Bước 2 thêm TC01, TC06, TC09 và phần lỗi khi ghi của TC11. TC11 chưa phủ mất response, phần đó thuộc giao diện ở bước 3.
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -17,7 +17,6 @@ import { Role, RoleCode } from '../src/modules/users/schemas/role.schema';
 import { UsersRepository } from '../src/modules/users/users.repository';
 
 // Dùng require để lấy đúng object module, nhờ đó jest.spyOn giả lập được lỗi của argon2.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const argon2 = require('argon2');
 
 const origin = 'http://localhost:5173';
@@ -28,7 +27,7 @@ const otherPhone = '0907654321';
 const currentPassword = 'MậtKhẩuUS-67-123';
 const validNewPassword = 'MậtKhẩuMớiUS-67-456';
 
-describe('US-67 đổi mật khẩu - bước 1', () => {
+describe('US-67 đổi mật khẩu', () => {
   let mongo: MongoMemoryServer;
   let app: INestApplication;
   let accounts: Model<Account>;
@@ -92,6 +91,10 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
       .set('Origin', origin)
       .set('Authorization', `Bearer ${token}`)
       .send(body);
+  }
+
+  function login(password: string, phone = memberPhone) {
+    return request(app.getHttpServer()).post('/api/auth/login').set('Origin', origin).send({ phone, password });
   }
 
   function changePasswordWithQuery(token: string, body: object, query: Record<string, string>) {
@@ -188,9 +191,8 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
 
     const response = await changePassword(token, { currentPassword: spaced, newPassword: validNewPassword });
 
-    expect(response.status).not.toBe(404); // Endpoint phải tồn tại thì kết quả bên dưới mới có ý nghĩa.
-    expect(response.body.error?.code).not.toBe('CURRENT_PASSWORD_INVALID');
-    expect(response.body.error?.code).not.toBe('VALIDATION_ERROR');
+    expect(response.status).toBe(200);
+    await login(validNewPassword).expect(200);
   });
 
   // Spec 1.2, F02: current sai vì mọi lý do đều trả CURRENT_PASSWORD_INVALID, kể cả sai độ dài policy.
@@ -216,9 +218,8 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
 
     const response = await changePassword(token, { currentPassword: oldPassword, newPassword });
 
-    expect(response.status).not.toBe(404); // Endpoint phải tồn tại thì kết quả bên dưới mới có ý nghĩa.
-    expect(response.body.error?.code).not.toBe('PASSWORD_UNCHANGED');
-    expect(response.body.error?.code).not.toBe('VALIDATION_ERROR');
+    expect(response.status).toBe(200);
+    await login(newPassword).expect(200);
   });
 
   // Spec 1.2, F02: mật khẩu mới chứa khoảng trắng ở bất kỳ vị trí nào đều bị từ chối, kể cả khi toàn khoảng trắng.
@@ -434,6 +435,183 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
     const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
 
     expectServiceUnavailable(response);
+    expect(await readAccount(id)).toEqual(before);
+    await me(token).expect(200);
+  });
+
+  // --- Bước 2: lệnh ghi CAS ---
+
+  // Đọc document thô vì password_changed_at và recovery_revision do bước 2 thêm vào schema.
+  async function readRawAccount(id: string) {
+    return (await readAccount(id)) as unknown as Record<string, any>;
+  }
+
+  // Giả lập việc khác xảy ra đúng lúc service đã đọc account và đang tạo hash mới, trước khi ghi (F03).
+  function runDuringHashing(change: () => Promise<unknown>) {
+    const realHash = passwords.hash.bind(passwords);
+    jest.spyOn(passwords, 'hash').mockImplementationOnce(async password => {
+      await change();
+      return realHash(password);
+    });
+  }
+
+  // US-67-TC01: đổi thành công trả 200, hash mới, version/auth_version tăng 1 và thời gian do server đặt.
+  it.each<RoleCode>(['MEMBER', 'TRAINER'])('US-67-TC01: %s đổi mật khẩu thành công', async code => {
+    const { id, token } = await createAndLogin(code);
+    const before = await readRawAccount(id);
+    const startedAt = Date.now();
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ message: 'Đã đổi mật khẩu, vui lòng đăng nhập lại', reauthenticationRequired: true });
+    expect(response.headers['cache-control']).toBe('no-store');
+
+    const after = await readRawAccount(id);
+    expect(after.password_hash).not.toBe(before.password_hash);
+    expect(await passwords.verify(after.password_hash, validNewPassword)).toBe(true);
+    expect(await passwords.verify(after.password_hash, currentPassword)).toBe(false);
+    expect(after.version).toBe(before.version + 1);
+    expect(after.auth_version).toBe(before.auth_version + 1);
+    expect(after.password_changed_at.getTime()).toBeGreaterThanOrEqual(startedAt);
+    expect(after.password_changed_at.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(after.updated_at.getTime()).toBeGreaterThanOrEqual(startedAt);
+  });
+
+  it('US-67-TC01: đăng nhập được bằng mật khẩu mới, không còn đăng nhập được bằng mật khẩu cũ', async () => {
+    const { token } = await createAndLogin('MEMBER');
+
+    await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    await login(validNewPassword).expect(200);
+    await login(currentPassword).expect(401);
+  });
+
+  it('US-67-TC01: chỉ đổi thông tin xác thực, không đổi tên, số điện thoại, vai trò và trạng thái', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+
+    await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    const after = await readRawAccount(id);
+    expect(after.full_name).toBe(before.full_name);
+    expect(after.phone).toBe(before.phone);
+    expect(after.role_id).toEqual(before.role_id);
+    expect(after.status).toBe(before.status);
+  });
+
+  // F03: recovery_revision tăng bằng $inc để mã reset cũ hết hiệu lực; record cũ thiếu field vẫn đổi được.
+  it('US-67-TC01: recovery_revision đang có thì tăng thêm 1', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const { _id } = await readRawAccount(id);
+    await accounts.collection.updateOne({ _id }, { $set: { recovery_revision: 7 } });
+
+    await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    expect((await readRawAccount(id)).recovery_revision).toBe(8);
+  });
+
+  it('US-67-TC01: record cũ thiếu password_changed_at và recovery_revision vẫn đổi được', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const { _id } = await readRawAccount(id);
+    await accounts.collection.updateOne({ _id }, { $unset: { password_changed_at: '', recovery_revision: '' } });
+
+    await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    const after = await readRawAccount(id);
+    expect(after.recovery_revision).toBe(1);
+    expect(after.password_changed_at).toBeInstanceOf(Date);
+  });
+
+  // US-67-TC06: hai yêu cầu cùng lúc thì chỉ một yêu cầu được ghi, yêu cầu còn lại không ghi đè.
+  it('US-67-TC06: hai yêu cầu đổi mật khẩu đồng thời chỉ có một yêu cầu thành công', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+    const newPasswords = ['MậtKhẩuThứNhất-111', 'MậtKhẩuThứHai-22222'];
+
+    const responses = await Promise.all(newPasswords.map(newPassword => changePassword(token, { currentPassword, newPassword })));
+
+    const statuses = responses.map(response => response.status);
+    expect(statuses.filter(status => status === 200)).toHaveLength(1);
+    const winner = newPasswords[statuses.indexOf(200)];
+    const after = await readRawAccount(id);
+    expect(await passwords.verify(after.password_hash, winner)).toBe(true);
+    expect(after.auth_version).toBe(before.auth_version + 1);
+    expect(after.version).toBe(before.version + 1);
+  });
+
+  // Ca chắc chắn xảy ra: yêu cầu kia đã thắng ngay sau khi yêu cầu này đọc account.
+  it('US-67-TC06: yêu cầu thua CAS bị 401 và không ghi đè mật khẩu của yêu cầu thắng', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const { _id } = await readRawAccount(id);
+    const winnerHash = await passwords.hash('MậtKhẩuNgườiThắng-1');
+    runDuringHashing(() => accounts.collection.updateOne({ _id }, { $set: { password_hash: winnerHash }, $inc: { auth_version: 1, version: 1 } }));
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(401);
+    expect((await readRawAccount(id)).password_hash).toBe(winnerHash);
+  });
+
+  // US-67-TC09: sửa tên đồng thời không phải thay đổi bảo mật nên không được làm đổi mật khẩu thất bại.
+  it('US-67-TC09: sửa tên đồng thời không làm đổi mật khẩu thất bại và tên mới được giữ', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+    runDuringHashing(() => accounts.collection.updateOne({ _id: before._id }, { $set: { full_name: 'Tên Mới' }, $inc: { version: 1 } }));
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(200);
+    const after = await readRawAccount(id);
+    expect(after.full_name).toBe('Tên Mới');
+    expect(after.version).toBe(before.version + 2);
+    expect(await passwords.verify(after.password_hash, validNewPassword)).toBe(true);
+  });
+
+  // US-67-TC09: khóa tài khoản, đổi role hoặc đổi định danh trước CAS thì lệnh đổi phải thất bại.
+  it.each<[string, object]>([
+    ['khóa tài khoản', { $set: { status: 'LOCKED' } }],
+    ['đổi role hoặc định danh làm auth_version tăng', { $inc: { auth_version: 1 } }],
+  ])('US-67-TC09: %s trước CAS khiến đổi mật khẩu bị 401, mật khẩu không đổi', async (_label, securityChange) => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+    runDuringHashing(() => accounts.collection.updateOne({ _id: before._id }, securityChange));
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(401);
+    expect((await readRawAccount(id)).password_hash).toBe(before.password_hash);
+  });
+
+  // US-67-TC11: lỗi khi tạo hash mới hoặc khi ghi thì trả 503, không báo thành công và không đổi account.
+  it('US-67-TC11: argon2 lỗi khi tạo hash mới trả 503, mật khẩu và phiên giữ nguyên', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+    const hashSpy = jest.spyOn(argon2, 'hash').mockRejectedValueOnce(new Error('private detail'));
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expectServiceUnavailable(response);
+    expect(hashSpy).toHaveBeenCalledTimes(1); // Bảo đảm 503 này đúng là do lỗi tạo hash, không phải lý do khác.
+    expect(await readAccount(id)).toEqual(before);
+    await me(token).expect(200);
+  });
+
+  // Chặn ở tầng driver MongoDB để test không phụ thuộc tên hàm ghi mà Builder đặt trong repository.
+  it('US-67-TC11: DB lỗi khi ghi trả 503 SERVICE_UNAVAILABLE, mật khẩu và phiên giữ nguyên', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+    const databaseFailure = () => Promise.reject(databaseError());
+    const writeSpies = [
+      jest.spyOn(accounts.collection, 'findOneAndUpdate').mockImplementation(databaseFailure as never),
+      jest.spyOn(accounts.collection, 'updateOne').mockImplementation(databaseFailure as never),
+    ];
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expectServiceUnavailable(response);
+    expect(writeSpies.some(spy => spy.mock.calls.length > 0)).toBe(true);
+    writeSpies.forEach(spy => spy.mockRestore());
     expect(await readAccount(id)).toEqual(before);
     await me(token).expect(200);
   });
