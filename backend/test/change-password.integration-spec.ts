@@ -6,7 +6,7 @@ import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { getModelToken } from '@nestjs/mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { Model } from 'mongoose';
+import mongoose, { Model } from 'mongoose';
 import { randomBytes } from 'node:crypto';
 import request from 'supertest';
 import { configureHttp } from '../src/common/http/configure-http';
@@ -597,21 +597,26 @@ describe('US-67 đổi mật khẩu', () => {
     await me(token).expect(200);
   });
 
-  // Chặn ở tầng driver MongoDB để test không phụ thuộc tên hàm ghi mà Builder đặt trong repository.
+  // Chặn lệnh ghi vào collection accounts ở tầng Query của Mongoose, nhờ đó test không phụ thuộc
+  // tên hàm ghi mà Builder đặt trong repository. Các lệnh đọc và collection khác vẫn chạy thật.
   it('US-67-TC11: DB lỗi khi ghi trả 503 SERVICE_UNAVAILABLE, mật khẩu và phiên giữ nguyên', async () => {
     const { id, token } = await createAndLogin('MEMBER');
     const before = await readAccount(id);
-    const databaseFailure = () => Promise.reject(databaseError());
-    const writeSpies = [
-      jest.spyOn(accounts.collection, 'findOneAndUpdate').mockImplementation(databaseFailure as never),
-      jest.spyOn(accounts.collection, 'updateOne').mockImplementation(databaseFailure as never),
-    ];
+    const realExec = mongoose.Query.prototype.exec;
+    let blockedWrites = 0;
+    const execSpy = jest.spyOn(mongoose.Query.prototype, 'exec').mockImplementation(function (this: any, ...args: unknown[]) {
+      if (this.model === accounts && ['updateOne', 'findOneAndUpdate'].includes(this.op)) {
+        blockedWrites += 1;
+        return Promise.reject(databaseError());
+      }
+      return (realExec as any).apply(this, args);
+    } as never);
 
     const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
 
+    execSpy.mockRestore();
     expectServiceUnavailable(response);
-    expect(writeSpies.some(spy => spy.mock.calls.length > 0)).toBe(true);
-    writeSpies.forEach(spy => spy.mockRestore());
+    expect(blockedWrites).toBe(1);
     expect(await readAccount(id)).toEqual(before);
     await me(token).expect(200);
   });
