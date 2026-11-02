@@ -14,3 +14,8 @@ export class ChangePasswordDto {
 
 // US-67-F01: không khai báo field nào, nên ValidationPipe toàn cục từ chối mọi query (accountId, userId...).
 export class ChangePasswordQueryDto {}
+
+export class ChangePasswordResponseDto {
+  @ApiProperty() message!: string;
+  @ApiProperty() reauthenticationRequired!: boolean;
+}

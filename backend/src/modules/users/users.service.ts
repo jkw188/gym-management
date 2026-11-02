@@ -111,6 +111,9 @@ export class UsersService {
     const account = await this.repository.findCredentialsByPhone(phone);
     return account ? { account: mapAccount(account), passwordHash: account.password_hash } : null;
   }
+  updatePasswordIfUnchanged(id: string, oldHash: string, authVersion: number, newHash: string) {
+    return this.repository.updatePasswordIfUnchanged(id, oldHash, authVersion, newHash);
+  }
   // Internal contract for US-67. Never return credentials from an HTTP controller.
   async findCredentialsById(id: string) {
     const account = await this.repository.findCredentialsById(id);

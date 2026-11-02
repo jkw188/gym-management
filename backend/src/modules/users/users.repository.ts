@@ -98,6 +98,19 @@ export class UsersRepository implements OnModuleInit {
       { returnDocument: 'after', runValidators: true, maxTimeMS: 5000 }).exec();
   }
 
+  // US-67-F03: chỉ ghi khi hash, auth_version và status vẫn như lúc đọc; trả false nếu đã có thay đổi khác chen vào.
+  // Không lọc theo version nên sửa tên đồng thời không làm lệnh này thất bại (US-67-TC09).
+  async updatePasswordIfUnchanged(id: string, oldHash: string, authVersion: number, newHash: string): Promise<boolean> {
+    const filter: QueryFilter<Account> = { _id: new Types.ObjectId(id), password_hash: oldHash, auth_version: authVersion, status: 'ACTIVE' };
+    const update = {
+      $set: { password_hash: newHash, password_changed_at: new Date() },
+      // $inc tự tạo recovery_revision bằng 1 nếu record cũ chưa có field này.
+      $inc: { version: 1, auth_version: 1, recovery_revision: 1 },
+    };
+    const result = await this.accounts.updateOne(filter, update, { runValidators: true }).maxTimeMS(5000).exec();
+    return result.modifiedCount === 1;
+  }
+
   async createAccount(input: CreateAccountInput) {
     if (!this.indexesReady) throw new ApplicationError(503, 'DATABASE_UNAVAILABLE', 'Cơ sở dữ liệu chưa sẵn sàng');
     const roleId = new Types.ObjectId(validateObjectId(input.roleId));

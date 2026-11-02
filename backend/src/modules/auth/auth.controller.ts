@@ -9,7 +9,7 @@ import { CurrentUser, Public, Roles } from './auth.decorators';
 import { AuthOriginGuard } from './auth.guards';
 import { AuthService } from './auth.service';
 import { AuthPrincipal } from './auth.types';
-import { ChangePasswordDto, ChangePasswordQueryDto } from './change-password.dto';
+import { ChangePasswordDto, ChangePasswordQueryDto, ChangePasswordResponseDto } from './change-password.dto';
 import { ChangePasswordErrorFilter } from './change-password-error.filter';
 import { LoginLimiter } from './login-limiter.service';
 import { AuthResponseDto, LoginDto, PrincipalDto } from './login.dto';
@@ -91,7 +91,7 @@ export class AuthController {
   }
 
   @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
-  @UseFilters(ChangePasswordErrorFilter)
+  @UseFilters(ChangePasswordErrorFilter) @ApiOkResponse({ type: ChangePasswordResponseDto })
   async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto) {
     return this.auth.changePassword(user, dto.currentPassword, dto.newPassword);
   }

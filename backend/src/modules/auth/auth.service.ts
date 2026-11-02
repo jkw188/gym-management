@@ -103,8 +103,8 @@ export class AuthService implements OnModuleInit {
     await this.sessions.revoke(session._id);
   }
 
-  // US-67 bước 1: chỉ kiểm tra, chưa ghi DB. Chủ thể lấy từ phiên đăng nhập, không lấy từ dữ liệu client gửi lên (US-67-TC04).
-  async changePassword(user: AuthPrincipal, currentPassword: string, newPassword: string): Promise<never> {
+  // Chủ thể lấy từ phiên đăng nhập, không lấy từ dữ liệu client gửi lên (US-67-TC04).
+  async changePassword(user: AuthPrincipal, currentPassword: string, newPassword: string) {
     // US-67-TC03: chỉ kiểm tra, không trim hay normalize giá trị mật khẩu.
     this.passwords.validate(newPassword, 'newPassword');
     // Spec 1.2, F02: luật này chỉ áp dụng cho mật khẩu mới. currentPassword không kiểm tra luật này
@@ -128,8 +128,22 @@ export class AuthService implements OnModuleInit {
       throw new ApplicationError(400, 'PASSWORD_UNCHANGED', 'Mật khẩu mới phải khác mật khẩu hiện tại');
     }
 
-    // Bước 2 thay dòng này bằng lệnh ghi CAS. Spec cấm báo thành công trước khi ghi nên tạm trả 503.
-    throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Chức năng đổi mật khẩu chưa sẵn sàng');
+    // US-67-F03: tạo hash trước khi ghi. newPassword đã qua policy nên lỗi ở đây chỉ có thể là lỗi hệ thống (US-67-TC11).
+    let newHash: string;
+    try {
+      newHash = await this.passwords.hash(newPassword);
+    } catch {
+      throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    }
+
+    // US-67-TC06, TC09: có thay đổi bảo mật chen vào sau lúc đọc thì không ghi đè.
+    const updated = await this.users.updatePasswordIfUnchanged(user.id, credentials.passwordHash, credentials.account.authVersion, newHash);
+    if (!updated) {
+      throw new ApplicationError(401, 'CREDENTIALS_CHANGED', 'Thông tin đăng nhập đã thay đổi, vui lòng đăng nhập lại');
+    }
+
+    // US-67-F04: không trả token mới; auth_version đã tăng nên mọi phiên cũ bị từ chối ở request tiếp theo.
+    return { message: 'Đã đổi mật khẩu, vui lòng đăng nhập lại', reauthenticationRequired: true };
   }
 
   private async findSessionByBearer(authorization: string): Promise<AuthSession> {
