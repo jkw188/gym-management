@@ -418,4 +418,23 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
     expect(verifyCount).toBe(2);
     expect(await readAccount(id)).toEqual(before);
   });
+
+  // Spec 1.3: password_hash bị mất hoặc hỏng là lỗi hệ thống, không phải người dùng gõ sai.
+  // Dùng accounts.collection để ghi thẳng dữ liệu hỏng vào MongoDB, bỏ qua kiểm tra của schema.
+  it.each<[string, object]>([
+    ['bị mất', { $unset: { password_hash: '' } }],
+    ['đúng tiền tố nhưng nội dung hỏng', { $set: { password_hash: '$argon2id$hong' } }],
+    ['không phải Argon2id', { $set: { password_hash: 'khong-phai-argon2id' } }],
+  ])('US-67-TC11: password_hash %s trả 503 SERVICE_UNAVAILABLE, không báo sai mật khẩu', async (_label, damage) => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const { _id } = await readAccount(id);
+    await accounts.collection.updateOne({ _id }, damage);
+    const before = await readAccount(id);
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expectServiceUnavailable(response);
+    expect(await readAccount(id)).toEqual(before);
+    await me(token).expect(200);
+  });
 });
