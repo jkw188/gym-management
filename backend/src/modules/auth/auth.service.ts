@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'node:crypto';
-import { ApplicationError } from '../../common/errors/application-error';
+import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { PasswordService } from '../../common/security/password.service';
 import { ROLE_CODES } from '../users/schemas/role.schema';
 import { UsersService } from '../users/users.service';
@@ -101,6 +101,33 @@ export class AuthService implements OnModuleInit {
 
     const session = await this.findSessionByRefreshToken(refreshToken);
     await this.sessions.revoke(session._id);
+  }
+
+  // US-67 bước 1: chỉ kiểm tra, chưa ghi DB. Chủ thể lấy từ phiên đăng nhập, không lấy từ dữ liệu client gửi lên (US-67-TC04).
+  async changePassword(user: AuthPrincipal, currentPassword: string, newPassword: string): Promise<never> {
+    // US-67-TC03: chỉ kiểm tra, không trim hay normalize giá trị mật khẩu.
+    this.passwords.validate(newPassword, 'newPassword');
+    if (newPassword.trim().length === 0) {
+      invalidField('newPassword', 'Mật khẩu không được chỉ gồm khoảng trắng');
+    }
+
+    const credentials = await this.users.findCredentialsById(user.id);
+    if (!credentials || credentials.account.status !== 'ACTIVE') {
+      throw unauthorized();
+    }
+
+    // US-67-TC02: sai mật khẩu hiện tại hoặc mật khẩu mới trùng cũ thì không đổi gì.
+    const currentIsValid = await this.passwords.verify(credentials.passwordHash, currentPassword);
+    if (!currentIsValid) {
+      throw new ApplicationError(400, 'CURRENT_PASSWORD_INVALID', 'Mật khẩu hiện tại không đúng');
+    }
+    const newIsSameAsOld = await this.passwords.verify(credentials.passwordHash, newPassword);
+    if (newIsSameAsOld) {
+      throw new ApplicationError(400, 'PASSWORD_UNCHANGED', 'Mật khẩu mới phải khác mật khẩu hiện tại');
+    }
+
+    // Bước 2 thay dòng này bằng lệnh ghi CAS. Spec cấm báo thành công trước khi ghi nên tạm trả 503.
+    throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Chức năng đổi mật khẩu chưa sẵn sàng');
   }
 
   private async findSessionByBearer(authorization: string): Promise<AuthSession> {

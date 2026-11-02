@@ -111,4 +111,9 @@ export class UsersService {
     const account = await this.repository.findCredentialsByPhone(phone);
     return account ? { account: mapAccount(account), passwordHash: account.password_hash } : null;
   }
+  // Internal contract for US-67. Never return credentials from an HTTP controller.
+  async findCredentialsById(id: string) {
+    const account = await this.repository.findCredentialsById(id);
+    return account ? { account: mapAccount(account), passwordHash: account.password_hash } : null;
+  }
 }

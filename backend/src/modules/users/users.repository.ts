@@ -39,6 +39,7 @@ export class UsersRepository implements OnModuleInit {
   findAccountById(id: string) { return this.accounts.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).maxTimeMS(5000).exec(); }
   findAccountByPhone(phone: string) { return this.accounts.findOne({ phone: normalizePhone(phone) }).exec(); }
   findCredentialsByPhone(phone: string) { return this.accounts.findOne({ phone: normalizePhone(phone) }).select('+password_hash').exec(); }
+  findCredentialsById(id: string) { return this.accounts.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).select('+password_hash').maxTimeMS(5000).exec(); }
   findRoleByCode(code: RoleCode) { return this.roles.findOne({ code }).exec(); }
   findRoleById(id: string) { return this.roles.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).exec(); }
 

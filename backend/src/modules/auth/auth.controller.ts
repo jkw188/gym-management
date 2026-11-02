@@ -5,10 +5,11 @@ import { CookieOptions, Request, Response } from 'express';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ErrorResponseDto } from '../../common/http/error.dto';
 import { normalizePhone } from '../../common/utils/normalization';
-import { CurrentUser, Public } from './auth.decorators';
+import { CurrentUser, Public, Roles } from './auth.decorators';
 import { AuthOriginGuard } from './auth.guards';
 import { AuthService } from './auth.service';
 import { AuthPrincipal } from './auth.types';
+import { ChangePasswordDto } from './change-password.dto';
 import { LoginLimiter } from './login-limiter.service';
 import { AuthResponseDto, LoginDto, PrincipalDto } from './login.dto';
 import { LOGOUT_BODY_SCHEMA } from './logout.dto';
@@ -86,6 +87,15 @@ export class AuthController {
     const nodeEnv = this.config.getOrThrow<string>('nodeEnv');
     const frontendOrigin = this.config.getOrThrow<string>('frontendOrigin');
     res.clearCookie('gym_refresh', refreshCookieOptions(nodeEnv, frontendOrigin));
+  }
+
+  @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
+  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Req() req: Request) {
+    // US-67-F01: endpoint này không nhận query, kể cả accountId/userId.
+    if (Object.keys(req.query).length > 0) {
+      throw new ApplicationError(400, 'VALIDATION_ERROR', 'Đổi mật khẩu không nhận tham số trên URL');
+    }
+    return this.auth.changePassword(user, dto.currentPassword, dto.newPassword);
   }
 
   @Get('me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })

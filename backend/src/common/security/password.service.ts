@@ -4,9 +4,9 @@ import { invalidField } from '../errors/application-error';
 
 @Injectable()
 export class PasswordService {
-  validate(password: string): void {
+  validate(password: string, field = 'password'): void {
     if (typeof password !== 'string' || Array.from(password).length < 12 || Array.from(password).length > 128) {
-      invalidField('password', 'Mật khẩu phải từ 12 đến 128 ký tự');
+      invalidField(field, 'Mật khẩu phải từ 12 đến 128 ký tự');
     }
   }
 
