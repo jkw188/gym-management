@@ -88,6 +88,14 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
       .send(body);
   }
 
+  function changePasswordWithQuery(token: string, body: object, query: Record<string, string>) {
+    return changePassword(token, body).query(query);
+  }
+
+  function changePasswordWithoutToken(body: object) {
+    return request(app.getHttpServer()).post('/api/auth/change-password').set('Origin', origin).send(body);
+  }
+
   function me(token: string) {
     return request(app.getHttpServer()).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
   }
@@ -191,6 +199,52 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
     expect(response.body.error?.code).not.toBe('VALIDATION_ERROR');
   });
 
+  // Spec 1.1, F02: mật khẩu mới chỉ gồm khoảng trắng bị từ chối.
+  it.each([
+    ['12 dấu cách', ' '.repeat(12)],
+    ['dấu cách, tab và xuống dòng', ' \t\n'.repeat(4)],
+    ['12 khoảng trắng Unicode', '　'.repeat(12)],
+  ])('US-67-TC03: mật khẩu mới chỉ gồm %s bị 400 VALIDATION_ERROR', async (_label, newPassword) => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+
+    const response = await changePassword(token, { currentPassword, newPassword });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(await readAccount(id)).toEqual(before);
+  });
+
+  // Spec 1.1, F02: khoảng trắng nằm cùng ký tự khác vẫn hợp lệ. Current sai để biết đã qua kiểm tra định dạng.
+  it('US-67-TC03: mật khẩu mới có khoảng trắng xen ký tự khác không bị VALIDATION_ERROR', async () => {
+    const { token } = await createAndLogin('MEMBER');
+
+    const response = await changePassword(token, { currentPassword: 'Sai mật khẩu hiện tại', newPassword: '   ab   cd   ef' });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
+  });
+
+  // Spec 1.1: thiếu field hoặc sai kiểu trả 400 VALIDATION_ERROR.
+  it.each<[string, object]>([
+    ['thiếu currentPassword', { newPassword: validNewPassword }],
+    ['thiếu newPassword', { currentPassword }],
+    ['body rỗng', {}],
+    ['currentPassword là số', { currentPassword: 123456789012, newPassword: validNewPassword }],
+    ['newPassword là số', { currentPassword, newPassword: 123456789012 }],
+    ['newPassword là null', { currentPassword, newPassword: null }],
+    ['newPassword là mảng', { currentPassword, newPassword: [validNewPassword] }],
+  ])('US-67-TC03: %s bị 400 VALIDATION_ERROR', async (_label, body) => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readAccount(id);
+
+    const response = await changePassword(token, body);
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(await readAccount(id)).toEqual(before);
+  });
+
   // US-67-TC04: Staff/Admin không có quyền dùng endpoint này.
   it.each<RoleCode>(['STAFF', 'ADMIN'])('US-67-TC04: %s bị 403 và mật khẩu không đổi', async code => {
     const { id, token } = await createAndLogin(code);
@@ -199,6 +253,39 @@ describe('US-67 đổi mật khẩu - bước 1', () => {
     const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
 
     expect(response.status).toBe(403);
+    expect(await readAccount(id)).toEqual(before);
+  });
+
+  // Spec 1.1, F01: gửi accountId/userId trên query cũng trả 400, kể cả khi current đúng.
+  it.each(['accountId', 'userId'])('US-67-TC04: gửi %s của tài khoản khác trên query bị 400, không đổi hộ', async field => {
+    const member = await createAndLogin('MEMBER');
+    const other = await createAndLogin('MEMBER', currentPassword, otherPhone);
+    const memberBefore = await readAccount(member.id);
+    const otherBefore = await readAccount(other.id);
+
+    const response = await changePasswordWithQuery(member.token, { currentPassword, newPassword: validNewPassword }, { [field]: other.id });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    expect(await readAccount(member.id)).toEqual(memberBefore);
+    expect(await readAccount(other.id)).toEqual(otherBefore);
+  });
+
+  // Spec 1.1, F01: chỉ session hợp lệ của account ACTIVE mới được gọi.
+  it('US-67-TC04: thiếu token bị 401', async () => {
+    const response = await changePasswordWithoutToken({ currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('US-67-TC04: tài khoản LOCKED bị 401 và mật khẩu không đổi', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    await accounts.updateOne({ id: (await readAccount(id)).id }, { status: 'LOCKED' });
+    const before = await readAccount(id);
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(401);
     expect(await readAccount(id)).toEqual(before);
   });
 
