@@ -218,14 +218,15 @@ describe('US-67 gọi API đổi mật khẩu với ApiClient thật', () => {
     vi.resetModules();
   });
 
-  // login cấp access-1, refresh cấp access-2 (hoặc trả 401 nếu refreshFails), change-password do từng test quyết định.
-  function fakeServer(changePassword: ChangePasswordHandler, refreshFails = false) {
+  // login cấp access-1; refresh cấp access-2, hoặc trả 401 (expired), hoặc mất kết nối (offline); change-password do từng test quyết định.
+  function fakeServer(changePassword: ChangePasswordHandler, refresh: 'ok' | 'expired' | 'offline' = 'ok') {
     return vi.fn<typeof fetch>(async (input, init) => {
       const path = String(input);
       const token = new Headers(init?.headers).get('Authorization')?.replace('Bearer ', '') ?? null;
       if (path.endsWith('/auth/login')) return json({ accessToken: 'access-1', tokenType: 'Bearer', expiresIn: 900, user });
       if (path.endsWith('/auth/refresh')) {
-        return refreshFails ? json({ error: { code: 'UNAUTHORIZED', message: 'Hết phiên' } }, 401)
+        if (refresh === 'offline') throw new TypeError('offline');
+        return refresh === 'expired' ? json({ error: { code: 'UNAUTHORIZED', message: 'Hết phiên' } }, 401)
           : json({ accessToken: 'access-2', tokenType: 'Bearer', expiresIn: 900, user });
       }
       if (path.endsWith('/auth/me')) return json(user);
@@ -313,7 +314,7 @@ describe('US-67 gọi API đổi mật khẩu với ApiClient thật', () => {
   });
 
   it('US-67-TC13: phiên không gia hạn được thì về đăng nhập và không gửi mật khẩu', async () => {
-    const fetcher = fakeServer(() => json({ error: { code: 'UNAUTHORIZED', message: 'Hết phiên' } }, 401), true);
+    const fetcher = fakeServer(() => json({ error: { code: 'UNAUTHORIZED', message: 'Hết phiên' } }, 401), 'expired');
     await loadLoggedIn(fetcher);
     await renderRealPage();
 
@@ -321,5 +322,20 @@ describe('US-67 gọi API đổi mật khẩu với ApiClient thật', () => {
 
     expect(await screen.findByText(/Trang đăng nhập/)).toBeDefined();
     expect(changePasswordCalls(fetcher)).toHaveLength(0);
+  });
+
+  // Sinh viên chốt qua /sua-loi (7c7757d): mất kết nối lúc gia hạn phiên thì mật khẩu chưa gửi, nên ở lại form và giữ phiên.
+  it('US-67-TC13: mất kết nối lúc gia hạn phiên thì ở lại form, giữ phiên và báo mật khẩu chưa được gửi', async () => {
+    const fetcher = fakeServer(() => json(success), 'offline');
+    const client = await loadLoggedIn(fetcher);
+    await renderRealPage();
+
+    await submitForm();
+
+    expect(await screen.findByText(/mật khẩu chưa được gửi/i)).toBeDefined();
+    expect(screen.queryByText(/Trang đăng nhập/)).toBeNull();
+    expect(changePasswordCalls(fetcher)).toHaveLength(0);
+    expect(client.apiClient.getSnapshot().status).toBe('authenticated');
+    expect(submitButton()).toHaveProperty('disabled', false);
   });
 });
