@@ -11,6 +11,7 @@ import { randomBytes } from 'node:crypto';
 import request from 'supertest';
 import { configureHttp } from '../src/common/http/configure-http';
 import { PasswordService } from '../src/common/security/password.service';
+import { AuthSessionsRepository } from '../src/modules/auth/auth-sessions.repository';
 import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
 import { Account } from '../src/modules/users/schemas/account.schema';
 import { Role, RoleCode } from '../src/modules/users/schemas/role.schema';
@@ -855,5 +856,116 @@ describe('US-67 đổi mật khẩu', () => {
     const collections = await accounts.db.db!.collections();
     const stored = await Promise.all(collections.map(collection => collection.find().toArray()));
     secrets.forEach(secret => expect(JSON.stringify(stored)).not.toContain(secret));
+  });
+
+  // --- Bước 4: nhiều thiết bị, refresh và reset chạy cạnh tranh ---
+
+  // Đăng nhập như một thiết bị: trả về access token và cookie gym_refresh của phiên đó.
+  async function loginDevice(password = currentPassword, phone = memberPhone) {
+    const response = await login(password, phone).expect(200);
+    return { token: response.body.accessToken as string, cookie: cookieOf(response) };
+  }
+
+  function cookieOf(response: request.Response) {
+    return (response.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
+  }
+
+  function refresh(cookie: string) {
+    return request(app.getHttpServer()).post('/api/auth/refresh').set('Origin', origin).set('Cookie', cookie).send({});
+  }
+
+  function getProfile(token: string) {
+    return request(app.getHttpServer()).get('/api/profile/me').set('Authorization', `Bearer ${token}`);
+  }
+
+  // US-67-TC05: đổi thành công thì mọi access và refresh cũ của mọi thiết bị đều 401; đăng nhập mới được.
+  it('US-67-TC05: đăng nhập trên hai thiết bị rồi đổi mật khẩu thì mọi phiên cũ bị từ chối', async () => {
+    await createAndLogin('MEMBER');
+    const deviceA = await loginDevice();
+    const deviceB = await loginDevice();
+
+    await changePassword(deviceA.token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    for (const device of [deviceA, deviceB]) {
+      await me(device.token).expect(401);
+      await getProfile(device.token).expect(401);
+      await refresh(device.cookie).expect(401);
+    }
+  });
+
+  it('US-67-TC05: sau khi đổi, đăng nhập mới bằng mật khẩu mới dùng được bình thường', async () => {
+    await createAndLogin('MEMBER');
+    const oldDevice = await loginDevice();
+    await changePassword(oldDevice.token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    const fresh = await loginDevice(validNewPassword);
+
+    await me(fresh.token).expect(200);
+    await getProfile(fresh.token).expect(200);
+    await refresh(fresh.cookie).expect(200);
+  });
+
+  // US-67-TC08: refresh đang chạy dở thì đổi mật khẩu commit; token refresh phát ra (nếu có) cũng không dùng được.
+  it('US-67-TC08: đổi mật khẩu commit giữa lúc refresh đang chạy thì token mới phát ra không truy cập được', async () => {
+    await createAndLogin('MEMBER');
+    const deviceA = await loginDevice();
+    const deviceB = await loginDevice();
+    const sessions = app.get(AuthSessionsRepository);
+    const realRotate = sessions.rotate.bind(sessions);
+    const rotateSpy = jest.spyOn(sessions, 'rotate').mockImplementationOnce(async (...args) => {
+      await changePassword(deviceA.token, { currentPassword, newPassword: validNewPassword }).expect(200);
+      return realRotate(...args);
+    });
+
+    const refreshed = await refresh(deviceB.cookie);
+
+    expect(rotateSpy).toHaveBeenCalledTimes(1); // Bảo đảm đổi mật khẩu đã thật sự chen vào giữa lúc refresh.
+    // Refresh có thể bị chặn ngay (401) hoặc vẫn phát token; nếu phát thì token và cookie đó phải bị từ chối.
+    expect([200, 401]).toContain(refreshed.status);
+    if (refreshed.status === 200) {
+      await me(refreshed.body.accessToken).expect(401);
+      await refresh(cookieOf(refreshed)).expect(401);
+    }
+    await me(deviceB.token).expect(401);
+  });
+
+  it('US-67-TC08: refresh xong ngay trước khi đổi thì token vừa refresh cũng bị từ chối sau khi đổi', async () => {
+    await createAndLogin('MEMBER');
+    const deviceA = await loginDevice();
+    const deviceB = await loginDevice();
+    const refreshed = await refresh(deviceB.cookie).expect(200);
+
+    await changePassword(deviceA.token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    await me(refreshed.body.accessToken).expect(401);
+    await refresh(cookieOf(refreshed)).expect(401);
+  });
+
+  // US-67-TC07 (phần của US-67): US-05 chưa có nên giả lập việc reset ghi DB đúng lúc đổi mật khẩu đang tạo hash.
+  it('US-67-TC07: reset ghi xong trước CAS thì đổi mật khẩu bị 401 và không ghi đè mật khẩu reset', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const before = await readRawAccount(id);
+    const resetHash = await passwords.hash('MậtKhẩuReset-777777');
+    runDuringHashing(() => accounts.collection.updateOne({ _id: before._id },
+      { $set: { password_hash: resetHash }, $inc: { auth_version: 1, version: 1, recovery_revision: 1 } }));
+
+    const response = await changePassword(token, { currentPassword, newPassword: validNewPassword });
+
+    expect(response.status).toBe(401);
+    expect(response.body.error.code).toBe('CREDENTIALS_CHANGED');
+    const after = await readRawAccount(id);
+    expect(after.password_hash).toBe(resetHash);
+    expect(after.auth_version).toBe(before.auth_version + 1);
+  });
+
+  it('US-67-TC07: đổi mật khẩu thắng thì recovery_revision tăng để mã reset phát trước đó hết hiệu lực', async () => {
+    const { id, token } = await createAndLogin('MEMBER');
+    const { _id } = await readRawAccount(id);
+    await accounts.collection.updateOne({ _id }, { $set: { recovery_revision: 3 } });
+
+    await changePassword(token, { currentPassword, newPassword: validNewPassword }).expect(200);
+
+    // Mã reset phát ở revision 3 sẽ bị US-05 từ chối vì revision hiện tại đã là 4.
+    expect((await readRawAccount(id)).recovery_revision).toBe(4);
   });
 });
