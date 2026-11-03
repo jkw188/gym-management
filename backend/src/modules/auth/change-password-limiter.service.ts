@@ -31,21 +31,16 @@ export class ChangePasswordLimiter {
 
   // Trả lại chỗ đã giữ khi lần thử không phải là sai mật khẩu.
   async releaseAttempt(accountId: string, ip: string): Promise<void> {
-    await this.limits.decrement(this.attemptKey(accountId, ip), this.currentBucket());
+    await this.limits.decrement(this.attemptKey(accountId, ip));
   }
 
+  // US-67-TC10: khung 15 phút tính từ lần đếm đầu tiên của key, nên Retry-After là thời gian còn lại của khung đó.
   private async consume(key: string, max: number): Promise<void> {
-    const now = Date.now();
-    const bucket = this.currentBucket();
-    const windowEnd = (bucket + 1) * WINDOW_MS;
-    const count = await this.limits.increment(key, bucket, new Date(bucket * WINDOW_MS), new Date(windowEnd));
+    const { count, expiresAt } = await this.limits.increment(key, WINDOW_MS);
     if (count > max) {
-      throw new RateLimitedError(Math.ceil((windowEnd - now) / 1000));
+      const retryAfter = Math.max(1, Math.ceil((expiresAt.getTime() - Date.now()) / 1000));
+      throw new RateLimitedError(retryAfter);
     }
-  }
-
-  private currentBucket(): number {
-    return Math.floor(Date.now() / WINDOW_MS);
   }
 
   // Chỉ lưu giá trị băm, không lưu IP hay id tài khoản thô trong bộ đếm.

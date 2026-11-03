@@ -20,17 +20,21 @@ export class AuthRateLimitsRepository implements OnModuleInit {
     }
   }
 
-  // Tăng bộ đếm bằng một lệnh atomic và trả về số đếm mới, nên nhiều instance gọi cùng lúc vẫn đếm đúng.
-  async increment(key: string, bucket: number, windowStart: Date, expiresAt: Date): Promise<number> {
+  // Tăng bộ đếm và trả về số đếm mới cùng thời điểm hết khung.
+  async increment(key: string, windowMs: number): Promise<{ count: number; expiresAt: Date }> {
+    const now = new Date();
+    // Khung cũ đã hết hạn thì xóa để bắt đầu khung mới. TTL của MongoDB chỉ dọn khoảng 60 giây một lần nên không đợi TTL.
+    await this.limits.deleteOne({ key, expires_at: { $lte: now } }).maxTimeMS(5000).exec();
+    // Một lệnh atomic: nhiều instance gọi cùng lúc vẫn đếm đúng. Bộ đếm mới thì khung bắt đầu từ bây giờ.
     const counter = await this.limits.findOneAndUpdate(
-      { key, bucket },
-      { $inc: { count: 1 }, $setOnInsert: { window_start: windowStart, expires_at: expiresAt } },
+      { key },
+      { $inc: { count: 1 }, $setOnInsert: { window_start: now, expires_at: new Date(now.getTime() + windowMs) } },
       { upsert: true, returnDocument: 'after' },
     ).maxTimeMS(5000).orFail().exec();
-    return Number(counter.count);
+    return { count: Number(counter.count), expiresAt: counter.expires_at };
   }
 
-  async decrement(key: string, bucket: number): Promise<void> {
-    await this.limits.updateOne({ key, bucket }, { $inc: { count: -1 } }).maxTimeMS(5000).exec();
+  async decrement(key: string): Promise<void> {
+    await this.limits.updateOne({ key }, { $inc: { count: -1 } }).maxTimeMS(5000).exec();
   }
 }
