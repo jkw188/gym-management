@@ -6,6 +6,7 @@ export interface Account {
   _id: Types.ObjectId; id: Types.ObjectId; role_id: Types.ObjectId;
   full_name: string; phone: string; email?: string; birth_date?: string; address?: string; password_hash: string;
   status: AccountStatus; version: number; auth_version: number; created_at: Date; updated_at: Date;
+  password_changed_at?: Date; recovery_revision?: number;
 }
 
 export const AccountSchema = new Schema<Account>({
@@ -22,6 +23,9 @@ export const AccountSchema = new Schema<Account>({
   status: { type: String, enum: ['ACTIVE', 'LOCKED'], required: true, default: 'ACTIVE' },
   version: { type: Schema.Types.Int32, required: true, default: 0, validate: (value: number) => Number.isInteger(value) && value >= 0 },
   auth_version: { type: Schema.Types.Int32, required: true, default: 0, validate: (value: number) => Number.isInteger(value) && value >= 0 },
+  // US-67-F03: không bắt buộc vì record cũ chưa có; chỉ được ghi khi đổi mật khẩu.
+  password_changed_at: { type: Date },
+  recovery_revision: { type: Schema.Types.Int32 },
 }, {
   collection: 'accounts', id: false, versionKey: false, strict: 'throw',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },

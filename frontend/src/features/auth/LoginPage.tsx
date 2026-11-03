@@ -43,6 +43,9 @@ export function LoginPage() {
   return <section className="auth-card" aria-labelledby="login-title">
     <h2 id="login-title">Đăng nhập</h2><p>Dùng số điện thoại và mật khẩu của tài khoản phòng Gym.</p>
     {params.get('reason') === 'identity-changed' && <p role="status">Đã lưu thông tin tài khoản. Vui lòng đăng nhập lại bằng thông tin mới.</p>}
+    {params.get('reason') === 'password-changed' && <p role="status">Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.</p>}
+    {params.get('reason') === 'password-unconfirmed' && <p role="status">Chưa xác nhận được mật khẩu đã đổi hay chưa. Hãy thử đăng nhập bằng mật khẩu mới, nếu không được thì dùng mật khẩu cũ.</p>}
+    {params.get('reason') === 'credentials-changed' && <p role="status">Thông tin đăng nhập đã thay đổi. Vui lòng đăng nhập lại.</p>}
     <form onSubmit={event => void submit(event)} noValidate aria-busy={pending}>
       <label htmlFor="phone">Số điện thoại</label>
       <input id="phone" name="phone" type="tel" autoComplete="username" inputMode="tel" value={phone} maxLength={64}

@@ -31,8 +31,9 @@ export class ApiClient {
   getSnapshot = (): AuthSnapshot => this.snapshot;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private publish(snapshot: AuthSnapshot) { this.snapshot = snapshot; for (const listener of this.listeners) listener(); }
-  private anonymous() { this.accessToken = null; this.publish({ status: 'anonymous', user: null }); }
-  requireLogin() { this.sessionGeneration++; this.anonymous(); }
+  private anonymous(loginReason?: string) { this.accessToken = null; this.publish({ status: 'anonymous', user: null, loginReason }); }
+  // loginReason để ProtectedRoute giữ được thông báo khi tự chuyển về trang đăng nhập (US-67).
+  requireLogin(loginReason?: string) { this.sessionGeneration++; this.anonymous(loginReason); }
 
   updateCurrentUser(user: AuthUser) {
     if (this.snapshot.status === 'authenticated' && this.snapshot.user?.id === user.id) {
@@ -134,6 +135,15 @@ export class ApiClient {
     this.requireLogin();
     this.channel?.postMessage(LOGOUT_MESSAGE);
     return 'revoked';
+  }
+
+  // US-67-TC11, TC13: gửi đúng một lần, không refresh rồi gửi lại khi gặp 401.
+  // credentials: 'include' để trình duyệt nhận lệnh xóa cookie gym_refresh từ phản hồi.
+  async requestOnce<T>(path: string, init: RequestInit = {}): Promise<T> {
+    if (this.snapshot.status === 'loggingOut') throw new ApiError('Đang đăng xuất.');
+    const headers = new Headers(init.headers);
+    if (this.accessToken) headers.set('Authorization', `Bearer ${this.accessToken}`);
+    return this.send<T>(path, { ...init, headers, credentials: 'include' });
   }
 
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {

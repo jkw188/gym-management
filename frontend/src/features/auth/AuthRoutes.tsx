@@ -40,6 +40,7 @@ export function ProtectedRoute({ role }: { role: RoleCode }) {
   const location = useLocation();
   if (auth.status === 'checking') return <AuthChecking />;
   if (auth.status === 'loggingOut') return <LogoutPending />;
+  if (!auth.user && auth.loginReason) return <Navigate to={`/login?reason=${auth.loginReason}`} replace />;
   if (!auth.user) return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}`} replace />;
   if (auth.user.roleCode !== role) return <section className="auth-card"><h2>Không có quyền truy cập</h2>
     <p role="alert">Tài khoản của bạn không có quyền truy cập trang này.</p></section>;
@@ -61,6 +62,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
       {user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
+    {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
     {role === 'STAFF' && <p>Các chức năng quản lý cho vai trò này sẽ được bổ sung sau.</p>}
   </section>;
 }

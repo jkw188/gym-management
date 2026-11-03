@@ -1,14 +1,17 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiBody, ApiNoContentResponse, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CookieOptions, Request, Response } from 'express';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ErrorResponseDto } from '../../common/http/error.dto';
 import { normalizePhone } from '../../common/utils/normalization';
-import { CurrentUser, Public } from './auth.decorators';
+import { CurrentUser, Public, Roles } from './auth.decorators';
 import { AuthOriginGuard } from './auth.guards';
 import { AuthService } from './auth.service';
+import { extractAccessToken } from './jwt.strategy';
 import { AuthPrincipal } from './auth.types';
+import { ChangePasswordDto, ChangePasswordQueryDto, ChangePasswordResponseDto } from './change-password.dto';
+import { ChangePasswordErrorFilter } from './change-password-error.filter';
 import { LoginLimiter } from './login-limiter.service';
 import { AuthResponseDto, LoginDto, PrincipalDto } from './login.dto';
 import { LOGOUT_BODY_SCHEMA } from './logout.dto';
@@ -86,6 +89,22 @@ export class AuthController {
     const nodeEnv = this.config.getOrThrow<string>('nodeEnv');
     const frontendOrigin = this.config.getOrThrow<string>('frontendOrigin');
     res.clearCookie('gym_refresh', refreshCookieOptions(nodeEnv, frontendOrigin));
+  }
+
+  @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
+  @UseFilters(ChangePasswordErrorFilter) @ApiOkResponse({ type: ChangePasswordResponseDto })
+  @ApiResponse({ status: 429, type: ErrorResponseDto, headers: { 'Retry-After': { schema: { type: 'integer' } } } })
+  async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto,
+    @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    // _query không dùng trong thân hàm, chỉ khai báo để ValidationPipe từ chối mọi query.
+    const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const result = await this.auth.changePassword(user, extractAccessToken(req), ip, dto.currentPassword, dto.newPassword);
+
+    // US-67-TC13: chỉ xóa cookie sau khi đổi thành công, cùng flags và path của US-02.
+    const nodeEnv = this.config.getOrThrow<string>('nodeEnv');
+    const frontendOrigin = this.config.getOrThrow<string>('frontendOrigin');
+    res.clearCookie('gym_refresh', refreshCookieOptions(nodeEnv, frontendOrigin));
+    return result;
   }
 
   @Get('me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })

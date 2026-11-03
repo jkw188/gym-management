@@ -39,6 +39,7 @@ export class UsersRepository implements OnModuleInit {
   findAccountById(id: string) { return this.accounts.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).maxTimeMS(5000).exec(); }
   findAccountByPhone(phone: string) { return this.accounts.findOne({ phone: normalizePhone(phone) }).exec(); }
   findCredentialsByPhone(phone: string) { return this.accounts.findOne({ phone: normalizePhone(phone) }).select('+password_hash').exec(); }
+  findCredentialsById(id: string) { return this.accounts.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).select('+password_hash').maxTimeMS(5000).exec(); }
   findRoleByCode(code: RoleCode) { return this.roles.findOne({ code }).exec(); }
   findRoleById(id: string) { return this.roles.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).exec(); }
 
@@ -95,6 +96,19 @@ export class UsersRepository implements OnModuleInit {
     if (changes.phone !== undefined || changes.email !== undefined) update.$inc!.auth_version = 1;
     return this.accounts.findOneAndUpdate({ _id: new Types.ObjectId(id), version }, update,
       { returnDocument: 'after', runValidators: true, maxTimeMS: 5000 }).exec();
+  }
+
+  // US-67-F03: chỉ ghi khi hash, auth_version và status vẫn như lúc đọc; trả false nếu đã có thay đổi khác chen vào.
+  // Không lọc theo version nên sửa tên đồng thời không làm lệnh này thất bại (US-67-TC09).
+  async updatePasswordIfUnchanged(id: string, oldHash: string, authVersion: number, newHash: string): Promise<boolean> {
+    const filter: QueryFilter<Account> = { _id: new Types.ObjectId(id), password_hash: oldHash, auth_version: authVersion, status: 'ACTIVE' };
+    const update = {
+      $set: { password_hash: newHash, password_changed_at: new Date() },
+      // $inc tự tạo recovery_revision bằng 1 nếu record cũ chưa có field này.
+      $inc: { version: 1, auth_version: 1, recovery_revision: 1 },
+    };
+    const result = await this.accounts.updateOne(filter, update, { runValidators: true }).maxTimeMS(5000).exec();
+    return result.modifiedCount === 1;
   }
 
   async createAccount(input: CreateAccountInput) {
