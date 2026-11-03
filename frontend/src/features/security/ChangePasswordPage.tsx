@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError, apiClient } from '../../api/client';
-import { securityApi } from './security.api';
+import { PasswordNotSentError, securityApi } from './security.api';
 
 type FieldName = 'currentPassword' | 'newPassword' | 'confirmPassword';
 
@@ -43,6 +43,11 @@ export function ChangePasswordPage() {
   }
 
   function showError(failure: unknown) {
+    // Lỗi trước khi gửi: mật khẩu chắc chắn chưa đổi, nên ở lại form, giữ phiên để thử lại.
+    if (failure instanceof PasswordNotSentError) {
+      setFormError(failure.message);
+      return;
+    }
     // US-67-TC11: mất response hoặc máy chủ lỗi thì không biết mật khẩu đã đổi chưa, nên về đăng nhập và không gửi lại.
     if (!(failure instanceof ApiError) || failure.status === undefined || failure.status >= 500) {
       leaveToLogin('password-unconfirmed');
