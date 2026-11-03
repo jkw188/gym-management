@@ -746,6 +746,34 @@ describe('US-67 đổi mật khẩu', () => {
     expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
   });
 
+  // F05 "trong 15 phút": khung bắt đầu từ lần sai đầu tiên, nên vừa bị chặn thì phải chờ gần đủ 15 phút.
+  it('US-67-TC10: vừa bị chặn thì Retry-After gần đủ 15 phút', async () => {
+    const { token } = await createAndLogin('MEMBER');
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword }).expect(400);
+    }
+
+    const response = await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword });
+
+    expectRateLimited(response);
+    expect(Number(response.headers['retry-after'])).toBeGreaterThanOrEqual(15 * 60 - 60);
+  });
+
+  // Hết 15 phút thì đếm lại từ đầu. Giả lập bằng cách đẩy thời điểm hết hạn của mọi bộ đếm về quá khứ.
+  it('US-67-TC10: hết khung 15 phút thì được thử lại', async () => {
+    const { token } = await createAndLogin('MEMBER');
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword }).expect(400);
+    }
+    expectRateLimited(await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword }));
+    await accounts.db.db!.collection('auth_rate_limits').updateMany({}, { $set: { expires_at: new Date(Date.now() - 1000) } });
+
+    const response = await changePassword(token, { currentPassword: wrongCurrent, newPassword: validNewPassword });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error.code).toBe('CURRENT_PASSWORD_INVALID');
+  });
+
   it('US-67-TC10: counter dùng chung giữa hai app instance', async () => {
     const { id, token } = await createAndLogin('MEMBER');
     const { AppModule } = await import('../src/app.module');

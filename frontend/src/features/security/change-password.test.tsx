@@ -202,66 +202,124 @@ describe('US-67 trang đổi mật khẩu', () => {
   });
 });
 
-// Dùng ApiClient thật: client hiện tự refresh rồi gửi lại khi gặp 401, đổi mật khẩu không được làm vậy (mục 2 của spec).
-describe('US-67 không tự gửi lại yêu cầu đổi mật khẩu', () => {
+
+// Dùng ApiClient thật với một "máy chủ giả" trả lời theo đường dẫn.
+// Nhờ vậy test không phụ thuộc việc refresh đặt ở trang hay ở tầng gọi API, chỉ kiểm tra kết quả.
+describe('US-67 gọi API đổi mật khẩu với ApiClient thật', () => {
   const url = 'http://localhost:3000/api';
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   const user = { id: 'a'.repeat(24), fullName: 'Test User', phone: '+84901234567', roleCode: 'MEMBER' };
+  type ChangePasswordHandler = (token: string | null) => Response | Promise<Response>;
 
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.resetModules();
   });
 
+  // login cấp access-1, refresh cấp access-2 (hoặc trả 401 nếu refreshFails), change-password do từng test quyết định.
+  function fakeServer(changePassword: ChangePasswordHandler, refreshFails = false) {
+    return vi.fn<typeof fetch>(async (input, init) => {
+      const path = String(input);
+      const token = new Headers(init?.headers).get('Authorization')?.replace('Bearer ', '') ?? null;
+      if (path.endsWith('/auth/login')) return json({ accessToken: 'access-1', tokenType: 'Bearer', expiresIn: 900, user });
+      if (path.endsWith('/auth/refresh')) {
+        return refreshFails ? json({ error: { code: 'UNAUTHORIZED', message: 'Hết phiên' } }, 401)
+          : json({ accessToken: 'access-2', tokenType: 'Bearer', expiresIn: 900, user });
+      }
+      if (path.endsWith('/auth/me')) return json(user);
+      if (path.endsWith('/auth/change-password')) return changePassword(token);
+      return json({ error: { code: 'NOT_FOUND', message: 'Không có' } }, 404);
+    });
+  }
+
   // Nạp lại module với fetch giả, vì apiClient được tạo một lần lúc import.
-  async function loadLoggedIn(fetcher: ReturnType<typeof vi.fn<typeof fetch>>) {
+  async function loadLoggedIn(fetcher: ReturnType<typeof fakeServer>) {
     vi.resetModules();
     vi.stubEnv('VITE_API_BASE_URL', url);
     vi.stubGlobal('fetch', fetcher);
     const client = await import('../../api/client');
-    const { securityApi: realApi } = await import('./security.api');
-    fetcher.mockResolvedValueOnce(json({ accessToken: 'access-1', tokenType: 'Bearer', expiresIn: 900, user }));
     await client.apiClient.login(user.phone, 'password');
-    return realApi;
+    return client;
   }
 
-  function changePasswordCalls(fetcher: ReturnType<typeof vi.fn<typeof fetch>>) {
+  function changePasswordCalls(fetcher: ReturnType<typeof fakeServer>) {
     return fetcher.mock.calls.filter(([path]) => String(path).endsWith('/auth/change-password'));
   }
 
-  it('US-67-TC13: gọi đúng endpoint với Bearer và body chỉ có 2 field', async () => {
-    const fetcher = vi.fn<typeof fetch>();
-    const api = await loadLoggedIn(fetcher);
-    fetcher.mockResolvedValueOnce(json(success));
+  // Render trang bằng đúng module vừa nạp lại, để trang dùng apiClient có fetch giả.
+  async function renderRealPage() {
+    const router = await import('react-router-dom');
+    const { ChangePasswordPage: RealPage } = await import('./ChangePasswordPage');
+    function RealLoginProbe() {
+      const location = router.useLocation();
+      return <p>Trang đăng nhập {location.search}</p>;
+    }
+    render(<router.MemoryRouter initialEntries={['/member/security']}><router.Routes>
+      <router.Route path="/member/security" element={<RealPage />} />
+      <router.Route path="/login" element={<RealLoginProbe />} />
+    </router.Routes></router.MemoryRouter>);
+  }
 
-    await api.changePassword({ currentPassword, newPassword });
+  it('US-67-TC13: gọi đúng endpoint một lần, có Bearer và body chỉ có 2 field', async () => {
+    const fetcher = fakeServer(() => json(success));
+    await loadLoggedIn(fetcher);
+    const { securityApi: realApi } = await import('./security.api');
 
-    const [call] = changePasswordCalls(fetcher);
-    expect(call[1]?.method).toBe('POST');
-    expect(new Headers(call[1]?.headers).get('Authorization')).toBe('Bearer access-1');
-    expect(JSON.parse(String(call[1]?.body))).toEqual({ currentPassword, newPassword });
+    await realApi.changePassword({ currentPassword, newPassword });
+
+    const calls = changePasswordCalls(fetcher);
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]?.method).toBe('POST');
+    expect(new Headers(calls[0][1]?.headers).get('Authorization')).toMatch(/^Bearer access-[12]$/);
+    expect(JSON.parse(String(calls[0][1]?.body))).toEqual({ currentPassword, newPassword });
   });
 
-  it('US-67-TC13: nhận 401 không refresh rồi gửi lại mật khẩu cũ', async () => {
-    const fetcher = vi.fn<typeof fetch>();
-    const api = await loadLoggedIn(fetcher);
-    fetcher.mockResolvedValueOnce(json({ error: { code: 'CREDENTIALS_CHANGED', message: 'Đã thay đổi' } }, 401));
-    // Nếu client refresh thì các lượt sau đều "thành công", để lộ việc tự gửi lại.
-    fetcher.mockImplementation(async () => json({ accessToken: 'access-2', tokenType: 'Bearer', expiresIn: 900, user, ...success }));
+  it('US-67-TC13: nhận 401 CREDENTIALS_CHANGED không refresh rồi gửi lại mật khẩu cũ', async () => {
+    const fetcher = fakeServer(() => json({ error: { code: 'CREDENTIALS_CHANGED', message: 'Đã thay đổi' } }, 401));
+    await loadLoggedIn(fetcher);
+    const { securityApi: realApi } = await import('./security.api');
 
-    await expect(api.changePassword({ currentPassword, newPassword })).rejects.toMatchObject({ status: 401, code: 'CREDENTIALS_CHANGED' });
+    await expect(realApi.changePassword({ currentPassword, newPassword })).rejects.toMatchObject({ status: 401, code: 'CREDENTIALS_CHANGED' });
 
     expect(changePasswordCalls(fetcher)).toHaveLength(1);
   });
 
   it('US-67-TC11: mất kết nối thì chỉ gửi một lần', async () => {
-    const fetcher = vi.fn<typeof fetch>();
-    const api = await loadLoggedIn(fetcher);
-    fetcher.mockRejectedValueOnce(new TypeError('offline'));
+    const fetcher = fakeServer(() => { throw new TypeError('offline'); });
+    await loadLoggedIn(fetcher);
+    const { securityApi: realApi } = await import('./security.api');
 
-    await expect(api.changePassword({ currentPassword, newPassword })).rejects.toBeInstanceOf(Error);
+    await expect(realApi.changePassword({ currentPassword, newPassword })).rejects.toBeInstanceOf(Error);
 
     expect(changePasswordCalls(fetcher)).toHaveLength(1);
+  });
+
+  // Access token chỉ sống 15 phút. Phiên còn gia hạn được thì đổi mật khẩu phải thành công, không bị đẩy về đăng nhập.
+  it('US-67-TC13: access token đã hết hạn nhưng phiên còn gia hạn được thì vẫn đổi thành công, chỉ gửi một lần', async () => {
+    const fetcher = fakeServer(token => token === 'access-2'
+      ? json(success)
+      : json({ error: { code: 'UNAUTHORIZED', message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn' } }, 401));
+    await loadLoggedIn(fetcher);
+    await renderRealPage();
+
+    await submitForm();
+
+    expect(await screen.findByText('Trang đăng nhập ?reason=password-changed')).toBeDefined();
+    const calls = changePasswordCalls(fetcher);
+    expect(calls).toHaveLength(1);
+    expect(new Headers(calls[0][1]?.headers).get('Authorization')).toBe('Bearer access-2');
+  });
+
+  it('US-67-TC13: phiên không gia hạn được thì về đăng nhập và không gửi mật khẩu', async () => {
+    const fetcher = fakeServer(() => json({ error: { code: 'UNAUTHORIZED', message: 'Hết phiên' } }, 401), true);
+    await loadLoggedIn(fetcher);
+    await renderRealPage();
+
+    await submitForm();
+
+    expect(await screen.findByText(/Trang đăng nhập/)).toBeDefined();
+    expect(changePasswordCalls(fetcher)).toHaveLength(0);
   });
 });
