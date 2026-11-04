@@ -3,6 +3,9 @@ import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
 import { HomeRedirect, LogoutButton, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
 import { LoginPage } from './features/auth/LoginPage';
+import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
+import { PasswordResetFlow } from './features/auth/PasswordResetFlow';
+import { ResetPasswordPage } from './features/auth/ResetPasswordPage';
 import { rolePaths } from './features/auth/auth.routes';
 import type { RoleCode } from './features/auth/auth.types';
 import { ProfilePage } from './features/profile/ProfilePage';
@@ -14,6 +17,9 @@ export default function App() {
     <nav aria-label="Điều hướng chính"><Link to="/">Trang chính</Link><Link to="/health">Kiểm tra nền tảng</Link><LogoutButton /></nav>
     <Routes><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
       <Route path="/health" element={<FoundationStatus />} />
+      {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}
+      <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/profile" element={<ProfilePage role="MEMBER" />} />
         <Route path="/member/security" element={<ChangePasswordPage />} /></Route>

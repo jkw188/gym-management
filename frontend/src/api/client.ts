@@ -66,6 +66,13 @@ export class ApiClient {
 
   publicGet<T>(path: string, signal?: AbortSignal) { return this.send<T>(path, { signal }); }
 
+  // US-05: POST tới endpoint công khai, không gắn access token và không tự gửi lại khi lỗi.
+  // credentials: 'include' để trình duyệt nhận lệnh xóa cookie gym_refresh khi đặt lại mật khẩu thành công.
+  publicPost<T>(path: string, body: unknown) {
+    return this.send<T>(path, { method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
   async login(phone: string, password: string): Promise<AuthUser> {
     const generation = ++this.sessionGeneration;
     const result = await this.send<AuthResponse>('/auth/login', { method: 'POST', credentials: 'include',
