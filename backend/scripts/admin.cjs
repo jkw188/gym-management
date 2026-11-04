@@ -10,6 +10,7 @@ const { RoleSchema } = require('../dist/modules/users/schemas/role.schema');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
+const { OperationRequestSchema } = require('../dist/modules/operations/schemas/operation-request.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -26,8 +27,10 @@ async function run() {
       const session = connection.model('AuthSession', AuthSessionSchema);
       const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
       const passwordReset = connection.model('PasswordReset', PasswordResetSchema);
+      // EN-02 bước 2: unique index (actor_id, operation, client_key); collection mới nên chưa có dữ liệu trùng.
+      const operationRequest = connection.model('OperationRequest', OperationRequestSchema);
       await Promise.all([account.createIndexes(), role.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),
-        passwordReset.createIndexes()]);
+        passwordReset.createIndexes(), operationRequest.createIndexes()]);
       // US-05 migration: account tạo trước US-05 chưa có recovery_revision thì ghi 0. Chạy lại nhiều lần vẫn an toàn
       // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
       await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });

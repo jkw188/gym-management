@@ -5,6 +5,7 @@ import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, MongoError, MongoOperationTimeoutError, TransactionOptions } from 'mongodb';
 import { Connection } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
+import { supportsTransactions } from '../environment/environment-check';
 
 // EN-02-F03: driver chỉ được retry lỗi tạm thời trong tối đa 10 giây.
 const TRANSACTION_DEADLINE_MS = 10_000;
@@ -47,12 +48,10 @@ export class TransactionRunner {
     }
   }
 
-  // MongoDB chỉ có transaction khi chạy replica set (có setName) hoặc qua mongos (msg = 'isdbgrid').
   // Chỉ hỏi server một lần rồi nhớ kết quả.
   private async ensureTransactionsSupported(): Promise<void> {
     if (this.transactionsSupported === null) {
-      const hello = await this.connection.db!.admin().command({ hello: 1 });
-      this.transactionsSupported = typeof hello.setName === 'string' || hello.msg === 'isdbgrid';
+      this.transactionsSupported = await supportsTransactions(this.connection);
     }
     if (!this.transactionsSupported) {
       throw new Error('TRANSACTIONS_NOT_SUPPORTED: MongoDB phải chạy replica set để dùng transaction');
