@@ -15,6 +15,7 @@ import { PasswordService } from '../src/common/security/password.service';
 import { Account } from '../src/modules/users/schemas/account.schema';
 import { RoleCode } from '../src/modules/users/schemas/role.schema';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { SmtpSandbox } from './helpers/smtp-sandbox';
 
 const origin = 'http://localhost:5173';
 const databaseName = 'gym_management_test_us05';
@@ -45,9 +46,12 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
   let accounts: Model<Account>;
   let repository: UsersRepository;
   let passwords: PasswordService;
+  // Bước 2: bật quên mật khẩu thì phải có cấu hình SMTP, nên file này cũng dùng hộp thư sandbox (chỉ để nhận thư, không kiểm tra thư).
+  const smtp = new SmtpSandbox();
   const savedEnv = { ...process.env };
 
   beforeAll(async () => {
+    await smtp.start();
     // F05 và F06 dùng transaction, mà MongoDB chỉ cho transaction khi chạy replica set, nên test dựng replica set 1 node.
     mongo = await MongoMemoryReplSet.create({ binary: { version: '8.0.17' }, replSet: { count: 1, storageEngine: 'wiredTiger', dbName: databaseName } });
     Object.assign(process.env, {
@@ -59,6 +63,7 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
       JWT_ACCESS_SECRET: randomBytes(32).toString('base64url'),
       // Bảng "Lưu mã": pepper ngẫu nhiên ≥ 32 byte qua env, khác JWT secret.
       RESET_OTP_PEPPER: randomBytes(32).toString('base64url'),
+      ...smtp.env(),
     });
     const { AppModule } = await import('../src/app.module');
     app = await NestFactory.create(AppModule, { logger: false, abortOnError: false, bodyParser: false });
@@ -82,6 +87,7 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
     await secondApp?.close();
     await app?.close();
     await mongo?.stop();
+    await smtp.stop();
     process.env = savedEnv;
   });
 

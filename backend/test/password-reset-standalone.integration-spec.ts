@@ -13,6 +13,7 @@ import { configureHttp } from '../src/common/http/configure-http';
 import { PasswordService } from '../src/common/security/password.service';
 import { Account } from '../src/modules/users/schemas/account.schema';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { SmtpSandbox } from './helpers/smtp-sandbox';
 
 const origin = 'http://localhost:5173';
 const databaseName = 'gym_management_test_us05_standalone';
@@ -23,9 +24,12 @@ describe('US-05 quên mật khẩu – MongoDB máy đơn (không có transactio
   let mongo: MongoMemoryServer;
   let app: INestApplication;
   let accounts: Model<Account>;
+  // Bước 2: bật quên mật khẩu thì phải có cấu hình SMTP, nên file này cũng dùng hộp thư sandbox (chỉ để nhận thư, không kiểm tra thư).
+  const smtp = new SmtpSandbox();
   const savedEnv = { ...process.env };
 
   beforeAll(async () => {
+    await smtp.start();
     mongo = await MongoMemoryServer.create({ binary: { version: '8.0.17' }, instance: { dbName: databaseName } });
     Object.assign(process.env, {
       NODE_ENV: 'test',
@@ -35,6 +39,7 @@ describe('US-05 quên mật khẩu – MongoDB máy đơn (không có transactio
       MONGODB_DB: databaseName,
       JWT_ACCESS_SECRET: randomBytes(32).toString('base64url'),
       RESET_OTP_PEPPER: randomBytes(32).toString('base64url'),
+      ...smtp.env(),
     });
     const { AppModule } = await import('../src/app.module');
     app = await NestFactory.create(AppModule, { logger: false, abortOnError: false, bodyParser: false });
@@ -55,6 +60,7 @@ describe('US-05 quên mật khẩu – MongoDB máy đơn (không có transactio
   afterAll(async () => {
     await app?.close();
     await mongo?.stop();
+    await smtp.stop();
     process.env = savedEnv;
   });
 
