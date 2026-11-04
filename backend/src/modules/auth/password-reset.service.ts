@@ -1,0 +1,133 @@
+// Tầng nghiệp vụ: quên mật khẩu US-05 – yêu cầu mã OTP (flow mới) và gửi lại mã (resend) theo F01–F05.
+// Mọi trường hợp đều trả cùng một phản hồi 202 để không lộ account có tồn tại, bị khóa hay không có email.
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Types } from 'mongoose';
+import { createHash, createHmac, randomBytes, randomInt } from 'node:crypto';
+import { ApplicationError, invalidField } from '../../common/errors/application-error';
+import { normalizeEmail, normalizePhone } from '../../common/utils/normalization';
+import { Account } from '../users/schemas/account.schema';
+import { UsersRepository } from '../users/users.repository';
+import { PasswordResetLimiter } from './password-reset-limiter.service';
+import { PasswordResetsRepository } from './password-resets.repository';
+
+const PUBLIC_MESSAGE = 'Nếu tài khoản đủ điều kiện, mã xác thực sẽ được gửi đến email đã lưu';
+const CODE_LIFETIME_MS = 10 * 60 * 1000;
+const COOLDOWN_MS = 60 * 1000;
+
+export interface PasswordResetRequestResult { message: string; challenge: string }
+
+@Injectable()
+export class PasswordResetService {
+  constructor(private readonly users: UsersRepository, private readonly resets: PasswordResetsRepository,
+    private readonly limiter: PasswordResetLimiter, private readonly config: ConfigService) {}
+
+  async request(identifier: string, challenge: string | undefined, ip: string): Promise<PasswordResetRequestResult> {
+    const pepper = this.pepper();
+    const lookup = this.normalizeIdentifier(identifier);
+    await this.limiter.consumeIp(ip);
+
+    // US-05-F05: có gửi challenge thì luôn trả lại đúng challenge đó; không có thì tạo challenge ngẫu nhiên mới.
+    // Account không đủ điều kiện cũng nhận challenge ngẫu nhiên này, nên phản hồi giống hệt (US-05-TC02).
+    const response = { message: PUBLIC_MESSAGE, challenge: challenge ?? randomBytes(32).toString('base64url') };
+
+    // US-05-TC03: quá 3 lần/định danh/10 phút thì vẫn 202 chung nhưng không tạo mã.
+    if (!await this.limiter.consumeIdentifier(`${lookup.field}:${lookup.value}`)) return response;
+
+    const account = lookup.field === 'phone' ? await this.users.findAccountByPhone(lookup.value) : await this.users.findAccountByEmail(lookup.value);
+    if (!account || !isEligible(account)) return response;
+
+    if (challenge) await this.resend(account._id, challenge, pepper);
+    else await this.startFlow(account._id, response.challenge, pepper);
+    return response;
+  }
+
+  // US-05-F05: flow mới tăng recovery_revision (flow cũ mất hiệu lực vì revision không còn khớp) và tạo record mới.
+  private async startFlow(accountId: Types.ObjectId, challenge: string, pepper: string): Promise<void> {
+    const otp = newOtp(); // Bước 2 sẽ gửi mã này qua SMTP sau khi đã trả 202.
+    await this.resets.inTransaction(async session => {
+      const now = new Date();
+      // Đọc lại trong transaction: account có thể vừa bị khóa, đổi email hoặc vừa có yêu cầu khác được chấp nhận.
+      const account = await this.users.findAccountInSession(accountId, session);
+      if (!account || !isEligible(account) || inCooldown(account, now)) return;
+
+      const revision = (account.recovery_revision ?? 0) + 1;
+      await this.users.startRecovery(accountId, revision, now, session);
+      await this.resets.create({
+        accountId, tokenHash: tokenHash(pepper, challenge, otp), challengeHash: hashChallenge(challenge),
+        authVersion: account.auth_version, recoveryRevision: revision, email: account.email!,
+        createdAt: now, expiresAt: new Date(now.getTime() + CODE_LIFETIME_MS),
+      }, session);
+    });
+  }
+
+  // US-05-F05: resend giữ challenge và record, thay mã mới. Challenge không hợp lệ thì không đổi gì (vẫn 202 chung).
+  private async resend(accountId: Types.ObjectId, challenge: string, pepper: string): Promise<void> {
+    const otp = newOtp(); // Bước 2 sẽ gửi mã này qua SMTP sau khi đã trả 202.
+    await this.resets.inTransaction(async session => {
+      const now = new Date();
+      const account = await this.users.findAccountInSession(accountId, session);
+      // Cooldown chưa đủ thì giữ nguyên mã đang còn hiệu lực.
+      if (!account || !isEligible(account) || inCooldown(account, now)) return;
+
+      const reset = await this.resets.findByChallengeHash(hashChallenge(challenge), session);
+      // Không có record, record của account khác, đã dùng, đã vô hiệu hóa, đã bị flow mới thay
+      // (revision khác) hoặc password/identity đã đổi (auth_version khác) thì không gửi lại được, cần bắt đầu flow mới.
+      if (!reset || !reset.account_id.equals(account._id) || reset.used_at || reset.invalidated_at ||
+        reset.recovery_revision_snapshot !== account.recovery_revision || reset.auth_version_snapshot !== account.auth_version) return;
+
+      const revision = (account.recovery_revision ?? 0) + 1;
+      await this.users.startRecovery(accountId, revision, now, session);
+      await this.resets.replaceCode(reset._id, {
+        tokenHash: tokenHash(pepper, challenge, otp), authVersion: account.auth_version, recoveryRevision: revision,
+        email: account.email!, expiresAt: new Date(now.getTime() + CODE_LIFETIME_MS),
+      }, session);
+    });
+  }
+
+  // Thiếu RESET_OTP_PEPPER nghĩa là chức năng chưa bật: trả 503, không tạo mã không có pepper.
+  private pepper(): string {
+    const pepper = this.config.get<string>('resetOtpPepper');
+    if (!pepper) throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    return pepper;
+  }
+
+  // US-05-F01: có ký tự @ thì coi là email, không thì coi là số điện thoại. Sai cả hai thì 400 như nhau (US-05-TC15).
+  private normalizeIdentifier(value: string): { field: 'phone' | 'email'; value: string } {
+    try {
+      if (value.includes('@')) {
+        const email = normalizeEmail(value);
+        if (email) return { field: 'email', value: email };
+      } else {
+        return { field: 'phone', value: normalizePhone(value) };
+      }
+    } catch (error) {
+      if (!(error instanceof ApplicationError)) throw error;
+    }
+    return invalidField('identifier', 'Vui lòng nhập số điện thoại hoặc email hợp lệ');
+  }
+}
+
+// US-05-F01: chỉ account ACTIVE có email đã lưu mới được gửi mã.
+function isEligible(account: Account): boolean {
+  return account.status === 'ACTIVE' && typeof account.email === 'string' && account.email !== '';
+}
+
+// US-05-F05: cooldown 60 giây tính theo account, nên đổi giữa phone và email cũng không lách được.
+function inCooldown(account: Account, now: Date): boolean {
+  return account.recovery_requested_at !== undefined && now.getTime() - account.recovery_requested_at.getTime() < COOLDOWN_MS;
+}
+
+// US-05-F02: OTP 6 chữ số từ bộ sinh số ngẫu nhiên an toàn, giữ số 0 ở đầu.
+function newOtp(): string {
+  return randomInt(0, 1_000_000).toString().padStart(6, '0');
+}
+
+function hashChallenge(challenge: string): string {
+  return createHash('sha256').update(challenge).digest('hex');
+}
+
+// Bảng "Lưu mã": token_hash = HMAC-SHA256(RESET_OTP_PEPPER, challenge|otp), không lưu OTP thô.
+function tokenHash(pepper: string, challenge: string, otp: string): string {
+  return createHmac('sha256', pepper).update(`${challenge}|${otp}`).digest('hex');
+}

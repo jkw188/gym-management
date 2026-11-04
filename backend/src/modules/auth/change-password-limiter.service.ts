@@ -2,19 +2,12 @@
 // Tối đa 20 request/IP và 5 lần sai mật khẩu hiện tại/account+IP trong mỗi khung 15 phút.
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { ApplicationError } from '../../common/errors/application-error';
+import { RateLimitedError } from '../../common/errors/application-error';
 import { AuthRateLimitsRepository } from './auth-rate-limits.repository';
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_REQUESTS_PER_IP = 20;
 const MAX_WRONG_ATTEMPTS = 5;
-
-// Lỗi 429 mang theo số giây chờ để filter của route ghi vào header Retry-After.
-export class RateLimitedError extends ApplicationError {
-  constructor(public readonly retryAfter: number) {
-    super(429, 'TOO_MANY_REQUESTS', 'Quá nhiều lần thử. Vui lòng thử lại sau');
-  }
-}
 
 @Injectable()
 export class ChangePasswordLimiter {

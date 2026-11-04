@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter, Types, UpdateQuery } from 'mongoose';
+import { ClientSession, Model, QueryFilter, Types, UpdateQuery } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { normalizeEmail, normalizeFullName, normalizePhone, validateObjectId } from '../../common/utils/normalization';
@@ -109,6 +109,20 @@ export class UsersRepository implements OnModuleInit {
     };
     const result = await this.accounts.updateOne(filter, update, { runValidators: true }).maxTimeMS(5000).exec();
     return result.modifiedCount === 1;
+  }
+
+  // US-05-F01: tìm account theo email đã chuẩn hóa (chữ thường, bỏ khoảng trắng hai đầu).
+  findAccountByEmail(email: string) { return this.accounts.findOne({ email }).maxTimeMS(5000).exec(); }
+
+  // US-05-F05: đọc lại account bên trong transaction để kiểm tra trạng thái và cooldown mới nhất.
+  findAccountInSession(id: Types.ObjectId, session: ClientSession) {
+    return this.accounts.findById(id).session(session).exec();
+  }
+
+  // US-05-F05: yêu cầu mã được chấp nhận thì ghi revision mới và thời điểm yêu cầu; không đổi auth_version, version.
+  async startRecovery(id: Types.ObjectId, recoveryRevision: number, requestedAt: Date, session: ClientSession): Promise<void> {
+    await this.accounts.updateOne({ _id: id }, { $set: { recovery_revision: recoveryRevision, recovery_requested_at: requestedAt } },
+      { session, runValidators: true }).exec();
   }
 
   async createAccount(input: CreateAccountInput) {

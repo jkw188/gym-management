@@ -11,7 +11,7 @@ import { AuthService } from './auth.service';
 import { extractAccessToken } from './jwt.strategy';
 import { AuthPrincipal } from './auth.types';
 import { ChangePasswordDto, ChangePasswordQueryDto, ChangePasswordResponseDto } from './change-password.dto';
-import { ChangePasswordErrorFilter } from './change-password-error.filter';
+import { PasswordErrorFilter } from './password-error.filter';
 import { LoginLimiter } from './login-limiter.service';
 import { AuthResponseDto, LoginDto, PrincipalDto } from './login.dto';
 import { LOGOUT_BODY_SCHEMA } from './logout.dto';
@@ -92,7 +92,7 @@ export class AuthController {
   }
 
   @Post('change-password') @HttpCode(200) @Roles('MEMBER', 'TRAINER') @ApiBearerAuth()
-  @UseFilters(ChangePasswordErrorFilter) @ApiOkResponse({ type: ChangePasswordResponseDto })
+  @UseFilters(PasswordErrorFilter) @ApiOkResponse({ type: ChangePasswordResponseDto })
   @ApiResponse({ status: 429, type: ErrorResponseDto, headers: { 'Retry-After': { schema: { type: 'integer' } } } })
   async changePassword(@CurrentUser() user: AuthPrincipal, @Body() dto: ChangePasswordDto, @Query() _query: ChangePasswordQueryDto,
     @Req() req: Request, @Res({ passthrough: true }) res: Response) {
