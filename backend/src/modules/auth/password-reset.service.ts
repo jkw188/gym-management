@@ -1,5 +1,6 @@
 // Tầng nghiệp vụ: quên mật khẩu US-05 – yêu cầu mã OTP (flow mới) và gửi lại mã (resend) theo F01–F05.
 // Mọi trường hợp đều trả cùng một phản hồi 202 để không lộ account có tồn tại, bị khóa hay không có email.
+// Thư chứa OTP chỉ được gửi SAU khi transaction đã commit và SAU khi phản hồi 202 đã sẵn sàng (bước 2).
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
@@ -9,6 +10,7 @@ import { normalizeEmail, normalizePhone } from '../../common/utils/normalization
 import { Account } from '../users/schemas/account.schema';
 import { UsersRepository } from '../users/users.repository';
 import { PasswordResetLimiter } from './password-reset-limiter.service';
+import { PasswordResetMailer } from './password-reset-mailer.service';
 import { PasswordResetsRepository } from './password-resets.repository';
 
 const PUBLIC_MESSAGE = 'Nếu tài khoản đủ điều kiện, mã xác thực sẽ được gửi đến email đã lưu';
@@ -18,11 +20,13 @@ const COOLDOWN_MS = 60 * 1000;
 const MIN_RESPONSE_MS = 200;
 
 export interface PasswordResetRequestResult { message: string; challenge: string }
+// OTP thô và email nhận thư: chỉ giữ tạm trong bộ nhớ để gửi thư, không lưu DB, không ghi log (US-05-F05).
+interface CodeDelivery { email: string; otp: string }
 
 @Injectable()
 export class PasswordResetService {
   constructor(private readonly users: UsersRepository, private readonly resets: PasswordResetsRepository,
-    private readonly limiter: PasswordResetLimiter, private readonly config: ConfigService) {}
+    private readonly limiter: PasswordResetLimiter, private readonly mailer: PasswordResetMailer, private readonly config: ConfigService) {}
 
   async request(identifier: string, challenge: string | undefined, ip: string): Promise<PasswordResetRequestResult> {
     const startedAt = Date.now();
@@ -35,28 +39,33 @@ export class PasswordResetService {
     const response = { message: PUBLIC_MESSAGE, challenge: challenge ?? randomBytes(32).toString('base64url') };
 
     // US-05-TC03: quá 3 lần/định danh/10 phút thì vẫn 202 chung nhưng không tạo mã.
+    let delivery: CodeDelivery | undefined;
     if (await this.limiter.consumeIdentifier(`${lookup.field}:${lookup.value}`)) {
       const account = lookup.field === 'phone' ? await this.users.findAccountByPhone(lookup.value) : await this.users.findAccountByEmail(lookup.value);
       if (account && isEligible(account)) {
-        if (challenge) await this.resend(account._id, challenge, pepper);
-        else await this.startFlow(account._id, response.challenge, pepper);
+        delivery = challenge ? await this.resend(account._id, challenge, pepper) : await this.startFlow(account._id, response.challenge, pepper);
       }
     }
 
     // US-05-F03: account hợp lệ phải chạy transaction nên chậm hơn. Mọi phản hồi 202 đều chờ cho đủ MIN_RESPONSE_MS
     // tính từ lúc nhận request, để thời gian phản hồi không cho biết account có tồn tại hay không.
     await waitUntil(startedAt + MIN_RESPONSE_MS);
+
+    // US-05-TC14: KHÔNG await việc gửi thư, nên SMTP chậm hay lỗi cũng không làm chậm hay đổi phản hồi 202.
+    // sendResetCode tự bắt lỗi và ghi log an toàn. Không có delivery (cooldown, vượt giới hạn, không đủ điều kiện) thì không gửi.
+    if (delivery) void this.mailer.sendResetCode(delivery.email, delivery.otp);
     return response;
   }
 
   // US-05-F05: flow mới tăng recovery_revision (flow cũ mất hiệu lực vì revision không còn khớp) và tạo record mới.
-  private async startFlow(accountId: Types.ObjectId, challenge: string, pepper: string): Promise<void> {
-    const otp = newOtp(); // Bước 2 sẽ gửi mã này qua SMTP sau khi đã trả 202.
-    await this.resets.inTransaction(async session => {
+  // Trả về thư cần gửi, hoặc undefined nếu không tạo mã (transaction không đổi gì).
+  private startFlow(accountId: Types.ObjectId, challenge: string, pepper: string): Promise<CodeDelivery | undefined> {
+    const otp = newOtp();
+    return this.resets.inTransaction(async session => {
       const now = new Date();
       // Đọc lại trong transaction: account có thể vừa bị khóa, đổi email hoặc vừa có yêu cầu khác được chấp nhận.
       const account = await this.users.findAccountInSession(accountId, session);
-      if (!account || !isEligible(account) || inCooldown(account, now)) return;
+      if (!account || !isEligible(account) || inCooldown(account, now)) return undefined;
 
       const revision = (account.recovery_revision ?? 0) + 1;
       await this.users.startRecovery(accountId, revision, now, session);
@@ -65,23 +74,25 @@ export class PasswordResetService {
         authVersion: account.auth_version, recoveryRevision: revision, email: account.email!,
         createdAt: now, expiresAt: new Date(now.getTime() + CODE_LIFETIME_MS),
       }, session);
+      // Gửi tới email đọc trong transaction (email đã lưu), không phải dữ liệu request gửi lên (US-05-F01).
+      return { email: account.email!, otp };
     });
   }
 
   // US-05-F05: resend giữ challenge và record, thay mã mới. Challenge không hợp lệ thì không đổi gì (vẫn 202 chung).
-  private async resend(accountId: Types.ObjectId, challenge: string, pepper: string): Promise<void> {
-    const otp = newOtp(); // Bước 2 sẽ gửi mã này qua SMTP sau khi đã trả 202.
-    await this.resets.inTransaction(async session => {
+  private resend(accountId: Types.ObjectId, challenge: string, pepper: string): Promise<CodeDelivery | undefined> {
+    const otp = newOtp();
+    return this.resets.inTransaction(async session => {
       const now = new Date();
       const account = await this.users.findAccountInSession(accountId, session);
       // Cooldown chưa đủ thì giữ nguyên mã đang còn hiệu lực.
-      if (!account || !isEligible(account) || inCooldown(account, now)) return;
+      if (!account || !isEligible(account) || inCooldown(account, now)) return undefined;
 
       const reset = await this.resets.findByChallengeHash(hashChallenge(challenge), session);
       // Không có record, record của account khác, đã dùng, đã vô hiệu hóa, đã bị flow mới thay
       // (revision khác) hoặc password/identity đã đổi (auth_version khác) thì không gửi lại được, cần bắt đầu flow mới.
       if (!reset || !reset.account_id.equals(account._id) || reset.used_at || reset.invalidated_at ||
-        reset.recovery_revision_snapshot !== account.recovery_revision || reset.auth_version_snapshot !== account.auth_version) return;
+        reset.recovery_revision_snapshot !== account.recovery_revision || reset.auth_version_snapshot !== account.auth_version) return undefined;
 
       const revision = (account.recovery_revision ?? 0) + 1;
       await this.users.startRecovery(accountId, revision, now, session);
@@ -89,6 +100,7 @@ export class PasswordResetService {
         tokenHash: tokenHash(pepper, challenge, otp), authVersion: account.auth_version, recoveryRevision: revision,
         email: account.email!, expiresAt: new Date(now.getTime() + CODE_LIFETIME_MS),
       }, session);
+      return { email: account.email!, otp };
     });
   }
 
