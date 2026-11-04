@@ -12,6 +12,7 @@
     "start:prod": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "ensure-indexes": "npm run build && node scripts/admin.cjs ensure-indexes",
+    "check-environment": "npm run build && node scripts/admin.cjs check-environment",
     "seed:admin": "npm run build && node scripts/admin.cjs seed-admin",
     "test": "jest --runInBand",
     "test:unit": "jest --runInBand test/foundation.spec.ts test/auth.spec.ts test/users.spec.ts",

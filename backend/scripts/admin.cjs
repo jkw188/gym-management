@@ -11,6 +11,7 @@ const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
 const { OperationRequestSchema } = require('../dist/modules/operations/schemas/operation-request.schema');
+const { EnvironmentCheck } = require('../dist/infrastructure/environment/environment-check');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -35,6 +36,22 @@ async function run() {
       // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
       await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INDEXES_ENSURED' }));
+    } finally { await connection.close(); }
+    return;
+  }
+  if (process.argv[2] === 'check-environment') {
+    // EN-02-F01, EN-02-TC02: kiểm replica set và unique index trước nghiệm thu. Chỉ đọc, không tạo index.
+    const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
+      serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
+    try {
+      await connection.asPromise();
+      await new EnvironmentCheck(connection).assertReady();
+      console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'ENVIRONMENT_READY' }));
+    } catch (error) {
+      // In thẳng lý do (không qua mapError) để người chạy biết thiếu replica set hay thiếu index; thoát mã 1.
+      console.error(JSON.stringify({ timestamp: new Date().toISOString(), code: 'ENVIRONMENT_NOT_READY',
+        message: error instanceof Error ? error.message : String(error) }));
+      process.exitCode = 1;
     } finally { await connection.close(); }
     return;
   }

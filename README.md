@@ -46,6 +46,18 @@ Seed upsert bốn role `ADMIN`, `STAFF`, `TRAINER` (hiển thị PT), `MEMBER`. 
 
 Seed chạy lại giữ nguyên password, họ tên, email, timestamps của Admin ACTIVE đã có. Phone thuộc Member/vai trò khác hoặc Admin LOCKED trả xung đột và exit khác 0; không tự nâng quyền/mở khóa. Ghi các bước độc lập, lỗi giữa chừng có thể chạy lại. Hai seed đồng thời được bảo vệ bằng unique index và đọc xác minh bản ghi thắng khi gặp duplicate. Log không có mật khẩu/hash.
 
+## Replica set và transaction EN-02
+
+Transaction nhiều document (EN-02, US-05) cần MongoDB chạy replica set; standalone bị từ chối, không chuyển sang ghi rời. Sau `npm run ensure-indexes`, kiểm tra môi trường trước nghiệm thu:
+
+```sh
+npm run check-environment
+```
+
+Lệnh chỉ đọc: in `ENVIRONMENT_READY` nếu đủ replica set và unique index `operation_requests (actor_id, operation, client_key)`; thiếu thì in `ENVIRONMENT_NOT_READY` kèm lý do và thoát mã 1, không tự tạo index.
+
+TODO EN-02 bước 2: `guard_revision` cho `plans` và `transactions`, `service_revision` cho `members`, cùng migration đặt revision=0 cho document cũ, sẽ làm khi US-09/US-12/US-14 tạo các schema này.
+
 ## Frontend và health
 
 Terminal thứ hai, trong `frontend`:
