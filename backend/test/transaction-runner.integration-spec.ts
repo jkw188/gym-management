@@ -4,6 +4,7 @@ import 'reflect-metadata';
 import { ClientSession, MongoServerError } from 'mongodb';
 import { MongoMemoryReplSet, MongoMemoryServer } from 'mongodb-memory-server';
 import mongoose, { Connection } from 'mongoose';
+import * as os from 'node:os';
 import { ApplicationError } from '../src/common/errors/application-error';
 // Hợp đồng test đặt ra cho Builder: class TransactionRunner có constructor(connection) và run(work(session)).
 import { TransactionRunner } from '../src/infrastructure/transaction/transaction-runner';
@@ -24,7 +25,7 @@ describe('EN-02 bước 1: TransactionRunner trên replica set', () => {
 
   beforeAll(async () => {
     mongo = await MongoMemoryReplSet.create({ binary: mongoBinary, replSet: { count: 1, storageEngine: 'wiredTiger', dbName: 'gym_management_test_en02' } });
-    connection = await mongoose.createConnection(mongo.getUri(), { dbName: 'gym_management_test_en02' }).asPromise();
+    connection = await mongoose.createConnection(mongo.getUri(), { dbName: 'gym_management_test_en02', runtimeAdapters: { os } }).asPromise();
     runner = new TransactionRunner(connection);
   }, 600000);
 
@@ -111,7 +112,7 @@ describe('EN-02 bước 1: TransactionRunner trên replica set', () => {
   it('EN-02-TC03: transaction dùng readConcern snapshot, writeConcern majority, readPreference primary', async () => {
     let options: { readConcern?: { level?: string }; writeConcern?: { w?: unknown }; readPreference?: { mode?: string } } | undefined;
     await runner.run(async (session) => {
-      options = session.transaction.options;
+      options = (session as unknown as { transaction: { options: typeof options } }).transaction.options;
     });
 
     expect(options?.readConcern?.level).toBe('snapshot');
@@ -153,7 +154,7 @@ describe('EN-02 bước 1: TransactionRunner trên MongoDB standalone', () => {
 
   beforeAll(async () => {
     standalone = await MongoMemoryServer.create({ binary: mongoBinary });
-    connection = await mongoose.createConnection(standalone.getUri(), { dbName: 'gym_management_test_en02_standalone' }).asPromise();
+    connection = await mongoose.createConnection(standalone.getUri(), { dbName: 'gym_management_test_en02_standalone', runtimeAdapters: { os } }).asPromise();
     runner = new TransactionRunner(connection);
   }, 600000);
 
