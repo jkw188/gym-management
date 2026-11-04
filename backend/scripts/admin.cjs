@@ -4,7 +4,7 @@ const { randomUUID } = require('node:crypto');
 const { ConfigModule } = require('@nestjs/config');
 const { NestFactory } = require('@nestjs/core');
 const mongoose = require('mongoose');
-const { default: configuration, ConfigurationError } = require('../dist/config/configuration');
+const { default: configuration, ConfigurationError, readMongoConfiguration } = require('../dist/config/configuration');
 const { AccountSchema } = require('../dist/modules/users/schemas/account.schema');
 const { RoleSchema } = require('../dist/modules/users/schemas/role.schema');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
@@ -15,10 +15,11 @@ const { EnvironmentCheck } = require('../dist/infrastructure/environment/environ
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
-  // ConfigModule loads .env without printing values. Seed variables are only required for seed.
-  await ConfigModule.forRoot({ load: [configuration] });
-  const config = configuration();
+  // ConfigModule chỉ nạp .env vào process.env (không in giá trị); mỗi lệnh tự kiểm đúng các biến nó cần.
+  await ConfigModule.forRoot();
   if (process.argv[2] === 'ensure-indexes') {
+    // Chỉ cần MONGODB_URI, MONGODB_DB; không bắt buộc JWT/SMTP.
+    const config = readMongoConfiguration(process.env);
     const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
       serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
     try {
@@ -41,6 +42,7 @@ async function run() {
   }
   if (process.argv[2] === 'check-environment') {
     // EN-02-F01, EN-02-TC02: kiểm replica set và unique index trước nghiệm thu. Chỉ đọc, không tạo index.
+    const config = readMongoConfiguration(process.env);
     const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
       serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
     try {
@@ -56,6 +58,8 @@ async function run() {
     return;
   }
   if (process.argv[2] !== 'seed-admin') throw new Error('UNKNOWN_COMMAND');
+  // seed-admin khởi động cả AppModule nên vẫn kiểm toàn bộ cấu hình (JWT, SMTP...) như trước.
+  configuration();
   const required = ['SEED_ADMIN_PHONE', 'SEED_ADMIN_NAME', 'SEED_ADMIN_PASSWORD'];
   const missing = required.filter(key => !process.env[key]);
   if (missing.length) throw new ConfigurationError(`Missing environment variables: ${missing.join(', ')}`);
