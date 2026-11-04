@@ -141,7 +141,8 @@ describe('EN-02 bước 1: TransactionRunner trên replica set', () => {
     expect(failure).toBeInstanceOf(ApplicationError);
     expect((failure as ApplicationError).status).toBe(503);
     expect((failure as ApplicationError).code).toBe('OPERATION_OUTCOME_UNKNOWN');
-    expect(Date.now() - startedAt).toBeLessThan(15000);
+    // Hạn theo spec là 10 giây; cho dư 2 giây sai số của máy chạy test.
+    expect(Date.now() - startedAt).toBeLessThan(12000);
   }, 30000);
 });
 
