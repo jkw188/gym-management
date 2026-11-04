@@ -9,6 +9,7 @@ const { AccountSchema } = require('../dist/modules/users/schemas/account.schema'
 const { RoleSchema } = require('../dist/modules/users/schemas/role.schema');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
+const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -24,7 +25,12 @@ async function run() {
       const role = connection.model('Role', RoleSchema);
       const session = connection.model('AuthSession', AuthSessionSchema);
       const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
-      await Promise.all([account.createIndexes(), role.createIndexes(), session.createIndexes(), rateLimit.createIndexes()]);
+      const passwordReset = connection.model('PasswordReset', PasswordResetSchema);
+      await Promise.all([account.createIndexes(), role.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),
+        passwordReset.createIndexes()]);
+      // US-05 migration: account tạo trước US-05 chưa có recovery_revision thì ghi 0. Chạy lại nhiều lần vẫn an toàn
+      // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
+      await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INDEXES_ENSURED' }));
     } finally { await connection.close(); }
     return;

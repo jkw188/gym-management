@@ -1,5 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { AuthChecking } from './AuthRoutes';
 import { useAuth } from './AuthProvider';
@@ -45,7 +45,8 @@ export function LoginPage() {
     {params.get('reason') === 'identity-changed' && <p role="status">Đã lưu thông tin tài khoản. Vui lòng đăng nhập lại bằng thông tin mới.</p>}
     {params.get('reason') === 'password-changed' && <p role="status">Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.</p>}
     {params.get('reason') === 'password-unconfirmed' && <p role="status">Chưa xác nhận được mật khẩu đã đổi hay chưa. Hãy thử đăng nhập bằng mật khẩu mới, nếu không được thì dùng mật khẩu cũ.</p>}
-    {params.get('reason') === 'credentials-changed' && <p role="status">Thông tin đăng nhập đã thay đổi. Vui lòng đăng nhập lại.</p>}
+    {params.get('reason') === 'password-reset' && <p role="status">Đã cập nhật mật khẩu, vui lòng đăng nhập lại.</p>}
+    {params.get('reason') === 'credentials-changed' &&<p role="status">Thông tin đăng nhập đã thay đổi. Vui lòng đăng nhập lại.</p>}
     <form onSubmit={event => void submit(event)} noValidate aria-busy={pending}>
       <label htmlFor="phone">Số điện thoại</label>
       <input id="phone" name="phone" type="tel" autoComplete="username" inputMode="tel" value={phone} maxLength={64}
@@ -60,5 +61,6 @@ export function LoginPage() {
       {error && <div className="form-error" role="alert"><p>{error}</p>{requestId && <small>Mã tra cứu: {requestId}</small>}</div>}
       <button type="submit" disabled={pending}>{pending ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
     </form>
+    <Link to="/forgot-password">Quên mật khẩu?</Link>
   </section>;
 }

@@ -1,16 +1,15 @@
-// Tầng API: đổi lỗi 503 của route đổi mật khẩu thành SERVICE_UNAVAILABLE theo spec US-67.
-// Chỉ gắn vào route này, nên đăng nhập và refresh vẫn giữ mã DATABASE_UNAVAILABLE.
+// Tầng API: lỗi của route đổi mật khẩu (US-67) và quên mật khẩu (US-05): 429 kèm Retry-After, 503 thành SERVICE_UNAVAILABLE.
+// Chỉ gắn vào các route này, nên đăng nhập và refresh vẫn giữ mã DATABASE_UNAVAILABLE.
 import { ArgumentsHost, Catch } from '@nestjs/common';
-import { ApplicationError } from '../../common/errors/application-error';
+import { ApplicationError, RateLimitedError } from '../../common/errors/application-error';
 import { HttpErrorFilter, mapError } from '../../common/http/http-error.filter';
 import { Response } from 'express';
-import { RateLimitedError } from './change-password-limiter.service';
 
 // US-67-TC11: dùng filter vì DB có thể lỗi ngay trong Guard, try/catch trong service không bắt được.
 @Catch()
-export class ChangePasswordErrorFilter extends HttpErrorFilter {
+export class PasswordErrorFilter extends HttpErrorFilter {
   override catch(exception: unknown, host: ArgumentsHost): void {
-    // US-67-TC10: 429 phải kèm Retry-After.
+    // US-67-TC10, US-05-TC04: 429 phải kèm Retry-After.
     if (exception instanceof RateLimitedError) {
       host.switchToHttp().getResponse<Response>().setHeader('Retry-After', exception.retryAfter);
     }

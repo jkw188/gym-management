@@ -14,17 +14,26 @@ import { ChangePasswordLimiter } from './change-password-limiter.service';
 import { AuthRateLimitSchema } from './schemas/auth-rate-limit.schema';
 import { JwtStrategy } from './jwt.strategy';
 import { LoginLimiter } from './login-limiter.service';
+import { PasswordResetController } from './password-reset.controller';
+import { PasswordResetLimiter } from './password-reset-limiter.service';
+import { PasswordResetMailer } from './password-reset-mailer.service';
+import { PasswordResetService } from './password-reset.service';
+import { PasswordResetsRepository } from './password-resets.repository';
+import { PasswordResetSchema } from './schemas/password-reset.schema';
 import { AuthSessionSchema } from './schemas/auth-session.schema';
 
 @Module({
   imports: [UsersModule, PassportModule.register({ defaultStrategy: 'jwt', session: false }),
-    MongooseModule.forFeature([{ name: 'AuthSession', schema: AuthSessionSchema }, { name: 'AuthRateLimit', schema: AuthRateLimitSchema }]),
+    MongooseModule.forFeature([{ name: 'AuthSession', schema: AuthSessionSchema }, { name: 'AuthRateLimit', schema: AuthRateLimitSchema },
+      { name: 'PasswordReset', schema: PasswordResetSchema }]),
     JwtModule.registerAsync({ inject: [ConfigService], useFactory: (config: ConfigService) => ({
       secret: config.getOrThrow<string>('jwtAccessSecret'),
       signOptions: { algorithm: 'HS256', issuer: config.getOrThrow<string>('jwtIssuer'), audience: config.getOrThrow<string>('jwtAudience') },
     }) })],
-  controllers: [AuthController],
-  providers: [AuthService, AuthSessionsRepository, AuthRateLimitsRepository, ChangePasswordLimiter, JwtStrategy, LoginLimiter, AuthOriginGuard, JwtAuthGuard, RolesGuard,
+  controllers: [AuthController, PasswordResetController],
+  providers: [AuthService, AuthSessionsRepository, AuthRateLimitsRepository, ChangePasswordLimiter,
+    PasswordResetService, PasswordResetsRepository, PasswordResetLimiter, PasswordResetMailer,
+    JwtStrategy, LoginLimiter, AuthOriginGuard, JwtAuthGuard, RolesGuard,
     { provide: APP_GUARD, useExisting: JwtAuthGuard }, { provide: APP_GUARD, useExisting: RolesGuard }],
   exports: [AuthService, JwtAuthGuard, RolesGuard, PassportModule],
 })
