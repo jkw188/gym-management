@@ -107,6 +107,29 @@ describe('EN-02 bước 1: TransactionRunner trên replica set', () => {
     expect(attempts).toBe(1);
   });
 
+  // EN-02-F03: transaction phải dùng readConcern snapshot, writeConcern majority, readPreference primary.
+  it('EN-02-TC03: transaction dùng readConcern snapshot, writeConcern majority, readPreference primary', async () => {
+    let options: { readConcern?: { level?: string }; writeConcern?: { w?: unknown }; readPreference?: { mode?: string } } | undefined;
+    await runner.run(async (session) => {
+      options = session.transaction.options;
+    });
+
+    expect(options?.readConcern?.level).toBe('snapshot');
+    expect(options?.writeConcern?.w).toBe('majority');
+    expect(options?.readPreference?.mode).toBe('primary');
+  });
+
+  it('EN-02-TC03: lỗi commit chưa rõ kết quả vẫn đóng session', async () => {
+    jest.spyOn(ClientSession.prototype, 'commitTransaction').mockRejectedValue(labeledError('UnknownTransactionCommitResult'));
+    let usedSession: ClientSession | undefined;
+
+    await runner.run(async (session) => {
+      usedSession = session;
+    }).catch(() => undefined);
+
+    expect(usedSession!.hasEnded).toBe(true);
+  }, 30000);
+
   it('EN-02-TC03: lỗi commit chưa rõ kết quả thì dừng trong hạn 10 giây và trả 503 OPERATION_OUTCOME_UNKNOWN', async () => {
     jest.spyOn(ClientSession.prototype, 'commitTransaction').mockRejectedValue(labeledError('UnknownTransactionCommitResult'));
 
