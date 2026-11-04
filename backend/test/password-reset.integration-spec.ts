@@ -271,6 +271,16 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
     expect(find({ expires_at: 1 })?.expireAfterSeconds).toEqual(expect.any(Number));
   });
 
+  // Mục 4.2.6 báo cáo: id bắt buộc, unique và bằng _id (bổ sung theo review bước 1).
+  it('US-05-TC01: password_resets có index unique cho id', async () => {
+    await createAccount({ email: memberEmail });
+    await requestReset({ identifier: memberPhone }).expect(202);
+
+    const indexes = await accounts.db.collection('password_resets').indexes();
+    const idIndex = indexes.find(index => JSON.stringify(index.key) === JSON.stringify({ id: 1 }));
+    expect(idIndex?.unique).toBe(true);
+  });
+
   // Đầu ra bước 1: "thêm revision, index và rate counter bằng migration có thể chạy lại".
   // Lệnh migration dùng lệnh ensure-indexes đã có của repo; lệnh này đọc code trong dist nên test build trước.
   it('US-05-TC01: migration ensure-indexes chạy 2 lần đều thành công, account cũ có recovery_revision = 0', async () => {
@@ -329,6 +339,28 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
         expect(after.recovery_revision).toBe(before!.recovery_revision);
         expect(after.status).toBe(before!.status);
       }
+    });
+  });
+
+  // Spec 1.1, F03: mọi phản hồi 202 mất tối thiểu 200 ms tính từ lúc nhận request, để thời gian không lộ account.
+  // Test đo từ lúc gửi tới lúc nhận nên luôn ≥ thời gian server xử lý; chỉ kiểm tra cận dưới để không chập chờn.
+  describe('US-05-TC02: thời gian phản hồi 202 tối thiểu 200 ms', () => {
+    const timingCases: { name: string; identifier: string; setup: () => Promise<unknown> }[] = [
+      { name: 'account hợp lệ (chạy transaction)', identifier: memberPhone, setup: () => createAccount({ email: memberEmail }) },
+      { name: 'phone không tồn tại', identifier: '0911111111', setup: async () => undefined },
+      { name: 'account LOCKED', identifier: memberPhone, setup: () => createAccount({ email: memberEmail, status: 'LOCKED' }) },
+      { name: 'account không có email', identifier: memberPhone, setup: () => createAccount() },
+    ];
+
+    it.each(timingCases)('US-05-TC02: $name trả 202 sau ít nhất 200 ms', async ({ identifier, setup }) => {
+      await setup();
+
+      const startedAt = Date.now();
+      const response = await requestReset({ identifier });
+      const elapsed = Date.now() - startedAt;
+
+      expectPublicAccepted(response);
+      expect(elapsed).toBeGreaterThanOrEqual(200);
     });
   });
 
