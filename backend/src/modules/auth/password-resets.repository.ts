@@ -15,10 +15,17 @@ export interface ReplacedCode {
 
 @Injectable()
 export class PasswordResetsRepository implements OnModuleInit {
+  private transactionsSupported = false;
   constructor(@InjectModel('PasswordReset') private readonly resets: Model<PasswordReset>,
     @InjectConnection() private readonly connection: Connection, private readonly config: ConfigService) {}
 
   async onModuleInit(): Promise<void> {
+    // MongoDB chỉ có transaction khi chạy replica set (có setName) hoặc qua mongos (msg = 'isdbgrid').
+    const hello = await this.connection.db!.admin().command({ hello: 1 });
+    this.transactionsSupported = typeof hello.setName === 'string' || hello.msg === 'isdbgrid';
+    if (!this.transactionsSupported && this.config.get('resetOtpPepper')) {
+      console.warn(JSON.stringify({ timestamp: new Date().toISOString(), code: 'PASSWORD_RESET_DISABLED_NO_TRANSACTIONS' }));
+    }
     if (this.config.get('nodeEnv') !== 'production') await this.resets.createIndexes();
     // Production chỉ kiểm tra index đã có, giống auth_rate_limits.
     const actual = await this.resets.collection.listIndexes().toArray();
@@ -27,6 +34,11 @@ export class PasswordResetsRepository implements OnModuleInit {
         Boolean(index.unique) === Boolean(options.unique) && index.expireAfterSeconds === options.expireAfterSeconds);
       if (!found) throw new Error('DATABASE_INDEXES_REQUIRED: run npm run ensure-indexes');
     }
+  }
+
+  // US-05-F03: service dùng hàm này để từ chối MỌI request khi DB không có transaction, không riêng account hợp lệ.
+  supportsTransactions(): boolean {
+    return this.transactionsSupported;
   }
 
   // US-05-F05: chạy work trong một transaction. Mongoose tự chạy lại work khi hai transaction ghi trùng một document,

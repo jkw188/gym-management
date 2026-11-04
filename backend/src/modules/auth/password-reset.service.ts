@@ -14,6 +14,8 @@ import { PasswordResetsRepository } from './password-resets.repository';
 const PUBLIC_MESSAGE = 'Nếu tài khoản đủ điều kiện, mã xác thực sẽ được gửi đến email đã lưu';
 const CODE_LIFETIME_MS = 10 * 60 * 1000;
 const COOLDOWN_MS = 60 * 1000;
+// US-05-F03: thời gian phản hồi tối thiểu, lớn hơn nhiều so với thời gian chạy transaction (khoảng 20–30 ms khi đo).
+const MIN_RESPONSE_MS = 200;
 
 export interface PasswordResetRequestResult { message: string; challenge: string }
 
@@ -23,7 +25,8 @@ export class PasswordResetService {
     private readonly limiter: PasswordResetLimiter, private readonly config: ConfigService) {}
 
   async request(identifier: string, challenge: string | undefined, ip: string): Promise<PasswordResetRequestResult> {
-    const pepper = this.pepper();
+    const startedAt = Date.now();
+    const pepper = this.availablePepper();
     const lookup = this.normalizeIdentifier(identifier);
     await this.limiter.consumeIp(ip);
 
@@ -32,13 +35,17 @@ export class PasswordResetService {
     const response = { message: PUBLIC_MESSAGE, challenge: challenge ?? randomBytes(32).toString('base64url') };
 
     // US-05-TC03: quá 3 lần/định danh/10 phút thì vẫn 202 chung nhưng không tạo mã.
-    if (!await this.limiter.consumeIdentifier(`${lookup.field}:${lookup.value}`)) return response;
+    if (await this.limiter.consumeIdentifier(`${lookup.field}:${lookup.value}`)) {
+      const account = lookup.field === 'phone' ? await this.users.findAccountByPhone(lookup.value) : await this.users.findAccountByEmail(lookup.value);
+      if (account && isEligible(account)) {
+        if (challenge) await this.resend(account._id, challenge, pepper);
+        else await this.startFlow(account._id, response.challenge, pepper);
+      }
+    }
 
-    const account = lookup.field === 'phone' ? await this.users.findAccountByPhone(lookup.value) : await this.users.findAccountByEmail(lookup.value);
-    if (!account || !isEligible(account)) return response;
-
-    if (challenge) await this.resend(account._id, challenge, pepper);
-    else await this.startFlow(account._id, response.challenge, pepper);
+    // US-05-F03: account hợp lệ phải chạy transaction nên chậm hơn. Mọi phản hồi 202 đều chờ cho đủ MIN_RESPONSE_MS
+    // tính từ lúc nhận request, để thời gian phản hồi không cho biết account có tồn tại hay không.
+    await waitUntil(startedAt + MIN_RESPONSE_MS);
     return response;
   }
 
@@ -86,9 +93,13 @@ export class PasswordResetService {
   }
 
   // Thiếu RESET_OTP_PEPPER nghĩa là chức năng chưa bật: trả 503, không tạo mã không có pepper.
-  private pepper(): string {
+  // US-05-F03: MongoDB không có transaction (chạy máy đơn) cũng trả 503 cho MỌI request, trước khi tìm account,
+  // nếu không thì chỉ account hợp lệ bị 503 (vì chạy transaction), còn account không tồn tại vẫn 202, lộ account.
+  private availablePepper(): string {
     const pepper = this.config.get<string>('resetOtpPepper');
-    if (!pepper) throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    if (!pepper || !this.resets.supportsTransactions()) {
+      throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    }
     return pepper;
   }
 
@@ -116,6 +127,11 @@ function isEligible(account: Account): boolean {
 // US-05-F05: cooldown 60 giây tính theo account, nên đổi giữa phone và email cũng không lách được.
 function inCooldown(account: Account, now: Date): boolean {
   return account.recovery_requested_at !== undefined && now.getTime() - account.recovery_requested_at.getTime() < COOLDOWN_MS;
+}
+
+function waitUntil(time: number): Promise<void> {
+  const remaining = time - Date.now();
+  return remaining > 0 ? new Promise(resolve => setTimeout(resolve, remaining)) : Promise.resolve();
 }
 
 // US-05-F02: OTP 6 chữ số từ bộ sinh số ngẫu nhiên an toàn, giữ số 0 ở đầu.

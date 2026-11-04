@@ -9,7 +9,9 @@ export interface PasswordReset {
 }
 
 export const PasswordResetSchema = new Schema<PasswordReset>({
-  id: { type: Schema.Types.ObjectId, required: true, immutable: true, default: function () { return this._id; } },
+  // Mục 4.2.6: id bắt buộc, unique và bằng _id (giống accounts).
+  id: { type: Schema.Types.ObjectId, required: true, immutable: true, default: function () { return this._id; },
+    validate: function (value: Types.ObjectId) { return value.equals(this._id); } },
   account_id: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
   token_hash: { type: String, required: true, maxlength: 255 },
   challenge_hash: { type: String, required: true, match: /^[a-f0-9]{64}$/ },
@@ -23,6 +25,7 @@ export const PasswordResetSchema = new Schema<PasswordReset>({
   created_at: { type: Date, required: true },
 }, { collection: 'password_resets', id: false, versionKey: false, strict: 'throw' });
 
+PasswordResetSchema.index({ id: 1 }, { unique: true, name: 'password_resets_id_unique' });
 PasswordResetSchema.index({ token_hash: 1 }, { unique: true, name: 'password_resets_token_hash_unique' });
 PasswordResetSchema.index({ challenge_hash: 1 }, { unique: true, name: 'password_resets_challenge_hash_unique' });
 PasswordResetSchema.index({ account_id: 1, created_at: 1 }, { name: 'password_resets_account_created' });
