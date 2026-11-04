@@ -69,7 +69,8 @@ export class IdempotencyService {
       } catch (error) {
         // EN-02-TC05: hai request cùng key chạy đua, unique index chặn request thua và transaction của nó bị abort.
         // Thử lại cùng key để đọc record của request thắng; quá số lần thì ném lỗi, không báo thành công giả.
-        if (isDuplicateKey(error) && attempt < MAX_DUPLICATE_RETRIES) continue;
+        // Trùng index nghiệp vụ khác (vd payments.reference) là lỗi nghiệp vụ: ném ngay, không retry (EN-02-F03).
+        if (isOperationKeyDuplicate(error) && attempt < MAX_DUPLICATE_RETRIES) continue;
         throw error;
       }
     }
@@ -106,7 +107,9 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-// Mã 11000: vi phạm unique index.
-function isDuplicateKey(error: unknown): boolean {
-  return error instanceof MongoServerError && error.code === 11000;
+// Mã 11000 là vi phạm MỘT unique index nào đó; keyPattern cho biết index nào.
+// Chỉ coi là chạy đua cùng key khi trùng đúng index (actor_id, operation, client_key) của operation_requests.
+function isOperationKeyDuplicate(error: unknown): boolean {
+  if (!(error instanceof MongoServerError) || error.code !== 11000) return false;
+  return JSON.stringify(error.keyPattern) === JSON.stringify({ actor_id: 1, operation: 1, client_key: 1 });
 }
