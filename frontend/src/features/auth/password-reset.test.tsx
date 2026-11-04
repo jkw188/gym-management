@@ -260,6 +260,9 @@ describe('US-05 giao diện quên mật khẩu', () => {
     await renderApp(fetcher);
     await screen.findByLabelText(ui.identifier);
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    // React Testing Library sau mỗi thao tác chờ một setTimeout(0) và chỉ tự đẩy đồng hồ giả khi thấy biến `jest`.
+    // Vitest không có biến này nên test sẽ treo; gán `jest` trỏ tới `vi` để thư viện nhận ra đồng hồ giả (gỡ ở afterEach).
+    vi.stubGlobal('jest', vi);
     const user = userEvent.setup({ advanceTimers: ms => vi.advanceTimersByTime(ms) });
     await user.type(screen.getByLabelText(ui.identifier), identifier);
     await user.click(screen.getByRole('button', { name: ui.sendCode }));
