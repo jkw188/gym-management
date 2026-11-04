@@ -125,6 +125,15 @@ export class UsersRepository implements OnModuleInit {
       { session, runValidators: true }).exec();
   }
 
+  // US-05-F06: đặt lại mật khẩu trong transaction. Tăng auth_version để mọi access/refresh token cũ thành 401 (US-05-TC12),
+  // tăng recovery_revision để mọi challenge khác của account mất hiệu lực. updated_at do timestamps của schema tự ghi.
+  async resetPassword(id: Types.ObjectId, passwordHash: string, changedAt: Date, session: ClientSession): Promise<void> {
+    await this.accounts.updateOne({ _id: id }, {
+      $set: { password_hash: passwordHash, password_changed_at: changedAt },
+      $inc: { version: 1, auth_version: 1, recovery_revision: 1 },
+    }, { session, runValidators: true }).exec();
+  }
+
   async createAccount(input: CreateAccountInput) {
     if (!this.indexesReady) throw new ApplicationError(503, 'DATABASE_UNAVAILABLE', 'Cơ sở dữ liệu chưa sẵn sàng');
     const roleId = new Types.ObjectId(validateObjectId(input.roleId));

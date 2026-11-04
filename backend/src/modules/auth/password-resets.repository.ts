@@ -47,8 +47,32 @@ export class PasswordResetsRepository implements OnModuleInit {
     return this.connection.transaction(work);
   }
 
-  findByChallengeHash(challengeHash: string, session: ClientSession) {
-    return this.resets.findOne({ challenge_hash: challengeHash }).session(session).exec();
+  // Không truyền session thì đọc ngoài transaction (bước kiểm mã sơ bộ của confirm).
+  findByChallengeHash(challengeHash: string, session?: ClientSession) {
+    return this.resets.findOne({ challenge_hash: challengeHash }).session(session ?? null).maxTimeMS(5000).exec();
+  }
+
+  // US-05-F06: tăng attempts bằng MỘT lệnh atomic và commit ngay (không nằm trong transaction) để không bị rollback.
+  // Chỉ tăng khi record còn dùng được và attempts < maxAttempts, nên nhiều request sai đồng thời cũng không vượt quá.
+  // Trả về số lần thử mới, hoặc null nếu không tăng được (record đã dùng, đã vô hiệu hóa hoặc đã đủ lượt).
+  async recordWrongAttempt(id: Types.ObjectId, maxAttempts: number): Promise<number | null> {
+    const updated = await this.resets.findOneAndUpdate(
+      { _id: id, used_at: { $exists: false }, invalidated_at: { $exists: false }, attempts: { $lt: maxAttempts } },
+      { $inc: { attempts: 1 } }, { returnDocument: 'after' },
+    ).maxTimeMS(5000).exec();
+    return updated ? updated.attempts : null;
+  }
+
+  // US-05-TC06: lần sai cuối cùng thì vô hiệu hóa challenge.
+  async invalidate(id: Types.ObjectId, invalidatedAt: Date): Promise<void> {
+    await this.resets.updateOne({ _id: id, invalidated_at: { $exists: false } }, { $set: { invalidated_at: invalidatedAt } })
+      .maxTimeMS(5000).exec();
+  }
+
+  // US-05-F06: OTP đúng thì ghi used_at và attempts+1, cùng transaction với việc đổi mật khẩu.
+  async markUsed(id: Types.ObjectId, usedAt: Date, session: ClientSession): Promise<void> {
+    await this.resets.updateOne({ _id: id, used_at: { $exists: false } }, { $set: { used_at: usedAt }, $inc: { attempts: 1 } },
+      { session, runValidators: true }).exec();
   }
 
   async create(input: NewPasswordReset, session: ClientSession): Promise<void> {
