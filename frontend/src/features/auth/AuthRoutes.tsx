@@ -2,6 +2,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-d
 import { useAuth } from './AuthProvider';
 import { roleNames, rolePaths } from './auth.routes';
 import type { RoleCode } from './auth.types';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 export function AuthChecking() {
   const auth = useAuth();
@@ -63,6 +64,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
+    {/* US-47: chuông thông báo của member, số chưa đọc lấy từ server. */}
+    {role === 'MEMBER' && <NotificationBell />}
     {role === 'STAFF' && <p>Các chức năng quản lý cho vai trò này sẽ được bổ sung sau.</p>}
   </section>;
 }
