@@ -166,6 +166,38 @@ describe('EN-02 bước 3: IdempotencyService và API lookup', () => {
     expect(await countPayments()).toBe(1);
   });
 
+  // DTO đã chuẩn hóa có thể chứa Date (vd ngày bắt đầu gói). Hai ngày khác nhau là hai payload khác nhau.
+  it('EN-02-TC06: cùng key nhưng payload chỉ đổi ngày (Date) trả 409 IDEMPOTENCY_CONFLICT, không ghi thêm', async () => {
+    const staff = await createAndLogin('STAFF', '0901000001');
+    const key = randomUUID();
+    const counter = { calls: 0 };
+    await idempotency.execute(command(staff.id, key, { amount: '150000', startDate: new Date('2026-11-05T00:00:00.000Z') }), paymentWork(counter));
+
+    const failure = await idempotency.execute(command(staff.id, key, { amount: '150000', startDate: new Date('2026-12-01T00:00:00.000Z') }), paymentWork(counter))
+      .then(() => undefined, (error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ApplicationError);
+    expect((failure as ApplicationError).status).toBe(409);
+    expect((failure as ApplicationError).code).toBe('IDEMPOTENCY_CONFLICT');
+    expect(counter.calls).toBe(1);
+    expect(await countPayments()).toBe(1);
+    expect(await countRecords()).toBe(1);
+  });
+
+  // Ca đối chứng của test trên: hai đối tượng Date khác nhau nhưng cùng thời điểm vẫn là cùng payload.
+  it('EN-02-TC04: cùng key, payload có Date cùng thời điểm (đối tượng khác) trả lại kết quả gốc, không ghi thêm', async () => {
+    const staff = await createAndLogin('STAFF', '0901000001');
+    const key = randomUUID();
+    const counter = { calls: 0 };
+
+    const first = await idempotency.execute(command(staff.id, key, { amount: '150000', startDate: new Date('2026-11-05T00:00:00.000Z') }), paymentWork(counter));
+    const second = await idempotency.execute(command(staff.id, key, { amount: '150000', startDate: new Date('2026-11-05T00:00:00.000Z') }), paymentWork(counter));
+
+    expect(second).toEqual(first);
+    expect(counter.calls).toBe(1);
+    expect(await countPayments()).toBe(1);
+  });
+
   // ---------- EN-02-TC07: mất response sau commit rồi lookup / gửi lại ----------
   it('EN-02-TC07: mất response sau commit thì lookup trả 200 COMMITTED kèm status/body gốc', async () => {
     const staff = await createAndLogin('STAFF', '0901000001');
