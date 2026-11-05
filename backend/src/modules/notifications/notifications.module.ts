@@ -1,9 +1,10 @@
-// Cấu hình NestJS (EN-03 bước 1–3): module thông báo, outbox worker, gateway socket và REST sync.
+// Cấu hình NestJS (EN-03 bước 1–3, US-47): module thông báo, outbox worker, gateway socket, REST sync và inbox member.
 // Module nghiệp vụ khác import để gọi NotificationsService.persistBusinessEvent.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationDispatcher } from './notification-dispatcher';
+import { NotificationInboxService } from './notification-inbox.service';
 import { NotificationOutboxService } from './notification-outbox.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsGateway } from './notifications.gateway';
@@ -26,7 +27,7 @@ import { NotificationSchema } from './schemas/notification.schema';
     ]),
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsRepository, NotificationOutboxService, NotificationDispatcher, NotificationsGateway],
+  providers: [NotificationsService, NotificationInboxService, NotificationsRepository, NotificationOutboxService, NotificationDispatcher, NotificationsGateway],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}
