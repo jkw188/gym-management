@@ -259,4 +259,118 @@ describe('EN-03 bước 3: frontend NotificationFeed', () => {
     await vi.waitFor(() => expect(syncCalls(fetcher)).toHaveLength(2));
     expect(feed.getItems().map(entry => entry.id)).toEqual(['n1', 'n2']);
   });
+
+  // ---------- Bổ sung sau review bước 3: kết nối lại sau khi bị từ chối và cursor không còn hợp lệ ----------
+  // EN-03-F06: "JWT hết hạn ... client làm refresh HTTP US-02 rồi reconnect bằng access mới".
+  // EN-03-F07: "reconnect có backoff". EN-03-TC07: "Không mất notification; REST sync khôi phục được".
+  // Hợp đồng: kết nối lại bằng socket.connect() trên socket cũ HOẶC gọi io() mới đều được; token lấy theo auth mới nhất.
+  describe('kết nối lại và khôi phục sync', () => {
+    const authA2: AuthResponse = { ...authA, accessToken: 'access-A2' };
+    const syncError = () => json({ error: { code: 'VALIDATION_ERROR', message: 'Cursor không hợp lệ' }, requestId: 'req-1' }, 400);
+    const unavailable = () => json({ error: { code: 'SERVICE_UNAVAILABLE', message: 'Cơ sở dữ liệu chưa sẵn sàng' }, requestId: 'req-2' }, 503);
+    const unauthorized = () => json({ error: { code: 'UNAUTHORIZED', message: 'Cần đăng nhập lại' }, requestId: 'req-3' }, 401);
+
+    // Trả response theo đường dẫn; refreshResponses lần lượt dùng cho mỗi lần POST /auth/refresh.
+    function routeFetch(options: { refreshResponses?: Array<() => Response>; sync?: (cursor: string | null) => Response }) {
+      const refreshResponses = [...(options.refreshResponses ?? [])];
+      fetcher.mockImplementation(async input => {
+        const target = new URL(String(input));
+        if (target.pathname.endsWith('/auth/refresh')) return (refreshResponses.shift() ?? (() => json(authA2)))();
+        if (target.pathname.endsWith('/auth/me')) return json(userA);
+        if (target.pathname.endsWith('/notifications/sync')) {
+          return (options.sync ?? (() => json({ items: [], nextCursor: null, hasMore: false })))(target.searchParams.get('cursor'));
+        }
+        throw new Error(`Unexpected request ${target.pathname}`);
+      });
+    }
+
+    const refreshCalls = () => fetcher.mock.calls.filter(([input]) => String(input).includes('/auth/refresh')).length;
+    // Số lần thử kết nối lại sau socket đầu tiên: connect() trên các socket + số lần io() mới.
+    const reconnectAttempts = () => fake.sockets.reduce((total, socket) => total + socket.connect.mock.calls.length, 0) + fake.io.mock.calls.length - 1;
+    // Token sẽ dùng ở lần kết nối tới: socket.auth (nếu code gán lại) hoặc auth trong options của io() mới nhất.
+    function nextHandshakeToken(): string | undefined {
+      const socket = fake.sockets[fake.sockets.length - 1] as unknown as { auth?: unknown };
+      if (socket.auth !== undefined) return tokenOf({ auth: socket.auth });
+      return tokenOf(fake.io.mock.calls[fake.io.mock.calls.length - 1][1]);
+    }
+
+    async function connectedAsA() {
+      feed.start();
+      await loginAs(authA);
+      await vi.waitFor(() => expect(fake.sockets).toHaveLength(1));
+    }
+
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('EN-03-TC14: handshake kết nối lại bị từ chối (connect_error vì access hết hạn) thì refresh HTTP rồi kết nối lại bằng access mới', async () => {
+      await connectedAsA();
+      routeFetch({});
+      vi.useFakeTimers();
+
+      fake.sockets[0].fire('connect_error', new Error('UNAUTHORIZED'));
+      await vi.advanceTimersByTimeAsync(60000);
+
+      expect(refreshCalls()).toBeGreaterThanOrEqual(1);
+      expect(reconnectAttempts()).toBeGreaterThanOrEqual(1);
+      expect(nextHandshakeToken()).toBe('access-A2');
+    });
+
+    it('EN-03-TC14: server ngắt socket và refresh lỗi 503 thì thử lại có backoff (không dồn dập), refresh được thì kết nối lại', async () => {
+      await connectedAsA();
+      routeFetch({ refreshResponses: [unavailable, unavailable] });
+      vi.useFakeTimers();
+
+      fake.sockets[0].fire('disconnect', 'io server disconnect');
+      await vi.advanceTimersByTimeAsync(500);
+      // Backoff: trong nửa giây đầu chỉ được thử refresh tối đa một lần.
+      expect(refreshCalls()).toBeLessThanOrEqual(1);
+
+      await vi.advanceTimersByTimeAsync(120000);
+      expect(refreshCalls()).toBeGreaterThanOrEqual(3);
+      expect(reconnectAttempts()).toBeGreaterThanOrEqual(1);
+      expect(nextHandshakeToken()).toBe('access-A2');
+    });
+
+    it('EN-03-TC14: connect_error mà refresh trả 401 (phiên đã bị thu hồi) thì dừng hẳn: không kết nối lại, xóa danh sách', async () => {
+      await connectedAsA();
+      routeFetch({ refreshResponses: [unauthorized, unauthorized, unauthorized, unauthorized, unauthorized] });
+      vi.useFakeTimers();
+
+      fake.sockets[0].fire('connect_error', new Error('UNAUTHORIZED'));
+      await vi.advanceTimersByTimeAsync(120000);
+
+      expect(client.getSnapshot().status).toBe('anonymous');
+      expect(reconnectAttempts()).toBe(0);
+      expect(refreshCalls()).toBe(1);
+      expect(feed.getItems()).toEqual([]);
+    });
+
+    it('EN-03-TC07: cursor cũ bị server từ chối (400) thì vẫn khôi phục được: sync lại từ đầu, không nhân đôi', async () => {
+      await connectedAsA();
+      let cursorAccepted = true;
+      routeFetch({
+        sync: cursor => {
+          if (cursor === null) return json({ items: [item('n1', '1'), item('n2', '2')], nextCursor: 'cursor-new-2', hasMore: false });
+          if (cursor === 'cursor-1' && cursorAccepted) return json({ items: [], nextCursor: 'cursor-1', hasMore: false });
+          return syncError();
+        },
+      });
+      // Lần đầu chỉ có n1 (sync từ đầu trả n1 với cursor-1).
+      fetcher.mockResolvedValueOnce(json({ items: [item('n1', '1')], nextCursor: 'cursor-1', hasMore: false }));
+      fake.sockets[0].fire('connect');
+      await vi.waitFor(() => expect(feed.getItems()).toHaveLength(1));
+
+      // Khóa ký cursor đổi (ví dụ đổi secret): cursor-1 không còn hợp lệ. Kết nối lại hai lần cho chắc.
+      cursorAccepted = false;
+      fake.sockets[0].fire('disconnect', 'transport close');
+      fake.sockets[0].fire('connect');
+      await vi.waitFor(() => expect(syncCalls(fetcher).length).toBeGreaterThanOrEqual(2));
+      fake.sockets[0].fire('disconnect', 'transport close');
+      fake.sockets[0].fire('connect');
+
+      await vi.waitFor(() => expect(feed.getItems().map(entry => entry.id).sort()).toEqual(['n1', 'n2']));
+      const calls = syncCalls(fetcher);
+      expect(calls.slice(1).some(call => new URL(call.url).searchParams.get('cursor') === null)).toBe(true);
+    });
+  });
 });
