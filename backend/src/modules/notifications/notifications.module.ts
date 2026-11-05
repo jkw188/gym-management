@@ -6,6 +6,7 @@ import { AuthModule } from '../auth/auth.module';
 import { NotificationDispatcher } from './notification-dispatcher';
 import { NotificationInboxService } from './notification-inbox.service';
 import { NotificationOutboxService } from './notification-outbox.service';
+import { NotificationInboxController } from './notification-inbox.controller';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsGateway } from './notifications.gateway';
 import { NotificationsRepository } from './notifications.repository';
@@ -26,7 +27,7 @@ import { NotificationSchema } from './schemas/notification.schema';
       { name: 'NotificationCounter', schema: NotificationCounterSchema },
     ]),
   ],
-  controllers: [NotificationsController],
+  controllers: [NotificationsController, NotificationInboxController],
   providers: [NotificationsService, NotificationInboxService, NotificationsRepository, NotificationOutboxService, NotificationDispatcher, NotificationsGateway],
   exports: [NotificationsService],
 })
