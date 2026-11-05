@@ -77,4 +77,68 @@ export class NotificationsRepository implements OnModuleInit {
   async insertOutbox(eventKey: string, notificationId: Types.ObjectId, now: Date, session: ClientSession): Promise<void> {
     await this.outbox.create([{ event_key: eventKey, notification_id: notificationId, status: 'READY', attempts: 0, available_at: now }], { session });
   }
+
+  // ----- Các hàm cho outbox worker (EN-03 bước 2). Không dùng session: worker chỉ thấy dữ liệu đã commit (EN-03-TC16). -----
+
+  // Nhận MỘT job bằng findOneAndUpdate có điều kiện: job READY đã đến hạn, hoặc PROCESSING mà lease đã hết (EN-03-TC05).
+  // Chỉ một worker cập nhật được document nên hai worker không nhận trùng job. skipIds: job đã xử lý trong lượt tick này.
+  claimNextJob(leaseOwner: string, now: Date, leaseUntil: Date, skipIds: Types.ObjectId[]) {
+    return this.outbox.findOneAndUpdate(
+      {
+        _id: { $nin: skipIds },
+        $or: [
+          { status: 'READY', available_at: { $lte: now } },
+          { status: 'PROCESSING', lease_until: { $lte: now } },
+        ],
+      },
+      { $set: { status: 'PROCESSING', lease_owner: leaseOwner, lease_until: leaseUntil } },
+      { sort: { available_at: 1, _id: 1 }, returnDocument: 'after' },
+    ).lean().exec();
+  }
+
+  findNotificationById(notificationId: Types.ObjectId) {
+    return this.notifications.findById(notificationId).lean().exec();
+  }
+
+  async findRecipientAccountIds(notificationId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    const rows = await this.recipients.find({ notification_id: notificationId }, { account_id: 1 }).lean().exec();
+    return rows.map(row => row.account_id);
+  }
+
+  // Các hàm kết thúc job đều lọc theo lease_owner: worker đã mất lease thì không ghi được gì (EN-03-TC05).
+  async markJobDone(jobId: Types.ObjectId, leaseOwner: string, now: Date): Promise<void> {
+    await this.outbox.updateOne(
+      { _id: jobId, status: 'PROCESSING', lease_owner: leaseOwner },
+      { $set: { status: 'DONE', completed_at: now }, $unset: { lease_owner: 1, lease_until: 1 } },
+    ).exec();
+  }
+
+  // EN-03-TC08: hẹn lần thử sau, job về READY với available_at mới.
+  async scheduleJobRetry(jobId: Types.ObjectId, leaseOwner: string, attempts: number, availableAt: Date, errorCode: string): Promise<void> {
+    await this.outbox.updateOne(
+      { _id: jobId, status: 'PROCESSING', lease_owner: leaseOwner },
+      { $set: { status: 'READY', attempts, available_at: availableAt, last_error_code: errorCode }, $unset: { lease_owner: 1, lease_until: 1 } },
+    ).exec();
+  }
+
+  // EN-03-TC08: hết lượt retry thì DEAD; worker không tự lấy job DEAD nữa. Trả về true nếu thật sự đã ghi.
+  async markJobDead(jobId: Types.ObjectId, leaseOwner: string, attempts: number, errorCode: string): Promise<boolean> {
+    const result = await this.outbox.updateOne(
+      { _id: jobId, status: 'PROCESSING', lease_owner: leaseOwner },
+      { $set: { status: 'DEAD', attempts, last_error_code: errorCode }, $unset: { lease_owner: 1, lease_until: 1 } },
+    ).exec();
+    return result.modifiedCount === 1;
+  }
+
+  findJobByEventKey(eventKey: string) {
+    return this.outbox.findOne({ event_key: eventKey }).lean().exec();
+  }
+
+  // EN-03-TC08: retry vận hành đưa job DEAD về READY, giữ nguyên _id, eventKey và notification.
+  async reopenDeadJob(jobId: Types.ObjectId, now: Date): Promise<void> {
+    await this.outbox.updateOne(
+      { _id: jobId, status: 'DEAD' },
+      { $set: { status: 'READY', attempts: 0, available_at: now } },
+    ).exec();
+  }
 }

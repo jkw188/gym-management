@@ -1,6 +1,8 @@
-// Cấu hình NestJS (EN-03 bước 1): module thông báo; module nghiệp vụ import để gọi NotificationsService.persistBusinessEvent.
+// Cấu hình NestJS (EN-03 bước 1–2): module thông báo và outbox worker; module nghiệp vụ import để gọi NotificationsService.persistBusinessEvent.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { NotificationDispatcher } from './notification-dispatcher';
+import { NotificationOutboxService } from './notification-outbox.service';
 import { NotificationsRepository } from './notifications.repository';
 import { NotificationsService } from './notifications.service';
 import { NotificationCounterSchema } from './schemas/notification-counter.schema';
@@ -15,7 +17,8 @@ import { NotificationSchema } from './schemas/notification.schema';
     { name: 'NotificationOutbox', schema: NotificationOutboxSchema },
     { name: 'NotificationCounter', schema: NotificationCounterSchema },
   ])],
-  providers: [NotificationsService, NotificationsRepository],
+  // EN-03 bước 2: worker outbox và dispatcher (bước 3 gateway sẽ thay phần thân dispatcher).
+  providers: [NotificationsService, NotificationsRepository, NotificationOutboxService, NotificationDispatcher],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}

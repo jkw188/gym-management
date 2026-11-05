@@ -18,6 +18,21 @@ export interface PersistedEvent {
   notificationState: NotificationState;
 }
 
+// Nội dung sự kiện socket notification.created (spec mục 3): chỉ các field này, không có member/transaction/recipient.
+export interface NotificationCreatedPayload {
+  id: string;
+  eventKey: string;
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+// Worker giao cho dispatcher: thông báo và danh sách account nhận đã chốt lúc commit.
+export interface DispatchMessage {
+  notification: NotificationCreatedPayload;
+  recipientAccountIds: string[];
+}
+
 // Dữ liệu một thông báo gửi cho client (socket notification.created và REST sync ở bước 3).
 export interface NotificationItem {
   id: string;
