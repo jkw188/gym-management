@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, QueryFilter, Types, UpdateQuery } from 'mongoose';
+import { ClientSession, Model, QueryFilter, Types, UpdateQuery } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { normalizeEmail, normalizeFullName, normalizePhone, validateObjectId } from '../../common/utils/normalization';
@@ -10,6 +10,9 @@ import { Role, ROLE_CODES, RoleCode } from './schemas/role.schema';
 import { ListUsersDto } from './users.dto';
 
 export interface CreateAccountInput { roleId: string; fullName: string; phone: string; email?: string; passwordHash: string }
+export interface AccountChanges {
+  fullName?: string; phone?: string; email?: string | null; birthDate?: string | null; address?: string | null;
+}
 
 @Injectable()
 export class UsersRepository implements OnModuleInit {
@@ -42,6 +45,7 @@ export class UsersRepository implements OnModuleInit {
   findAccountById(id: string) { return this.accounts.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).maxTimeMS(5000).exec(); }
   findAccountByPhone(phone: string) { return this.accounts.findOne({ phone: normalizePhone(phone) }).exec(); }
   findCredentialsByPhone(phone: string) { return this.accounts.findOne({ phone: normalizePhone(phone) }).select('+password_hash').exec(); }
+  findCredentialsById(id: string) { return this.accounts.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).select('+password_hash').maxTimeMS(5000).exec(); }
   findRoleByCode(code: RoleCode) { return this.roles.findOne({ code }).exec(); }
   findRoleById(id: string) { return this.roles.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).exec(); }
 
@@ -84,15 +88,56 @@ export class UsersRepository implements OnModuleInit {
     return this.accounts.findOne({ _id: new Types.ObjectId(id), version }).maxTimeMS(5000).exec();
   }
 
-  updateAccount(id: string, version: number, changes: { fullName?: string; phone?: string; email?: string | null }) {
-    const update: UpdateQuery<Account> = { $set: {}, $inc: { version: 1 } };
-    if (changes.fullName !== undefined) update.$set!.full_name = changes.fullName;
-    if (changes.phone !== undefined) update.$set!.phone = changes.phone;
-    if (changes.email === null) update.$unset = { email: '' };
-    else if (changes.email !== undefined) update.$set!.email = changes.email;
+  updateAccount(id: string, version: number, changes: AccountChanges) {
+    const fields = { full_name: changes.fullName, phone: changes.phone, email: changes.email,
+      birth_date: changes.birthDate, address: changes.address };
+    const set: Record<string, string> = {};
+    const unset: Record<string, ''> = {};
+    for (const [field, value] of Object.entries(fields)) {
+      if (value === null) unset[field] = '';
+      else if (value !== undefined) set[field] = value;
+    }
+    const update: UpdateQuery<Account> = { $set: set, $inc: { version: 1 } };
+    if (Object.keys(unset).length) update.$unset = unset;
     if (changes.phone !== undefined || changes.email !== undefined) update.$inc!.auth_version = 1;
     return this.accounts.findOneAndUpdate({ _id: new Types.ObjectId(id), version }, update,
       { returnDocument: 'after', runValidators: true, maxTimeMS: 5000 }).exec();
+  }
+
+  // US-67-F03: chỉ ghi khi hash, auth_version và status vẫn như lúc đọc; trả false nếu đã có thay đổi khác chen vào.
+  // Không lọc theo version nên sửa tên đồng thời không làm lệnh này thất bại (US-67-TC09).
+  async updatePasswordIfUnchanged(id: string, oldHash: string, authVersion: number, newHash: string): Promise<boolean> {
+    const filter: QueryFilter<Account> = { _id: new Types.ObjectId(id), password_hash: oldHash, auth_version: authVersion, status: 'ACTIVE' };
+    const update = {
+      $set: { password_hash: newHash, password_changed_at: new Date() },
+      // $inc tự tạo recovery_revision bằng 1 nếu record cũ chưa có field này.
+      $inc: { version: 1, auth_version: 1, recovery_revision: 1 },
+    };
+    const result = await this.accounts.updateOne(filter, update, { runValidators: true }).maxTimeMS(5000).exec();
+    return result.modifiedCount === 1;
+  }
+
+  // US-05-F01: tìm account theo email đã chuẩn hóa (chữ thường, bỏ khoảng trắng hai đầu).
+  findAccountByEmail(email: string) { return this.accounts.findOne({ email }).maxTimeMS(5000).exec(); }
+
+  // US-05-F05: đọc lại account bên trong transaction để kiểm tra trạng thái và cooldown mới nhất.
+  findAccountInSession(id: Types.ObjectId, session: ClientSession) {
+    return this.accounts.findById(id).session(session).exec();
+  }
+
+  // US-05-F05: yêu cầu mã được chấp nhận thì ghi revision mới và thời điểm yêu cầu; không đổi auth_version, version.
+  async startRecovery(id: Types.ObjectId, recoveryRevision: number, requestedAt: Date, session: ClientSession): Promise<void> {
+    await this.accounts.updateOne({ _id: id }, { $set: { recovery_revision: recoveryRevision, recovery_requested_at: requestedAt } },
+      { session, runValidators: true }).exec();
+  }
+
+  // US-05-F06: đặt lại mật khẩu trong transaction. Tăng auth_version để mọi access/refresh token cũ thành 401 (US-05-TC12),
+  // tăng recovery_revision để mọi challenge khác của account mất hiệu lực. updated_at do timestamps của schema tự ghi.
+  async resetPassword(id: Types.ObjectId, passwordHash: string, changedAt: Date, session: ClientSession): Promise<void> {
+    await this.accounts.updateOne({ _id: id }, {
+      $set: { password_hash: passwordHash, password_changed_at: changedAt },
+      $inc: { version: 1, auth_version: 1, recovery_revision: 1 },
+    }, { session, runValidators: true }).exec();
   }
 
   async createAccount(input: CreateAccountInput) {

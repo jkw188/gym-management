@@ -5,6 +5,7 @@ import { DatabaseModule } from './config/database.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { ProfileModule } from './modules/profile/profile.module';
 import { MembersModule } from './modules/members/members.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { TrainersModule } from './modules/trainers/trainers.module';
@@ -16,6 +17,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { OperationsModule } from './modules/operations/operations.module';
 
 @Module({
   imports: [
@@ -24,6 +26,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     HealthModule,
     AuthModule,
     UsersModule,
+    ProfileModule,
     MembersModule,
     MembershipsModule,
     TrainersModule,
@@ -35,6 +38,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     PaymentsModule,
     NotificationsModule,
     ReportsModule,
+    OperationsModule,
   ],
 })
 export class AppModule {}

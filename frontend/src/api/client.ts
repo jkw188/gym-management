@@ -1,6 +1,12 @@
-import type { AuthResponse, AuthSnapshot, AuthUser } from '../features/auth/auth.types';
+import type { AuthResponse, AuthSnapshot, AuthUser, LogoutResult } from '../features/auth/auth.types';
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
+const LOGOUT_MESSAGE = 'logout';
+export interface AuthChannel {
+  postMessage(message: unknown): void;
+  addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+}
+const createAuthChannel = (): AuthChannel | null => typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('gym-auth');
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status?: number, public readonly requestId?: string,
@@ -11,16 +17,26 @@ export class ApiError extends Error {
 export class ApiClient {
   private accessToken: string | null = null;
   private refreshPromise: Promise<AuthUser> | null = null;
+  private logoutPromise: Promise<LogoutResult> | null = null;
   private sessionGeneration = 0;
   private snapshot: AuthSnapshot = { status: 'checking', user: null };
   private readonly listeners = new Set<() => void>();
-  constructor(private readonly url: string, private readonly transport: typeof fetch = fetch) {}
+  constructor(private readonly url: string, private readonly transport: typeof fetch = fetch,
+    private readonly channel: AuthChannel | null = null) {
+    this.channel?.addEventListener('message', event => {
+      if (event.data === LOGOUT_MESSAGE) this.requireLogin();
+    });
+  }
 
   getSnapshot = (): AuthSnapshot => this.snapshot;
+  // EN-03 bước 3: socket thông báo lấy access token đang giữ trong bộ nhớ (không lưu localStorage) và gốc backend.
+  getAccessToken = (): string | null => this.accessToken;
+  getBaseUrl = (): string => this.url;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private publish(snapshot: AuthSnapshot) { this.snapshot = snapshot; for (const listener of this.listeners) listener(); }
-  private anonymous() { this.accessToken = null; this.publish({ status: 'anonymous', user: null }); }
-  requireLogin() { this.sessionGeneration++; this.anonymous(); }
+  private anonymous(loginReason?: string) { this.accessToken = null; this.publish({ status: 'anonymous', user: null, loginReason }); }
+  // loginReason để ProtectedRoute giữ được thông báo khi tự chuyển về trang đăng nhập (US-67).
+  requireLogin(loginReason?: string) { this.sessionGeneration++; this.anonymous(loginReason); }
 
   updateCurrentUser(user: AuthUser) {
     if (this.snapshot.status === 'authenticated' && this.snapshot.user?.id === user.id) {
@@ -53,6 +69,13 @@ export class ApiClient {
 
   publicGet<T>(path: string, signal?: AbortSignal) { return this.send<T>(path, { signal }); }
 
+  // US-05: POST tới endpoint công khai, không gắn access token và không tự gửi lại khi lỗi.
+  // credentials: 'include' để trình duyệt nhận lệnh xóa cookie gym_refresh khi đặt lại mật khẩu thành công.
+  publicPost<T>(path: string, body: unknown) {
+    return this.send<T>(path, { method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+
   async login(phone: string, password: string): Promise<AuthUser> {
     const generation = ++this.sessionGeneration;
     const result = await this.send<AuthResponse>('/auth/login', { method: 'POST', credentials: 'include',
@@ -65,6 +88,7 @@ export class ApiClient {
 
   refreshSession(): Promise<AuthUser> {
     if (this.refreshPromise) return this.refreshPromise;
+    if (this.snapshot.status === 'loggingOut') return Promise.reject(new ApiError('Đang đăng xuất.'));
     const generation = this.sessionGeneration;
     this.refreshPromise = (async () => {
       try {
@@ -74,7 +98,7 @@ export class ApiClient {
         this.accessToken = result.accessToken;
         const user = await this.send<AuthUser>('/auth/me', { headers: { Authorization: `Bearer ${this.accessToken}` } });
         if (generation !== this.sessionGeneration) throw new ApiError('Cần đăng nhập lại.', 401);
-        this.publish({ status: 'authenticated', user });
+        if (this.snapshot.status !== 'loggingOut') this.publish({ status: 'authenticated', user });
         return user;
       } catch (error) {
         if (generation === this.sessionGeneration && error instanceof ApiError && error.status === 401) this.anonymous();
@@ -85,7 +109,7 @@ export class ApiClient {
   }
 
   async restore(): Promise<void> {
-    if (this.snapshot.status === 'authenticated' || this.snapshot.status === 'anonymous') return;
+    if (this.snapshot.status !== 'checking') return;
     this.publish({ status: 'checking', user: null });
     try { await this.refreshSession(); }
     catch (error) {
@@ -95,13 +119,53 @@ export class ApiClient {
     }
   }
 
+  logout(): Promise<LogoutResult> {
+    this.logoutPromise ??= this.runLogout().finally(() => { this.logoutPromise = null; });
+    return this.logoutPromise;
+  }
+
+  private async runLogout(): Promise<LogoutResult> {
+    this.publish({ status: 'loggingOut', user: null });
+    await this.refreshPromise?.catch(() => undefined);
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.accessToken) headers.Authorization = `Bearer ${this.accessToken}`;
+    try {
+      await this.send<void>('/auth/logout', { method: 'POST', credentials: 'include', headers, body: '{}' });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        this.requireLogin();
+        return 'unverified';
+      }
+      this.publish({ status: 'loggingOut', user: null, error: 'Chưa xác nhận đăng xuất, hãy thử lại.',
+        requestId: error instanceof ApiError ? error.requestId : undefined });
+      throw error;
+    }
+
+    this.requireLogin();
+    this.channel?.postMessage(LOGOUT_MESSAGE);
+    return 'revoked';
+  }
+
+  // US-67-TC11, TC13: gửi đúng một lần, không refresh rồi gửi lại khi gặp 401.
+  // credentials: 'include' để trình duyệt nhận lệnh xóa cookie gym_refresh từ phản hồi.
+  async requestOnce<T>(path: string, init: RequestInit = {}): Promise<T> {
+    if (this.snapshot.status === 'loggingOut') throw new ApiError('Đang đăng xuất.');
+    const headers = new Headers(init.headers);
+    if (this.accessToken) headers.set('Authorization', `Bearer ${this.accessToken}`);
+    return this.send<T>(path, { ...init, headers, credentials: 'include' });
+  }
+
   async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    if (this.snapshot.status === 'loggingOut') throw new ApiError('Đang đăng xuất.');
     const token = this.accessToken;
     const generation = this.sessionGeneration;
-    const send = () => {
+    const send = async () => {
       const headers = new Headers(init.headers);
       if (this.accessToken) headers.set('Authorization', `Bearer ${this.accessToken}`);
-      return this.send<T>(path, { ...init, headers });
+      const result = await this.send<T>(path, { ...init, headers });
+      if (generation !== this.sessionGeneration) throw new ApiError('Cần đăng nhập lại.', 401);
+      return result;
     };
     try { return await send(); }
     catch (error) {
@@ -119,5 +183,5 @@ export class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient(baseUrl);
+export const apiClient = new ApiClient(baseUrl, fetch, createAuthChannel());
 export const apiGet = <T>(path: string, signal?: AbortSignal) => apiClient.publicGet<T>(path, signal);
