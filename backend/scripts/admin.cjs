@@ -69,6 +69,24 @@ async function run() {
     } finally { await connection.close(); }
     return;
   }
+  if (process.argv[2] === 'retry-notification') {
+    // EN-03 bước 2 (spec mục 2): công cụ vận hành đưa job outbox DEAD về READY theo eventKey, giữ nguyên eventKey.
+    // Lỗi 404 NOTIFICATION_OUTBOX_NOT_FOUND / 409 NOTIFICATION_OUTBOX_NOT_DEAD được in mã lỗi ở run().catch, thoát mã 1.
+    const eventKey = process.argv[3];
+    if (!eventKey) throw new ConfigurationError('Usage: npm run retry-notification -- <eventKey>');
+    configuration();
+    const { AppModule } = require('../dist/app.module');
+    const { NotificationOutboxService } = require('../dist/modules/notifications/notification-outbox.service');
+    const app = await NestFactory.createApplicationContext(AppModule, { logger: false, abortOnError: false });
+    try {
+      const outbox = app.get(NotificationOutboxService);
+      // Khởi động AppModule sẽ tự bật worker; lệnh này chỉ đổi trạng thái job, việc gửi để worker của server làm.
+      outbox.stop();
+      await outbox.retryDead(eventKey);
+      console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'NOTIFICATION_RETRY_SCHEDULED', eventKey }));
+    } finally { await app.close(); }
+    return;
+  }
   if (process.argv[2] !== 'seed-admin') throw new Error('UNKNOWN_COMMAND');
   // seed-admin khởi động cả AppModule nên vẫn kiểm toàn bộ cấu hình (JWT, SMTP...) như trước.
   configuration();
