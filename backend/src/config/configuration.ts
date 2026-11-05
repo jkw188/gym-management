@@ -12,13 +12,28 @@ export function readConfiguration(env: NodeJS.ProcessEnv) {
     const url = new URL(frontendOrigin);
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== frontendOrigin) throw new Error();
   } catch { invalid.push('FRONTEND_ORIGIN'); }
+  const { mongoUri, mongoDb } = checkMongoVariables(env, nodeEnv, invalid);
+  if (invalid.length) throw new ConfigurationError(`Invalid environment variables: ${invalid.join(', ')}`);
+  return { nodeEnv, port, frontendOrigin, mongoUri, mongoDb };
+}
+
+// Chỉ kiểm MONGODB_URI, MONGODB_DB cho lệnh quản trị chỉ cần kết nối DB (ensure-indexes, check-environment),
+// để không bắt buộc JWT/SMTP như khi chạy cả ứng dụng.
+export function readMongoConfiguration(env: NodeJS.ProcessEnv) {
+  const invalid: string[] = [];
+  const result = checkMongoVariables(env, env.NODE_ENV ?? 'development', invalid);
+  if (invalid.length) throw new ConfigurationError(`Invalid environment variables: ${invalid.join(', ')}`);
+  return result;
+}
+
+// Ghi TÊN biến sai vào invalid (không ghi giá trị); NODE_ENV=test bắt buộc dùng database test.
+function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: string[]) {
   const mongoUri = env.MONGODB_URI?.trim() ?? '';
   const mongoDb = env.MONGODB_DB?.trim() ?? '';
   if (!/^mongodb(?:\+srv)?:\/\//.test(mongoUri)) invalid.push('MONGODB_URI');
   if (!mongoDb || /[\/\\."$*<>:|?\s\0]/.test(mongoDb)) invalid.push('MONGODB_DB');
   if (nodeEnv === 'test' && !/^gym_management_test(?:_[a-zA-Z0-9_-]+)?$/.test(mongoDb)) invalid.push('MONGODB_DB (test database required)');
-  if (invalid.length) throw new ConfigurationError(`Invalid environment variables: ${invalid.join(', ')}`);
-  return { nodeEnv, port, frontendOrigin, mongoUri, mongoDb };
+  return { mongoUri, mongoDb };
 }
 
 // Keep EN-01 validation reusable by infrastructure tools and validate Auth at application startup.

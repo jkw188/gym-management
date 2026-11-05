@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationError } from 'class-validator';
 import { json, Request, Response, NextFunction } from 'express';
@@ -36,6 +37,8 @@ export function configureHttp(app: INestApplication): void {
     exceptionFactory: errors => new ApplicationError(400, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ', validationDetails(errors)),
   }));
   app.useGlobalFilters(new HttpErrorFilter());
+  // EN-03 bước 3: Socket.IO chạy chung cổng với HTTP (namespace /notifications).
+  app.useWebSocketAdapter(new IoAdapter(app));
   if (config.get('nodeEnv') !== 'production') {
     const document = SwaggerModule.createDocument(app, new DocumentBuilder().setTitle('Gym Management API').setVersion('1.0').addBearerAuth().build());
     SwaggerModule.setup('api/docs', app, document);
