@@ -1,7 +1,7 @@
 // Tầng kiểm thử backend (Jest + MongoDB replica set thật trong bộ nhớ): EN-03 bước 2.
-// Kiểm tra outbox worker: lease 30 giây, crash rồi xử lý lại, retry 10/30/60/120/300 giây, DEAD và retry vận hành (TC05–TC08).
+// Kiểm tra outbox worker: lease 30 giây, crash rồi xử lý lại, retry 10/30/60/120/300 giây, DEAD và retry vận hành (TC05–TC08, TC16–TC20).
 import 'reflect-metadata';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { getConnectionToken } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
@@ -19,7 +19,10 @@ import { NotificationsService } from '../src/modules/notifications/notifications
 //   NotificationOutboxService (src/modules/notifications/notification-outbox.service.ts):
 //     runOnce(): Promise<number>  một lượt tick: nhận tối đa 50 job đến hạn, dispatch, rồi DONE hoặc hẹn retry/DEAD.
 //     retryDead(eventKey: string): Promise<void>  công cụ vận hành: đưa job DEAD về READY, giữ nguyên eventKey và notification.
-//   NODE_ENV=test thì worker KHÔNG tự chạy tick theo chu kỳ; test tự gọi runOnce().
+//       Không có eventKey → ApplicationError 404 NOTIFICATION_OUTBOX_NOT_FOUND; job không DEAD → 409 NOTIFICATION_OUTBOX_NOT_DEAD.
+//     start(): void / stop(): void  bật/tắt tick tự động (tối đa mỗi 5 giây).
+//   NODE_ENV=test thì worker KHÔNG tự start; test tự gọi runOnce() hoặc start()/stop().
+//   Job DEAD ghi log error bằng Nest Logger có eventKey và last_error_code (spec bản 1.1, TC16–TC20).
 //   Thời gian lấy theo đồng hồ ứng dụng (new Date()), test "tua giờ" bằng cách sửa available_at/lease_until trong DB.
 import { NotificationDispatcher } from '../src/modules/notifications/notification-dispatcher';
 import { NotificationOutboxService } from '../src/modules/notifications/notification-outbox.service';
@@ -107,16 +110,21 @@ describe('EN-03 bước 2: outbox worker với lease, attempts và retry DEAD', 
     return account.id.toHexString();
   }
 
-  // Tạo một job outbox READY bằng đường thật của bước 1 (persistBusinessEvent trong transaction).
-  async function createJob() {
-    const accountId = await createMember();
-    const source = {
+  function saleSource() {
+    return {
       eventKey: `SERVICE_SALE_SETTLED:${new ObjectId().toHexString()}`,
       title: 'Gói tập đã được kích hoạt',
       body: 'Gói Gym 1 tháng, hạn dùng đến 2026-12-04, mã giao dịch GD0001',
       memberId: new ObjectId().toHexString(),
       transactionId: new ObjectId().toHexString(),
     };
+  }
+
+  // Tạo một job outbox READY bằng đường thật của bước 1 (persistBusinessEvent trong transaction).
+  // Truyền accountId để dùng lại một member (tạo member tốn thời gian vì phải băm mật khẩu).
+  async function createJob(existingAccountId?: string) {
+    const accountId = existingAccountId ?? await createMember();
+    const source = saleSource();
     const result = await transactions.run(session => notifications.persistBusinessEvent(session, source, [accountId]));
     return { accountId, eventKey: source.eventKey, title: source.title, body: source.body, notificationId: result.notificationId };
   }
@@ -371,6 +379,114 @@ describe('EN-03 bước 2: outbox worker với lease, attempts và retry DEAD', 
       expect((await outbox(job.eventKey))!.status).toBe('DONE');
       expect(await db().collection('notifications').countDocuments()).toBe(1);
       expect(await db().collection('notification_outbox').countDocuments()).toBe(1);
+    });
+  });
+
+  // ---------- EN-03-TC16: worker chỉ lấy job đã commit ----------
+  it('EN-03-TC16: tick chạy khi transaction lưu thông báo chưa commit thì không dispatch; sau commit tick sau mới dispatch', async () => {
+    const accountId = await createMember();
+    const source = saleSource();
+
+    await transactions.run(async session => {
+      await notifications.persistBusinessEvent(session, source, [accountId]);
+      // Transaction này chưa commit: worker (chạy ngoài session) không được thấy job.
+      await worker.runOnce();
+    });
+    expect(dispatchSpy).not.toHaveBeenCalled();
+
+    await worker.runOnce();
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // ---------- EN-03-TC17: batch 50 ----------
+  it('EN-03-TC17: có 51 job đến hạn thì một tick chỉ xử lý 50, tick sau xử lý job còn lại', async () => {
+    const accountId = await createMember();
+    for (let index = 0; index < 51; index += 1) await createJob(accountId);
+
+    await worker.runOnce();
+
+    expect(dispatchSpy).toHaveBeenCalledTimes(50);
+    expect(await db().collection('notification_outbox').countDocuments({ status: 'DONE' })).toBe(50);
+    expect(await db().collection('notification_outbox').countDocuments({ status: 'READY' })).toBe(1);
+
+    await worker.runOnce();
+    expect(dispatchSpy).toHaveBeenCalledTimes(51);
+    expect(await db().collection('notification_outbox').countDocuments({ status: 'DONE' })).toBe(51);
+  });
+
+  // ---------- EN-03-TC18: tick tự động ----------
+  it('EN-03-TC18: bật worker tự chạy thì job READY được xử lý trong khoảng một tick (5 giây), không cần gọi runOnce', async () => {
+    const job = await createJob();
+
+    worker.start();
+    try {
+      // Chờ tối đa 7 giây (5 giây một tick + dư 2 giây cho máy chậm), hỏi DB mỗi 200 ms.
+      const deadline = Date.now() + 7000;
+      while (Date.now() < deadline && (await outbox(job.eventKey))!.status !== 'DONE') {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    } finally {
+      worker.stop();
+    }
+
+    expect((await outbox(job.eventKey))!.status).toBe('DONE');
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+  }, 15000);
+
+  // ---------- EN-03-TC19: log khi DEAD ----------
+  it('EN-03-TC19: job thành DEAD thì có log error chứa eventKey và mã lỗi an toàn, không có message thô hay secret', async () => {
+    const job = await createJob();
+    // Builder dùng Nest Logger (instance hoặc static); bắt cả hai cách gọi.
+    const instanceLog = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const staticLog = jest.spyOn(Logger, 'error').mockImplementation(() => undefined);
+
+    await driveToDead(job.eventKey, new Error('connect failed mongodb://admin:MatKhauBiMat@db.local:27017'));
+
+    const dead = await outbox(job.eventKey);
+    const lines = [...instanceLog.mock.calls, ...staticLog.mock.calls].map(args => JSON.stringify(args));
+    expect(lines.some(line => line.includes(job.eventKey) && line.includes(dead!.last_error_code!))).toBe(true);
+    for (const line of lines) {
+      expect(line).not.toContain('MatKhauBiMat');
+      expect(line).not.toContain('mongodb://');
+    }
+  });
+
+  // ---------- EN-03-TC20: retryDead sai đối tượng; job không có người nhận ----------
+  describe('EN-03-TC20: retryDead chỉ cho job DEAD; job không có người nhận DONE ngay', () => {
+    it('EN-03-TC20: retryDead với eventKey không tồn tại thì lỗi 404 NOTIFICATION_OUTBOX_NOT_FOUND', async () => {
+      await expect(worker.retryDead(`SERVICE_SALE_SETTLED:${new ObjectId().toHexString()}`))
+        .rejects.toMatchObject({ status: 404, code: 'NOTIFICATION_OUTBOX_NOT_FOUND' });
+    });
+
+    it('EN-03-TC20: retryDead với job READY thì lỗi 409 NOTIFICATION_OUTBOX_NOT_DEAD và job giữ nguyên', async () => {
+      const job = await createJob();
+      const before = await outbox(job.eventKey);
+
+      await expect(worker.retryDead(job.eventKey)).rejects.toMatchObject({ status: 409, code: 'NOTIFICATION_OUTBOX_NOT_DEAD' });
+
+      expect(await outbox(job.eventKey)).toEqual(before);
+    });
+
+    it('EN-03-TC20: retryDead với job DONE thì lỗi 409 NOTIFICATION_OUTBOX_NOT_DEAD và job vẫn DONE', async () => {
+      const job = await createJob();
+      await worker.runOnce();
+      const before = await outbox(job.eventKey);
+
+      await expect(worker.retryDead(job.eventKey)).rejects.toMatchObject({ status: 409, code: 'NOTIFICATION_OUTBOX_NOT_DEAD' });
+
+      expect(await outbox(job.eventKey)).toEqual(before);
+    });
+
+    it('EN-03-TC20: job của thông báo không có người nhận (NO_LINKED_ACCOUNT) thì DONE ngay, không gọi dispatch', async () => {
+      const source = saleSource();
+      await transactions.run(session => notifications.persistBusinessEvent(session, source, []));
+
+      await worker.runOnce();
+
+      expect(dispatchSpy).not.toHaveBeenCalled();
+      const done = await outbox(source.eventKey);
+      expect(done!.status).toBe('DONE');
+      expect(done!.completed_at).toBeInstanceOf(Date);
     });
   });
 });
