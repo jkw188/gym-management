@@ -21,3 +21,5 @@ export const NotificationRecipientSchema = new Schema<NotificationRecipient>({
 NotificationRecipientSchema.index({ notification_id: 1, account_id: 1 }, { unique: true, name: 'notification_recipients_notification_account_unique' });
 // Tìm thông báo của một account (REST sync ở bước 3).
 NotificationRecipientSchema.index({ account_id: 1, notification_id: 1 }, { name: 'notification_recipients_account_notification' });
+// US-47-TC08: inbox lọc theo account và trạng thái đọc (read_at) rồi nối sang notification.
+NotificationRecipientSchema.index({ account_id: 1, read_at: 1, notification_id: 1 }, { name: 'notification_recipients_account_read_notification' });
