@@ -312,6 +312,38 @@ describe('US-47 bước 3: trang inbox và badge chuông', () => {
     expect(unread).toHaveBeenCalledTimes(2);
   });
 
+  // US-47 bước 4: chuông và trang inbox cùng hiện (như trên thanh điều hướng thật).
+  it('US-47-TC07: đọc thông báo trong trang thì chuông cũng giảm số theo server, không cần tín hiệu socket/focus', async () => {
+    const entry = item('n1', 'Gói tập kích hoạt');
+    let readDone = false;
+    vi.spyOn(inboxApi, 'list').mockImplementation(async () => page([readDone ? { ...entry, readAt: asOf } : entry, item('n2', 'Thanh toán thành công')]));
+    vi.spyOn(inboxApi, 'unreadCount').mockImplementation(async () => ({ unreadCount: readDone ? 1 : 2, asOf }));
+    vi.spyOn(inboxApi, 'detail').mockResolvedValue(detailOf(entry));
+    vi.spyOn(inboxApi, 'markRead').mockImplementation(async (id: string) => { readDone = true; return { id, readAt: asOf }; });
+    render(<MemoryRouter initialEntries={['/member/notifications']}><NotificationBell /><NotificationsPage /></MemoryRouter>);
+    await screen.findByRole('link', { name: bellLabel(2) });
+
+    await userEvent.click(await screen.findByRole('button', { name: /Gói tập kích hoạt/ }));
+
+    expect(await screen.findByRole('link', { name: bellLabel(1) })).toBeDefined();
+  });
+
+  it('US-47-TC12: mark-read lỗi thì chuông giữ nguyên số, không giảm giả', async () => {
+    const entry = item('n1', 'Gói tập kích hoạt');
+    vi.spyOn(inboxApi, 'list').mockResolvedValue(page([entry, item('n2', 'Thanh toán thành công')]));
+    vi.spyOn(inboxApi, 'unreadCount').mockResolvedValue({ unreadCount: 2, asOf });
+    vi.spyOn(inboxApi, 'detail').mockResolvedValue(detailOf(entry));
+    vi.spyOn(inboxApi, 'markRead').mockRejectedValue(new ApiError('Hệ thống tạm thời gián đoạn', 503, 'req-4', undefined, undefined, 'SERVICE_UNAVAILABLE'));
+    render(<MemoryRouter initialEntries={['/member/notifications']}><NotificationBell /><NotificationsPage /></MemoryRouter>);
+    await screen.findByRole('link', { name: bellLabel(2) });
+
+    await userEvent.click(await screen.findByRole('button', { name: /Gói tập kích hoạt/ }));
+
+    expect(await screen.findByRole('alert')).toBeDefined();
+    expect(screen.getByRole('link', { name: bellLabel(2) })).toBeDefined();
+    expect(screen.queryByRole('link', { name: bellLabel(1) })).toBeNull();
+  });
+
   it('US-47-TC12: đổi account thì badge không giữ số của account trước', async () => {
     vi.spyOn(inboxApi, 'unreadCount').mockImplementation(async () =>
       ({ unreadCount: snapshot.user?.id === userA.id ? 5 : 0, asOf }));
