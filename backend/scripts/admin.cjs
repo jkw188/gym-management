@@ -11,6 +11,10 @@ const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
 const { OperationRequestSchema } = require('../dist/modules/operations/schemas/operation-request.schema');
+const { NotificationSchema } = require('../dist/modules/notifications/schemas/notification.schema');
+const { NotificationRecipientSchema } = require('../dist/modules/notifications/schemas/notification-recipient.schema');
+const { NotificationOutboxSchema } = require('../dist/modules/notifications/schemas/notification-outbox.schema');
+const { NotificationCounterSchema } = require('../dist/modules/notifications/schemas/notification-counter.schema');
 const { EnvironmentCheck } = require('../dist/infrastructure/environment/environment-check');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
@@ -33,6 +37,14 @@ async function run() {
       const operationRequest = connection.model('OperationRequest', OperationRequestSchema);
       await Promise.all([account.createIndexes(), role.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),
         passwordReset.createIndexes(), operationRequest.createIndexes()]);
+      // EN-03 bước 1: index notifications/recipients/outbox và counter sequence phải có trước khi nhận ghi.
+      const notification = connection.model('Notification', NotificationSchema);
+      const recipient = connection.model('NotificationRecipient', NotificationRecipientSchema);
+      const outbox = connection.model('NotificationOutbox', NotificationOutboxSchema);
+      const counter = connection.model('NotificationCounter', NotificationCounterSchema);
+      await Promise.all([notification.createIndexes(), recipient.createIndexes(), outbox.createIndexes()]);
+      // Chỉ tạo counter khi chưa có; chạy lại nhiều lần không đổi value.
+      await counter.updateOne({ _id: 'global' }, { $setOnInsert: { value: 0n } }, { upsert: true });
       // US-05 migration: account tạo trước US-05 chưa có recovery_revision thì ghi 0. Chạy lại nhiều lần vẫn an toàn
       // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
       await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
