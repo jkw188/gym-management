@@ -1,9 +1,10 @@
-// Tầng dữ liệu (EN-03 bước 1): nơi duy nhất đọc/ghi notifications, notification_recipients, notification_outbox, notification_counters.
+// Tầng dữ liệu (EN-03 bước 1, US-47 bước 1): nơi duy nhất đọc/ghi notifications, notification_recipients, notification_outbox, notification_counters.
 // Mọi lệnh ghi nhận session rõ ràng để nằm trong transaction của lệnh nghiệp vụ; repository không tự mở transaction.
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model, Types } from 'mongoose';
+import { ClientSession, Model, PipelineStage, Types } from 'mongoose';
+import { ReadState } from './notifications.types';
 import { NotificationCounter } from './schemas/notification-counter.schema';
 import { NotificationOutbox } from './schemas/notification-outbox.schema';
 import { NotificationRecipient } from './schemas/notification-recipient.schema';
@@ -167,4 +168,53 @@ export class NotificationsRepository implements OnModuleInit {
       { $set: { status: 'READY', attempts: 0, available_at: now } },
     ).exec();
   }
+
+  // ----- Các hàm cho inbox của member (US-47 bước 1). Mọi truy vấn BẮT ĐẦU từ recipient của account (US-47-F01). -----
+
+  // Các bước đầu dùng chung cho danh sách và đếm: lọc recipient của account theo trạng thái đọc,
+  // nối sang notifications. $unwind bỏ recipient mồ côi (không còn notification) nên không bị đếm (US-47-TC08).
+  private ownRecipientStages(accountId: Types.ObjectId, readState: ReadState): PipelineStage[] {
+    const match: Record<string, unknown> = { account_id: accountId };
+    // US-47-F02: read_at vắng mặt là chưa đọc, có giá trị là đã đọc.
+    if (readState === 'UNREAD') match.read_at = { $exists: false };
+    if (readState === 'READ') match.read_at = { $exists: true };
+    return [
+      { $match: match },
+      { $lookup: { from: 'notifications', localField: 'notification_id', foreignField: '_id', as: 'notification' } },
+      { $unwind: '$notification' },
+    ];
+  }
+
+  // US-47-TC08: một trang inbox, sắp notifications.sequence giảm dần. MongoDB so sánh Int64 chính xác, không qua JS Number.
+  findInboxPage(accountId: Types.ObjectId, readState: ReadState, skip: number, limit: number): Promise<InboxRow[]> {
+    return this.recipients.aggregate<InboxRow>([
+      ...this.ownRecipientStages(accountId, readState),
+      { $sort: { 'notification.sequence': -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ]).exec();
+  }
+
+  // Số recipient của account khớp bộ lọc và có notification hợp lệ (dùng cho total và unreadCount).
+  async countInbox(accountId: Types.ObjectId, readState: ReadState): Promise<number> {
+    const [result] = await this.recipients.aggregate<{ total: number }>([
+      ...this.ownRecipientStages(accountId, readState),
+      { $count: 'total' },
+    ]).exec();
+    // $count không trả document nào khi không có dòng khớp.
+    return result ? result.total : 0;
+  }
+
+  // US-47-F03, US-47-TC06: chỉ set read_at khi chưa có, trong MỘT lệnh cập nhật atomic trên đúng recipient của account.
+  // Hai tab gọi cùng lúc thì chỉ một lệnh khớp điều kiện; lệnh còn lại không ghi gì. Trả về true nếu đã ghi.
+  async markRead(notificationId: Types.ObjectId, accountId: Types.ObjectId, now: Date): Promise<boolean> {
+    const result = await this.recipients.updateOne(
+      { notification_id: notificationId, account_id: accountId, read_at: { $exists: false } },
+      { $set: { read_at: now } },
+    ).exec();
+    return result.modifiedCount === 1;
+  }
 }
+
+// Một dòng kết quả inbox: recipient của account kèm notification đã nối.
+export type InboxRow = NotificationRecipient & { notification: Notification };
