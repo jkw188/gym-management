@@ -1,7 +1,6 @@
 // Tầng nghiệp vụ (EN-03 bước 2): outbox worker lấy job đã commit, gọi dispatcher, rồi DONE hoặc hẹn retry/DEAD.
 // Luật: lease 30 giây, tick tối đa mỗi 5 giây, batch 50, retry sau 10/30/60/120/300 giây, lần thử thứ 6 vẫn lỗi thì DEAD.
-import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
@@ -17,22 +16,15 @@ const BATCH_SIZE = 50;
 const RETRY_DELAYS_SECONDS = [10, 30, 60, 120, 300];
 
 @Injectable()
-export class NotificationOutboxService implements OnApplicationBootstrap, OnModuleDestroy {
+export class NotificationOutboxService implements OnModuleDestroy {
   private readonly logger = new Logger(NotificationOutboxService.name);
   private timer?: NodeJS.Timeout;
   private ticking = false;
 
-  constructor(
-    private readonly repository: NotificationsRepository,
-    private readonly dispatcher: NotificationDispatcher,
-    private readonly config: ConfigService,
-  ) {}
+  constructor(private readonly repository: NotificationsRepository, private readonly dispatcher: NotificationDispatcher) {}
 
-  // Ứng dụng chạy thật thì tự bật worker; khi test thì test tự gọi runOnce() hoặc start().
-  onApplicationBootstrap(): void {
-    if (this.config.get('nodeEnv') !== 'test') this.start();
-  }
-
+  // Spec 1.2 (EN-03-TC18): worker KHÔNG tự bật khi module khởi động; chỉ main.ts (HTTP server) gọi start().
+  // App context khác (lệnh CLI, test) không có socket, nếu chạy worker sẽ đánh DONE sai.
   onModuleDestroy(): void {
     this.stop();
   }

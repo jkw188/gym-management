@@ -79,10 +79,8 @@ async function run() {
     const { NotificationOutboxService } = require('../dist/modules/notifications/notification-outbox.service');
     const app = await NestFactory.createApplicationContext(AppModule, { logger: false, abortOnError: false });
     try {
-      const outbox = app.get(NotificationOutboxService);
-      // Khởi động AppModule sẽ tự bật worker; lệnh này chỉ đổi trạng thái job, việc gửi để worker của server làm.
-      outbox.stop();
-      await outbox.retryDead(eventKey);
+      // App context không chạy worker (spec 1.2): lệnh chỉ đổi trạng thái job, việc gửi để worker của HTTP server làm.
+      await app.get(NotificationOutboxService).retryDead(eventKey);
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'NOTIFICATION_RETRY_SCHEDULED', eventKey }));
     } finally { await app.close(); }
     return;
