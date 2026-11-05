@@ -70,7 +70,11 @@ export class IdempotencyService {
         // EN-02-TC05: hai request cùng key chạy đua, unique index chặn request thua và transaction của nó bị abort.
         // Thử lại cùng key để đọc record của request thắng; quá số lần thì ném lỗi, không báo thành công giả.
         // Trùng index nghiệp vụ khác (vd payments.reference) là lỗi nghiệp vụ: ném ngay, không retry (EN-02-F03).
-        if (isOperationKeyDuplicate(error) && attempt < MAX_DUPLICATE_RETRIES) continue;
+        if (isOperationKeyDuplicate(error)) {
+          if (attempt < MAX_DUPLICATE_RETRIES) continue;
+          // Hết lượt thử mà vẫn trùng key: không biết kết quả, client giữ nguyên key để hỏi lại (EN-02 mục transaction).
+          throw new ApplicationError(503, 'OPERATION_OUTCOME_UNKNOWN', 'Chưa xác định được kết quả. Hãy kiểm tra lại hoặc gửi lại với cùng khóa');
+        }
         throw error;
       }
     }
@@ -98,10 +102,13 @@ function hashRequest(payload: Record<string, unknown>, targetId = ''): string {
 }
 
 // Sắp xếp key của object theo thứ tự chữ cái (cả object lồng nhau), để đổi thứ tự field vẫn ra cùng chuỗi (EN-02-TC04).
+// Date đổi thành chuỗi ISO để khác ngày thì khác hash; field undefined bị bỏ như JSON.stringify (EN-02-TC06).
 function canonicalJson(value: unknown): string {
+  if (value instanceof Date) return JSON.stringify(value.toISOString());
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value !== null && typeof value === 'object') {
-    const keys = Object.keys(value).sort();
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).filter(key => record[key] !== undefined).sort();
     return `{${keys.map(key => `${JSON.stringify(key)}:${canonicalJson((value as Record<string, unknown>)[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
