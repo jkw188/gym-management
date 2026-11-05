@@ -4,6 +4,7 @@ import { Schema, Types } from 'mongoose';
 
 export interface Notification {
   _id: Types.ObjectId;
+  id: Types.ObjectId;
   created_by?: Types.ObjectId;
   title: string;
   body: string;
@@ -15,6 +16,9 @@ export interface Notification {
 }
 
 export const NotificationSchema = new Schema<Notification>({
+  // Mục 4.2.32: id bắt buộc, unique, luôn bằng _id (EN-03-TC01). Tự lấy giá trị _id khi tạo, không đổi được.
+  id: { type: Schema.Types.ObjectId, required: true, immutable: true, default: function () { return this._id; },
+    validate: function (value: Types.ObjectId) { return value.equals(this._id); } },
   created_by: { type: Schema.Types.ObjectId, ref: 'Account' },
   title: { type: String, required: true, maxlength: 190 },
   body: { type: String, required: true, maxlength: 2000 },
@@ -26,7 +30,10 @@ export const NotificationSchema = new Schema<Notification>({
   member_id: { type: Schema.Types.ObjectId },
   transaction_id: { type: Schema.Types.ObjectId },
   created_at: { type: Date, required: true },
-}, { collection: 'notifications', versionKey: false, strict: 'throw' });
+// id: false tắt virtual id (chuỗi) mặc định của Mongoose để dùng field id thật ở trên.
+}, { collection: 'notifications', id: false, versionKey: false, strict: 'throw' });
+
+NotificationSchema.index({ id: 1 }, { unique: true, name: 'notifications_id_unique' });
 
 // EN-03-TC02: cùng eventKey không tạo thông báo thứ hai.
 NotificationSchema.index({ event_key: 1 }, { unique: true, name: 'notifications_event_key_unique' });

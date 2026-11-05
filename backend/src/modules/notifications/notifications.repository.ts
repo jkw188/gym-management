@@ -54,7 +54,7 @@ export class NotificationsRepository implements OnModuleInit {
   // bị write conflict và driver chạy lại, nên sequence theo thứ tự commit. upsert phòng khi counter chưa được tạo.
   async nextSequence(session: ClientSession): Promise<bigint> {
     const counter = await this.counters.findOneAndUpdate(
-      { _id: GLOBAL_COUNTER_ID }, { $inc: { value: 1n } }, { upsert: true, new: true, session },
+      { _id: GLOBAL_COUNTER_ID }, { $inc: { value: 1n } }, { upsert: true, returnDocument: 'after', session },
     ).exec();
     return counter!.value;
   }
