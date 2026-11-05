@@ -206,13 +206,13 @@ export class NotificationsRepository implements OnModuleInit {
   }
 
   // US-47-F03, US-47-TC06: chỉ set read_at khi chưa có, trong MỘT lệnh cập nhật atomic trên đúng recipient của account.
-  // Hai tab gọi cùng lúc thì chỉ một lệnh khớp điều kiện; lệnh còn lại không ghi gì. Trả về true nếu đã ghi.
-  async markRead(notificationId: Types.ObjectId, accountId: Types.ObjectId, now: Date): Promise<boolean> {
-    const result = await this.recipients.updateOne(
+  // Hai tab gọi cùng lúc thì chỉ một lệnh khớp điều kiện; lệnh còn lại không ghi gì.
+  // Không trả kết quả: service luôn đọc lại recipient để lấy read_at của lần đầu.
+  async markRead(notificationId: Types.ObjectId, accountId: Types.ObjectId, now: Date): Promise<void> {
+    await this.recipients.updateOne(
       { notification_id: notificationId, account_id: accountId, read_at: { $exists: false } },
       { $set: { read_at: now } },
     ).exec();
-    return result.modifiedCount === 1;
   }
 }
 

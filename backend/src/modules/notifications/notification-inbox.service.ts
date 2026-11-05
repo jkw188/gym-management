@@ -54,7 +54,9 @@ export class NotificationInboxService {
     await this.repository.markRead(notification._id, account, new Date());
     // Đọc lại recipient: dù lần này có ghi hay không, read_at trong DB luôn là timestamp lần đầu.
     const recipient = await this.repository.findRecipient(notification._id, account);
-    return { id: notification._id.toHexString(), readAt: recipient!.read_at!.toISOString() };
+    // Phòng trường hợp recipient biến mất giữa hai lệnh: trả 404 theo hợp đồng lỗi, không để TypeError thành 500.
+    if (!recipient || !recipient.read_at) throw notFound();
+    return { id: notification._id.toHexString(), readAt: recipient.read_at.toISOString() };
   }
 
   // US-47-TC02, US-47-TC04: phải có recipient của CHÍNH account; member_id trùng cũng không đủ quyền xem.
