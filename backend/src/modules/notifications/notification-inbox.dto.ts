@@ -18,6 +18,7 @@ export class InboxQueryDto {
   @IsIn(READ_STATES) readState: ReadState = 'ALL';
 
   // US-47-D02: page nguyên ≥ 1, mặc định 1. page lớn hơn totalPages vẫn hợp lệ.
+  // @Max(MAX_SAFE_INTEGER): chuỗi số quá lớn đổi sang Number sẽ bị làm tròn, mất chính xác, nên chặn bằng 400.
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @Transform(queryInteger) @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) page = 1;
 
