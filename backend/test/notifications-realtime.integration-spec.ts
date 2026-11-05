@@ -1,4 +1,4 @@
-// Tầng kiểm thử backend (Jest + MongoDB replica set thật + Socket.IO client thật): EN-03 bước 3.
+// Tầng kiểm thử backend (Jest + MongoDB replica set thật + Socket.IO client thật): EN-03 bước 3 và bước 4 (nối đầu–cuối).
 // Kiểm tra gateway /notifications và REST sync: chỉ người có quyền hiện hành mới nhận/đọc/ack (TC07, TC09–TC13, TC15).
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
@@ -15,6 +15,7 @@ import request from 'supertest';
 import { PasswordService } from '../src/common/security/password.service';
 import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
 import { TransactionRunner } from '../src/infrastructure/transaction/transaction-runner';
+import { NotificationDispatcher } from '../src/modules/notifications/notification-dispatcher';
 import { NotificationOutboxService } from '../src/modules/notifications/notification-outbox.service';
 import { NotificationsService } from '../src/modules/notifications/notifications.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
@@ -563,6 +564,161 @@ describe('EN-03 bước 3: gateway /notifications và REST sync chỉ phục v�
         const response = await sync(a.accessToken, { cursor: bad }).expect(400);
         expect(JSON.stringify(response.body)).not.toMatch(/Mongo|E11000|stack/i);
       }
+    });
+  });
+
+  // ---------- EN-03 bước 4: kiểm thử nối đầu–cuối (transaction thật → worker thật → socket thật → REST sync) ----------
+  // Bước 4: "Test commit/rollback, worker crash, offline replay và thu hồi quyền sau handshake".
+  // Crash được giả lập bằng cách đưa outbox về đúng trạng thái DB mà worker chết để lại (giống test bước 2).
+  describe('EN-03 bước 4: nối đầu–cuối worker, socket và REST sync', () => {
+    const outboxOf = (eventKey: string) => db().collection('notification_outbox').findOne({ event_key: eventKey });
+    const setOutbox = (eventKey: string, fields: Record<string, unknown>) =>
+      db().collection('notification_outbox').updateOne({ event_key: eventKey }, { $set: fields });
+    const syncIds = async (accessToken: string) => ((await sync(accessToken).expect(200)).body as SyncBody).items.map(entry => entry.id);
+
+    // "Lệnh thanh toán giả": payment và thông báo trong CÙNG transaction (như test bước 1).
+    async function settle(recipients: string[], failAfterPersist = false) {
+      const eventKey = `SERVICE_SALE_SETTLED:${new ObjectId().toHexString()}`;
+      const result = await transactions.run(async session => {
+        await db().collection('payments').insertOne({ event_key: eventKey, amount: '500000' }, { session });
+        const persisted = await notifications.persistBusinessEvent(session, {
+          eventKey, title: 'Gói tập đã được kích hoạt', body: 'Gói Gym 1 tháng, mã giao dịch GD0002',
+        }, recipients);
+        if (failAfterPersist) throw new Error('Lỗi nghiệp vụ giả lập sau khi lưu thông báo');
+        return persisted;
+      });
+      return { eventKey, notificationId: result.notificationId };
+    }
+
+    it('EN-03-TC03: transaction bị rollback thì người nhận đang online không nhận gì, sync rỗng, không có payment/outbox mồ côi', async () => {
+      const a = await member();
+      const { received } = await connected(a.accessToken);
+
+      await expect(settle([a.accountId], true)).rejects.toThrow();
+      await dispatchAndSettle();
+
+      expect(received).toEqual([]);
+      expect(await syncIds(a.accessToken)).toEqual([]);
+      expect(await db().collection('payments').countDocuments()).toBe(0);
+      expect(await db().collection('notification_outbox').countDocuments()).toBe(0);
+    });
+
+    it('EN-03-TC01: transaction commit thì người nhận đang online nhận đúng thông báo đó và sync cũng thấy', async () => {
+      const a = await member();
+      const { received } = await connected(a.accessToken);
+
+      const { notificationId, eventKey } = await settle([a.accountId]);
+      await dispatchAndSettle();
+
+      expect(received.map(entry => entry.id)).toEqual([notificationId]);
+      expect(await syncIds(a.accessToken)).toEqual([notificationId]);
+      expect((await outboxOf(eventKey))!.status).toBe('DONE');
+    });
+
+    it('EN-03-TC05: worker khác đang giữ lease (crash sau claim trước emit) thì socket chưa nhận; lease hết thì nhận đúng một lần', async () => {
+      const a = await member();
+      const { received } = await connected(a.accessToken);
+      const { notificationId, eventKey } = await settle([a.accountId]);
+      await setOutbox(eventKey, { status: 'PROCESSING', lease_owner: 'worker-da-crash', lease_until: new Date(Date.now() + 30000) });
+
+      await dispatchAndSettle();
+      expect(received).toEqual([]);
+
+      await setOutbox(eventKey, { lease_until: new Date(Date.now() - 1000) });
+      await dispatchAndSettle();
+
+      expect(received.map(entry => entry.id)).toEqual([notificationId]);
+      expect((await outboxOf(eventKey))!.status).toBe('DONE');
+    });
+
+    it('EN-03-TC06: crash sau emit trước DONE thì socket nhận lại CÙNG id (client gộp theo id), DB vẫn một notification và một recipient', async () => {
+      const a = await member();
+      const { received } = await connected(a.accessToken);
+      const { notificationId, eventKey } = await settle([a.accountId]);
+      await dispatchAndSettle();
+      // Trạng thái worker chết để lại: đã emit nhưng chưa kịp ghi DONE, lease đã hết.
+      await db().collection('notification_outbox').updateOne({ event_key: eventKey }, {
+        $set: { status: 'PROCESSING', lease_owner: 'worker-da-crash', lease_until: new Date(Date.now() - 1000) },
+        $unset: { completed_at: '' },
+      });
+
+      await dispatchAndSettle();
+
+      expect(received.map(entry => entry.id)).toEqual([notificationId, notificationId]);
+      expect(received[1]).toEqual(received[0]);
+      expect(await db().collection('notifications').countDocuments()).toBe(1);
+      expect(await db().collection('notification_recipients').countDocuments()).toBe(1);
+      expect((await outboxOf(eventKey))!.status).toBe('DONE');
+    });
+
+    it('EN-03-TC07: offline lúc dispatch, sau đó online: socket không phát lại job đã DONE, sync khôi phục được và ack ghi delivered_at', async () => {
+      const a = await member();
+      const { notificationId } = await settle([a.accountId]);
+      await dispatchAndSettle();
+
+      const { socket, received } = await connected(a.accessToken);
+      await dispatchAndSettle();
+      expect(received).toEqual([]);
+
+      expect(await syncIds(a.accessToken)).toEqual([notificationId]);
+      expect(await ack(socket, notificationId)).toEqual({ ok: true });
+      expect((await recipientOf(notificationId, a.accountId))!.delivered_at).toBeInstanceOf(Date);
+    });
+
+    it('EN-03-TC10: logout sau handshake thì socket cũ không thấy nội dung; đăng nhập lại thì sync vẫn lấy được (không mất thông báo)', async () => {
+      const a = await member();
+      const { socket, received } = await connected(a.accessToken);
+      await request(app.getHttpServer()).post('/api/auth/logout').set('Origin', origin)
+        .set('Authorization', `Bearer ${a.accessToken}`).send({}).expect(204);
+      const { notificationId } = await settle([a.accountId]);
+
+      await dispatchAndSettle();
+      expect(received).toEqual([]);
+      expect(await disconnected(socket)).toBe(true);
+      await sync(a.accessToken).expect(401);
+
+      const relogin = await request(app.getHttpServer()).post('/api/auth/login').set('Origin', origin)
+        .send({ phone: a.phone, password }).expect(200);
+      expect(await syncIds(relogin.body.accessToken as string)).toEqual([notificationId]);
+    });
+
+    it('EN-03-TC12: DB lỗi lúc kiểm quyền trước emit thì không phát; DB hồi phục thì sync vẫn khôi phục được thông báo', async () => {
+      const a = await member();
+      const { received } = await connected(a.accessToken);
+      const { notificationId } = await settle([a.accountId]);
+      await db().admin().command({
+        configureFailPoint: 'failCommand', mode: 'alwaysOn',
+        data: { failCommands: ['find'], errorCode: 91, namespace: `${databaseName}.auth_sessions` },
+      });
+
+      await dispatchAndSettle();
+      expect(received).toEqual([]);
+
+      await db().admin().command({ configureFailPoint: 'failCommand', mode: 'off' });
+      expect(await syncIds(a.accessToken)).toEqual([notificationId]);
+    });
+
+    it('EN-03-TC15: socket/dispatch lỗi sau commit thì payment và thông báo vẫn còn (không rollback), job hẹn retry rồi gửi được', async () => {
+      const a = await member();
+      const { received } = await connected(a.accessToken);
+      const { notificationId, eventKey } = await settle([a.accountId]);
+      const dispatcher = app.get(NotificationDispatcher);
+      const failing = jest.spyOn(dispatcher, 'dispatch').mockRejectedValueOnce(new Error('socket hỏng giả lập'));
+
+      await dispatchAndSettle();
+
+      expect(failing).toHaveBeenCalledTimes(1);
+      expect(received).toEqual([]);
+      expect(await db().collection('payments').countDocuments({ event_key: eventKey })).toBe(1);
+      expect(await syncIds(a.accessToken)).toEqual([notificationId]);
+      const job = await outboxOf(eventKey);
+      expect(job!.status).toBe('READY');
+      expect(job!.attempts).toBe(1);
+
+      await setOutbox(eventKey, { available_at: new Date(Date.now() - 1000) });
+      await dispatchAndSettle();
+      expect(received.map(entry => entry.id)).toEqual([notificationId]);
+      expect((await outboxOf(eventKey))!.status).toBe('DONE');
     });
   });
 });
