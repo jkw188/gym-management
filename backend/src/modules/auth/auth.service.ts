@@ -79,6 +79,21 @@ export class AuthService implements OnModuleInit {
     return this.current(await this.sessions.findById(sid), sub, av);
   }
 
+  // EN-03 bước 3: socket không đi qua Passport, nên kiểm access token ở đây theo đúng điều kiện của JwtStrategy
+  // (HS256, issuer, audience, hết hạn) rồi kiểm phiên/account như HTTP (AUTH-F06). Token sai hoặc hết hạn thì 401.
+  async validateAccessToken(token: unknown): Promise<AuthPrincipal> {
+    if (typeof token !== 'string') throw unauthorized();
+    let claims: unknown;
+    try {
+      claims = await this.jwt.verifyAsync(token, { algorithms: ['HS256'], clockTolerance: 0,
+        issuer: this.config.getOrThrow<string>('jwtIssuer'), audience: this.config.getOrThrow<string>('jwtAudience') });
+    } catch {
+      throw unauthorized();
+    }
+    // Lỗi DB khi đọc phiên không bị đổi thành 401: để nơi gọi tự chặn (không fail-open).
+    return this.validateAccess(claims);
+  }
+
   async refresh(token: unknown) {
     if (typeof token !== 'string' || !REFRESH_TOKEN.test(token)) throw unauthorized();
     const previousHash = this.hash(token);

@@ -134,6 +134,32 @@ export class NotificationsRepository implements OnModuleInit {
     return this.outbox.findOne({ event_key: eventKey }).lean().exec();
   }
 
+  // ----- Các hàm cho REST sync và ack (EN-03 bước 3). Luôn lọc theo account của người đang đăng nhập. -----
+
+  // Id các thông báo mà account này là người nhận (dùng index account_id, notification_id).
+  async findNotificationIdsOf(accountId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    const rows = await this.recipients.find({ account_id: accountId }, { notification_id: 1 }).lean().exec();
+    return rows.map(row => row.notification_id);
+  }
+
+  // EN-03-TC07: chỉ lấy thông báo có sequence lớn hơn cursor, sắp sequence tăng dần.
+  findNotificationsAfter(notificationIds: Types.ObjectId[], afterSequence: bigint, limit: number) {
+    return this.notifications.find({ _id: { $in: notificationIds }, sequence: { $gt: afterSequence } })
+      .sort({ sequence: 1 }).limit(limit).lean().exec();
+  }
+
+  findRecipient(notificationId: Types.ObjectId, accountId: Types.ObjectId) {
+    return this.recipients.findOne({ notification_id: notificationId, account_id: accountId }).lean().exec();
+  }
+
+  // EN-03-TC13: chỉ ghi delivered_at khi chưa có, nên ack nhiều lần vẫn giữ giá trị lần đầu; không đụng read_at.
+  async markDelivered(notificationId: Types.ObjectId, accountId: Types.ObjectId, now: Date): Promise<void> {
+    await this.recipients.updateOne(
+      { notification_id: notificationId, account_id: accountId, delivered_at: null },
+      { $set: { delivered_at: now } },
+    ).exec();
+  }
+
   // EN-03-TC08: retry vận hành đưa job DEAD về READY, giữ nguyên _id, eventKey và notification.
   async reopenDeadJob(jobId: Types.ObjectId, now: Date): Promise<void> {
     await this.outbox.updateOne(

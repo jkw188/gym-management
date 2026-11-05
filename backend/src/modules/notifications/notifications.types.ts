@@ -33,6 +33,16 @@ export interface DispatchMessage {
   recipientAccountIds: string[];
 }
 
+// Kết quả trả về cho callback ack của Socket.IO (EN-03 bước 3).
+export type AckResult = { ok: true } | { ok: false; error: { code: 'VALIDATION_ERROR' | 'NOT_FOUND' | 'UNAUTHORIZED' } };
+
+// Response của GET /api/notifications/sync.
+export interface SyncResult {
+  items: NotificationItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 // Dữ liệu một thông báo gửi cho client (socket notification.created và REST sync ở bước 3).
 export interface NotificationItem {
   id: string;
