@@ -215,6 +215,32 @@ describe('US-47 bước 1: service inbox thông báo của chính member', () =>
       await expectNotFound(inbox.getOwn(newId(), newId()));
     });
 
+    // US-47-D01: notificationId sai định dạng là dữ liệu sai → 400 INVALID_ID (khác với 404 của id đúng định dạng).
+    async function expectInvalidId(action: Promise<unknown>) {
+      await expect(action).rejects.toMatchObject({ status: 400, code: 'INVALID_ID' });
+    }
+
+    it('US-47-TC02: (D01) detail với notificationId sai định dạng trả 400 INVALID_ID', async () => {
+      const me = newId();
+      await expectInvalidId(inbox.getOwn(me, 'abc'));
+      // 24 ký tự nhưng không phải hệ 16.
+      await expectInvalidId(inbox.getOwn(me, 'z'.repeat(24)));
+      // Chuỗi "unread-count" không được hiểu nhầm thành mã thông báo.
+      await expectInvalidId(inbox.getOwn(me, 'unread-count'));
+    });
+
+    it('US-47-TC02: (D01) đánh dấu đã đọc với notificationId sai định dạng trả 400 INVALID_ID, không đổi recipient nào', async () => {
+      const me = newId();
+      const id = await seedNotification();
+      await addRecipient(id, me);
+
+      await expectInvalidId(inbox.markReadOwn(me, 'abc'));
+      await expectInvalidId(inbox.markReadOwn(me, `${id}0`)); // 25 ký tự
+
+      expect((await recipientOf(id, me))!.read_at).toBeUndefined();
+      expect(await db().collection('notification_recipients').countDocuments({})).toBe(1);
+    });
+
     it('US-47-TC02: đánh dấu đã đọc thông báo của người khác trả 404 và không đổi recipient của họ', async () => {
       const me = newId();
       const other = newId();
