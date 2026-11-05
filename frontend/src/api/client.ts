@@ -29,6 +29,9 @@ export class ApiClient {
   }
 
   getSnapshot = (): AuthSnapshot => this.snapshot;
+  // EN-03 bước 3: socket thông báo lấy access token đang giữ trong bộ nhớ (không lưu localStorage) và gốc backend.
+  getAccessToken = (): string | null => this.accessToken;
+  getBaseUrl = (): string => this.url;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private publish(snapshot: AuthSnapshot) { this.snapshot = snapshot; for (const listener of this.listeners) listener(); }
   private anonymous(loginReason?: string) { this.accessToken = null; this.publish({ status: 'anonymous', user: null, loginReason }); }
