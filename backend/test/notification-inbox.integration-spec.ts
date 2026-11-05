@@ -132,8 +132,8 @@ describe('US-47 bước 1: service inbox thông báo của chính member', () =>
       expect(Number.isNaN(Date.parse(result.asOf))).toBe(false);
       const item = result.items.find((entry) => entry.id === mine)!;
       expect(item.title).toBe('Của tôi');
-      expect(typeof item.bodyPreview).toBe('string');
-      expect('Gói Gym 1 tháng, hạn dùng đến 2026-12-04, mã giao dịch GD0001'.startsWith(item.bodyPreview)).toBe(true);
+      // US-47-D03: body ngắn hơn 120 ký tự, không xuống dòng thì preview giữ nguyên.
+      expect(item.bodyPreview).toBe('Gói Gym 1 tháng, hạn dùng đến 2026-12-04, mã giao dịch GD0001');
       expect(Number.isNaN(Date.parse(item.createdAt))).toBe(false);
       expect(item.readAt ?? null).toBeNull();
     });
@@ -166,6 +166,42 @@ describe('US-47 bước 1: service inbox thông báo của chính member', () =>
 
       expect(result.unreadCount).toBe(1);
       expect(Number.isNaN(Date.parse(result.asOf))).toBe(false);
+    });
+
+    // US-47-D03: bodyPreview tối đa 120 ký tự Unicode đầu của body, xuống dòng thành dấu cách, cắt thì thêm "…".
+    async function previewOf(body: string) {
+      const me = newId();
+      const id = await seedNotification({ body });
+      await addRecipient(id, me);
+      return (await all(me)).items[0].bodyPreview;
+    }
+
+    it('US-47-TC01: (D03) body đúng 120 ký tự thì preview giữ nguyên, không thêm "…"', async () => {
+      const body = 'a'.repeat(120);
+      expect(await previewOf(body)).toBe(body);
+    });
+
+    it('US-47-TC01: (D03) body 2000 ký tự thì preview là 120 ký tự đầu kèm "…"', async () => {
+      const body = 'Gói tập '.repeat(250); // 2000 ký tự
+      expect(await previewOf(body)).toBe(`${body.slice(0, 120)}…`);
+    });
+
+    it('US-47-TC01: (D03) đếm theo ký tự Unicode, không cắt đôi emoji', async () => {
+      // Mỗi emoji là 1 ký tự Unicode nhưng chiếm 2 đơn vị UTF-16 trong chuỗi JS.
+      const body = '😀'.repeat(130);
+      expect(await previewOf(body)).toBe(`${'😀'.repeat(120)}…`);
+    });
+
+    it('US-47-TC01: (D03) xuống dòng trong body được đổi thành dấu cách', async () => {
+      expect(await previewOf('Dòng một\nDòng hai\nDòng ba')).toBe('Dòng một Dòng hai Dòng ba');
+    });
+
+    it('US-47-TC01: (D03) detail vẫn trả body gốc đầy đủ, không bị cắt hay đổi xuống dòng', async () => {
+      const me = newId();
+      const body = `Dòng một\n${'x'.repeat(300)}`;
+      const id = await seedNotification({ body });
+      await addRecipient(id, me);
+      expect((await inbox.getOwn(me, id)).body).toBe(body);
     });
 
     it('US-47-TC02: xem detail notificationId của người khác trả 404 NOT_FOUND', async () => {
@@ -389,6 +425,7 @@ describe('US-47 bước 1: service inbox thông báo của chính member', () =>
       for (const page of [page1, page2, page3, page4]) expect(page).toMatchObject({ limit: 2, total: 5, totalPages: 3 });
       expect([page1.page, page2.page, page3.page, page4.page]).toEqual([1, 2, 3, 4]);
       expect([...page1.items, ...page2.items, ...page3.items].map((item) => item.id)).toEqual(expectedOrder);
+      // US-47-D02: page lớn hơn totalPages vẫn trả bình thường, items rỗng, total/totalPages thật.
       expect(page4.items).toEqual([]);
     });
 
