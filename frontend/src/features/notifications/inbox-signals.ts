@@ -15,14 +15,24 @@ export function useAccountId(): string | null {
   );
 }
 
-// Gọi reload khi socket báo có thay đổi (US-47-TC09) hoặc người dùng quay lại tab (US-47-TC12).
+// Danh sách component đang chờ tín hiệu "inbox vừa đổi" (vd. chuông, trang inbox).
+const inboxChangedListeners = new Set<() => void>();
+
+// US-47-TC07: gọi sau khi mark-read thành công để chuông và trang inbox cùng tải lại số liệu từ server.
+export function announceInboxChanged(): void {
+  for (const listener of inboxChangedListeners) listener();
+}
+
+// Gọi reload khi socket báo có thay đổi (US-47-TC09), khi quay lại tab (US-47-TC12) hoặc khi inbox vừa đổi (US-47-TC07).
 export function useReloadSignals(reload: () => void): void {
   useEffect(() => {
     const unsubscribe = notificationFeed.subscribe(reload);
     window.addEventListener('focus', reload);
+    inboxChangedListeners.add(reload);
     return () => {
       unsubscribe();
       window.removeEventListener('focus', reload);
+      inboxChangedListeners.delete(reload);
     };
   }, [reload]);
 }

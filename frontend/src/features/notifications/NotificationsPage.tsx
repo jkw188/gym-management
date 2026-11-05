@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { inboxApi, type InboxDetail, type InboxPage, type ReadState } from './inbox.api';
-import { useAccountId, useReloadSignals } from './inbox-signals';
+import { announceInboxChanged, useAccountId, useReloadSignals } from './inbox-signals';
 
 const PAGE_SIZE = 20;
 
@@ -95,7 +95,8 @@ export function NotificationsPage() {
     } catch {
       // Không lấy được số mới thì giữ số cũ; lần tải lại sau (focus/socket) sẽ cập nhật.
     }
-    void loadList();
+    // Báo cho chuông và chính trang này tải lại (danh sách thấy thông báo đã đọc, chuông giảm số theo server).
+    announceInboxChanged();
   }
 
   return <section className="auth-card">

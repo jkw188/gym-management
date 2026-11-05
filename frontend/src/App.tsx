@@ -1,7 +1,7 @@
 import { FoundationStatus } from './features/foundation/FoundationStatus';
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
-import { HomeRedirect, LogoutButton, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
+import { HomeRedirect, LogoutButton, MemberNotificationBell, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
 import { LoginPage } from './features/auth/LoginPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
 import { PasswordResetFlow } from './features/auth/PasswordResetFlow';
@@ -15,7 +15,7 @@ import { UsersPage } from './features/users/UsersPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider><main><h1>Gym Management</h1><p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p>
-    <nav aria-label="Điều hướng chính"><Link to="/">Trang chính</Link><Link to="/health">Kiểm tra nền tảng</Link><LogoutButton /></nav>
+    <nav aria-label="Điều hướng chính"><Link to="/">Trang chính</Link><Link to="/health">Kiểm tra nền tảng</Link><MemberNotificationBell /><LogoutButton /></nav>
     <Routes><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
       <Route path="/health" element={<FoundationStatus />} />
       {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}

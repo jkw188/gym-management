@@ -64,8 +64,13 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
-    {/* US-47: chuông thông báo của member, số chưa đọc lấy từ server. */}
-    {role === 'MEMBER' && <NotificationBell />}
     {role === 'STAFF' && <p>Các chức năng quản lý cho vai trò này sẽ được bổ sung sau.</p>}
   </section>;
+}
+
+// US-47: chuông thông báo nằm trên thanh điều hướng chung nên mọi trang của member đều thấy; role khác không hiện.
+export function MemberNotificationBell() {
+  const auth = useAuth();
+  if (auth.status !== 'authenticated' || auth.user?.roleCode !== 'MEMBER') return null;
+  return <NotificationBell />;
 }
