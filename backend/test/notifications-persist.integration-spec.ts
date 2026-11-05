@@ -32,7 +32,11 @@ describe('EN-03 bước 1: persistBusinessEvent lưu thông báo cùng transacti
   const savedEnv = { ...process.env };
 
   beforeAll(async () => {
-    mongo = await MongoMemoryReplSet.create({ binary: { version: '8.0.17' }, replSet: { count: 1, storageEngine: 'wiredTiger', dbName: databaseName } });
+    // enableTestCommands=1 để dùng failpoint failCommand giả lập lỗi insert thật ở MongoDB (EN-03-TC03).
+    mongo = await MongoMemoryReplSet.create({
+      binary: { version: '8.0.17' },
+      replSet: { count: 1, storageEngine: 'wiredTiger', dbName: databaseName, args: ['--setParameter', 'enableTestCommands=1'] },
+    });
     Object.assign(process.env, {
       NODE_ENV: 'test',
       PORT: '3000',
@@ -61,7 +65,11 @@ describe('EN-03 bước 1: persistBusinessEvent lưu thông báo cùng transacti
     for (const collection of await connection.db!.collections()) await collection.deleteMany({});
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(async () => {
+    jest.restoreAllMocks();
+    // Luôn tắt failpoint để test sau không bị ảnh hưởng.
+    await connection.db!.admin().command({ configureFailPoint: 'failCommand', mode: 'off' });
+  });
 
   afterAll(async () => {
     await app?.close();
@@ -127,6 +135,11 @@ describe('EN-03 bước 1: persistBusinessEvent lưu thông báo cùng transacti
       expect(hasIndex(list, { account_id: 1, notification_id: 1 }, false)).toBe(true);
     });
 
+    it('EN-03-TC01: notifications có unique id (mục 4.2.32 và spec "Giữ _id/id")', async () => {
+      const list = await indexes('notifications');
+      expect(hasIndex(list, { id: 1 }, true)).toBe(true);
+    });
+
     it('EN-03-TC02: notification_outbox có unique event_key và index worker (status, available_at, lease_until)', async () => {
       const list = await indexes('notification_outbox');
       expect(hasIndex(list, { event_key: 1 }, true)).toBe(true);
@@ -161,6 +174,16 @@ describe('EN-03 bước 1: persistBusinessEvent lưu thông báo cùng transacti
     expect(saved!.transaction_id.toHexString()).toBe(source.transactionId);
     expect(saved!.created_at).toBeInstanceOf(Date);
     expect(await count('notifications', { _id: saved!._id, sequence: { $type: 'long' } })).toBe(1);
+  });
+
+  it('EN-03-TC01: notification có field id kiểu ObjectId bằng đúng _id', async () => {
+    const accountId = await createMember();
+
+    const result = await settle(saleEvent(), [accountId]);
+    const saved = await db().collection('notifications').findOne({ _id: new ObjectId(result.notificationId) });
+
+    expect(saved!.id).toBeInstanceOf(ObjectId);
+    expect(saved!.id.toHexString()).toBe(saved!._id.toHexString());
   });
 
   it('EN-03-TC01: recipient trỏ đúng notification và account, chưa có read_at và delivered_at', async () => {
@@ -286,6 +309,41 @@ describe('EN-03 bước 1: persistBusinessEvent lưu thông báo cùng transacti
 
   it('EN-03-TC03: insert recipient bị lỗi (account_id không phải ObjectId) thì rollback payment và notification', async () => {
     const failure = await settle(saleEvent(), ['khong-phai-object-id']).then(() => undefined, (error: unknown) => error);
+
+    expect(failure).toBeDefined();
+    expect(await count('payments')).toBe(0);
+    expect(await count('notifications')).toBe(0);
+    expect(await count('notification_recipients')).toBe(0);
+    expect(await count('notification_outbox')).toBe(0);
+  });
+
+  // Bật failpoint: lệnh insert kế tiếp vào collection `name` bị MongoDB trả lỗi (không phải lỗi tạm thời nên không retry).
+  async function failNextInsertInto(name: string) {
+    await db().admin().command({
+      configureFailPoint: 'failCommand',
+      mode: { times: 1 },
+      data: { failCommands: ['insert'], namespace: `${databaseName}.${name}`, errorCode: 2, errmsg: 'Giả lập lỗi insert EN-03-TC03' },
+    });
+  }
+
+  it('EN-03-TC03: insert recipient bị MongoDB từ chối (sau khi đã ghi notification) thì rollback payment và notification', async () => {
+    const accountId = await createMember();
+    await failNextInsertInto('notification_recipients');
+
+    const failure = await settle(saleEvent(), [accountId]).then(() => undefined, (error: unknown) => error);
+
+    expect(failure).toBeDefined();
+    expect(await count('payments')).toBe(0);
+    expect(await count('notifications')).toBe(0);
+    expect(await count('notification_recipients')).toBe(0);
+    expect(await count('notification_outbox')).toBe(0);
+  });
+
+  it('EN-03-TC03: insert outbox bị MongoDB từ chối thì rollback payment, notification và recipient', async () => {
+    const accountId = await createMember();
+    await failNextInsertInto('notification_outbox');
+
+    const failure = await settle(saleEvent(), [accountId]).then(() => undefined, (error: unknown) => error);
 
     expect(failure).toBeDefined();
     expect(await count('payments')).toBe(0);
