@@ -20,8 +20,22 @@ const ISO_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\
 
 @Injectable()
 export class ShiftIntervalService {
-  // Kiểm dữ liệu ca nháp người dùng gửi lên; sai thì ném 400 VALIDATION_ERROR kèm field.
+  // Kiểm đầy đủ ca nháp người dùng gửi lên (định dạng + bắt đầu ở tương lai); sai thì ném 400 VALIDATION_ERROR kèm field.
   validateDraft(input: { startAt: unknown; endAt: unknown; location: unknown }, serverNow: Date): ValidDraft {
+    const draft = this.parseDraft(input);
+    this.assertFutureStart(draft.startAt, serverNow);
+    return draft;
+  }
+
+  // US-24-TC03: startAt phải lớn hơn hẳn thời điểm hiện tại của server.
+  // Tách riêng vì phụ thuộc lúc gửi: service gọi hàm này TRONG callback idempotency, để gửi lại cùng key
+  // sau khi ca đã bắt đầu vẫn nhận kết quả gốc thay vì 400 (EN-02).
+  assertFutureStart(startAt: Date, serverNow: Date): void {
+    if (startAt.getTime() <= serverNow.getTime()) invalidField('startAt', 'Giờ bắt đầu phải ở tương lai');
+  }
+
+  // Kiểm định dạng ca nháp, không phụ thuộc thời điểm gửi: cùng dữ liệu thì luôn cho cùng kết quả.
+  parseDraft(input: { startAt: unknown; endAt: unknown; location: unknown }): ValidDraft {
     const startAt = this.parseInstant(input.startAt, 'startAt');
     const endAt = this.parseInstant(input.endAt, 'endAt');
     const location = this.normalizeLocation(input.location);
@@ -34,9 +48,6 @@ export class ShiftIntervalService {
     if (endAt.getTime() > this.nextVietnamMidnight(startAt).getTime()) {
       invalidField('endAt', 'Ca không được kéo dài qua nửa đêm (giờ Việt Nam)');
     }
-    // US-24-TC03: startAt phải lớn hơn hẳn thời điểm hiện tại của server.
-    if (startAt.getTime() <= serverNow.getTime()) invalidField('startAt', 'Giờ bắt đầu phải ở tương lai');
-
     return { startAt, endAt, location };
   }
 

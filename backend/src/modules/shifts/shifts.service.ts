@@ -26,13 +26,16 @@ export class ShiftsService {
 
   // POST /api/me/work-shifts: tạo ca SCHEDULED version 0 thuộc PT của principal (US-24-TC01).
   async create(accountId: string, dto: CreateShiftDto, clientKey: string) {
-    // US-24-TC03, US-24-TC04: dữ liệu sai thì 400 ngay, chưa mở transaction nên không ghi gì.
-    const draft = this.interval.validateDraft(dto, new Date());
+    // US-24-TC03, US-24-TC04: sai định dạng thì 400 ngay, chưa mở transaction nên không ghi gì.
+    const draft = this.interval.parseDraft(dto);
     const actorId = new Types.ObjectId(accountId);
 
     return this.idempotency.execute(
       { actorId: accountId, operation: 'SHIFT_CREATE', clientKey, payload: { ...draft } },
       async (session): Promise<WorkResult> => {
+        // US-24-TC03: kiểm "bắt đầu ở tương lai" TRONG callback: callback chỉ chạy khi key chưa có kết quả,
+        // nên gửi lại cùng key sau giờ bắt đầu vẫn nhận 201 gốc (US-24-TC10, EN-02). Lấy giờ server ở mỗi lần chạy.
+        this.interval.assertFutureStart(draft.startAt, new Date());
         // US-24-F05: tăng guard TRƯỚC khi kiểm chồng ca (US-24-TC09).
         await this.repository.bumpScheduleGuard(session);
         const trainer = await this.requireActiveTrainer(actorId, session);
@@ -54,14 +57,16 @@ export class ShiftsService {
   // PATCH /api/me/work-shifts/:id: sửa ca nháp chưa bắt đầu, đúng version (US-24-F04).
   async update(accountId: string, shiftId: string, dto: UpdateShiftDto, clientKey: string) {
     const id = parseShiftId(shiftId);
-    // US-24-TC03: dữ liệu sai thì 400, ca giữ nguyên.
-    const draft = this.interval.validateDraft(dto, new Date());
+    // US-24-TC03: sai định dạng thì 400, ca giữ nguyên.
+    const draft = this.interval.parseDraft(dto);
     const actorId = new Types.ObjectId(accountId);
 
     return this.idempotency.execute(
       // Hash gồm resourceId (targetId) và version theo mục idempotency của spec.
       { actorId: accountId, operation: 'SHIFT_UPDATE', clientKey, payload: { ...draft, version: dto.version }, targetId: shiftId },
       async (session): Promise<WorkResult> => {
+        // Giống create: kiểm giờ mới TRONG callback để gửi lại cùng key vẫn nhận 200 gốc (EN-02).
+        this.interval.assertFutureStart(draft.startAt, new Date());
         await this.repository.bumpScheduleGuard(session);
         const trainer = await this.requireActiveTrainer(actorId, session);
         // US-24-TC02: ca của PT khác hoặc không tồn tại → 404, không lộ ca đó có hay không.
