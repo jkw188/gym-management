@@ -13,6 +13,9 @@ const STATUS_LABELS: Record<ShiftStatus, string> = {
   CANCELLED: 'Hủy',
 };
 
+// Số ca tối đa một lần tải (tối đa của API theo mục 2 spec). Mặc định server chỉ trả 20, không đủ cho một tuần.
+const WEEK_LIMIT = 100;
+
 // Dữ liệu form: shift = null là tạo mới, có shift là đang sửa ca đó.
 interface ShiftForm { shift: Shift | null; date: string; from: string; to: string; location: string }
 
@@ -44,7 +47,7 @@ export function ShiftsPage() {
     setListError('');
     try {
       // US-24-TC12: tải tuần đang xem từ thứ Hai đến Chủ nhật; luôn lấy dữ liệu mới từ server.
-      const result = await shiftsApi.list({ fromDate: weekStart, toDate: weekEnd });
+      const result = await shiftsApi.list({ fromDate: weekStart, toDate: weekEnd, limit: WEEK_LIMIT });
       if (loadNumber === latestLoad.current) setData(result);
     } catch (error) {
       if (loadNumber === latestLoad.current) setListError(error instanceof ApiError ? error.message : 'Không tải được lịch ca.');
@@ -138,6 +141,10 @@ export function ShiftsPage() {
     {data && !data.profileLinked && <p>Tài khoản của bạn chưa có hồ sơ PT. Hãy liên hệ quản trị viên để được tạo hồ sơ trước khi khai báo ca.</p>}
 
     {data?.profileLinked && <>
+      {/* Server còn ca chưa trả về (tuần quá 100 ca): báo rõ thay vì lặng lẽ thiếu ca trên lịch. */}
+      {data.total > data.items.length && <p className="form-error">
+        Tuần này có {data.total} ca nhưng lịch chỉ hiển thị {data.items.length} ca đầu tiên. Một số ca cuối tuần chưa được hiện.
+      </p>}
       {!form && <button type="button" onClick={openCreate}>Thêm ca nháp</button>}
 
       {form && <form onSubmit={submit} noValidate aria-busy={submitting} aria-label={form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'}>
