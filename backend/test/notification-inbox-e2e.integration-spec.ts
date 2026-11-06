@@ -79,8 +79,8 @@ describe('US-47 bước 4: inbox đầu–cuối, cách ly recipient và lỗi D
     jest.restoreAllMocks();
   });
 
-  // Tắt failpoint rồi chờ kết nối của app dùng lại được: lỗi mã 91 làm driver tạm coi server mất,
-  // driver cần vài giây (heartbeat) để nhận lại server. Không chờ thì test sau gặp ServerSelectionError ngẫu nhiên.
+  // Tắt failpoint rồi chờ kết nối của app dùng lại được (ping thành công) trước khi sang test sau.
+  // Lưới an toàn: failOn dùng mã 1 nên driver không coi server mất, thường ping thành công ngay lần đầu.
   async function recoverDatabase() {
     await control.db!.admin().command({ configureFailPoint: 'failCommand', mode: 'off' });
     const deadline = Date.now() + 30000;
@@ -148,10 +148,12 @@ describe('US-47 bước 4: inbox đầu–cuối, cách ly recipient và lỗi D
     expect(JSON.stringify(response.body)).not.toMatch(/Mongo|failCommand|stack/i);
   }
 
+  // Mã 1 (InternalError) là lỗi DB thường. Không dùng mã 91 (ShutdownInProgress): driver sẽ coi server đang tắt,
+  // đánh dấu Unknown, tự retry lệnh đọc và transaction, chờ heartbeat tới 10 giây (giống EN-03-TC12 trước khi sửa).
   async function failOn(command: 'update' | 'aggregate' | 'find', collection: string) {
     await control.db!.admin().command({
       configureFailPoint: 'failCommand', mode: 'alwaysOn',
-      data: { failCommands: [command], namespace: `${databaseName}.${collection}`, errorCode: 91, errmsg: dbErrorText },
+      data: { failCommands: [command], namespace: `${databaseName}.${collection}`, errorCode: 1, errmsg: dbErrorText },
     });
   }
 
