@@ -18,6 +18,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { OperationsModule } from './modules/operations/operations.module';
+import { ShiftsModule } from './modules/shifts/shifts.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { OperationsModule } from './modules/operations/operations.module';
     NotificationsModule,
     ReportsModule,
     OperationsModule,
+    ShiftsModule,
   ],
 })
 export class AppModule {}
