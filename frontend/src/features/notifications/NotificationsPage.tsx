@@ -99,7 +99,7 @@ export function NotificationsPage() {
     announceInboxChanged();
   }
 
-  return <section className="auth-card">
+  return <section className="auth-card notification-inbox">
     <h2>Thông báo</h2>
     {unreadCount !== null && <p>Chưa đọc: {unreadCount}</p>}
 
@@ -131,7 +131,7 @@ export function NotificationsPage() {
     {selected && <article aria-label="Chi tiết thông báo">
       <h3>{selected.title}</h3>
       {/* US-47-F05, TC11: body hiện như chữ thuần; URL trong body không thành link, không tự chuyển trang. */}
-      <p style={{ whiteSpace: 'pre-wrap' }}>{selected.body}</p>
+      <p className="notification-body">{selected.body}</p>
       <p><small>{new Date(selected.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</small></p>
     </article>}
   </section>;

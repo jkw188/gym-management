@@ -47,3 +47,10 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .user-details { font-size: .9rem; }
 .user-notice { padding: 12px; border-left: 4px solid #23734b; background: #edf8f0; overflow-wrap: anywhere; }
 @media (max-width: 600px) { main { margin: 24px auto; padding: 20px; } }
+
+/* US-47: inbox thông báo. Chuỗi dài không có dấu cách (URL, mã giao dịch) được ngắt dòng để không tràn khung/màn hình. */
+.notification-inbox { overflow-wrap: anywhere; }
+.notification-inbox ul { list-style: none; padding: 0; }
+.notification-inbox li button { width: 100%; margin-bottom: 8px; text-align: left; }
+/* Giữ xuống dòng của body như người gửi viết. */
+.notification-body { white-space: pre-wrap; }
