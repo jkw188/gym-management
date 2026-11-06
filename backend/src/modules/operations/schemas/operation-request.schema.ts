@@ -2,8 +2,8 @@
 // Không lưu credential, mật khẩu thô hay secret; record chỉ được insert trong transaction thành công (EN-02-D01).
 import { Schema, Types } from 'mongoose';
 
-// EN-02-D01: các thao tác bắt buộc có Idempotency-Key.
-export const OPERATIONS = ['SALE_REGISTER', 'SALE_CANCEL', 'PAYMENT_CONFIRM', 'MEMBER_CREATE', 'MEMBER_LINK'] as const;
+// EN-02-D01: các thao tác bắt buộc có Idempotency-Key. SHIFT_CREATE, SHIFT_UPDATE: PT tạo/sửa ca nháp (US-24).
+export const OPERATIONS = ['SALE_REGISTER', 'SALE_CANCEL', 'PAYMENT_CONFIRM', 'MEMBER_CREATE', 'MEMBER_LINK', 'SHIFT_CREATE', 'SHIFT_UPDATE'] as const;
 export type Operation = (typeof OPERATIONS)[number];
 
 export interface OperationRequest {
