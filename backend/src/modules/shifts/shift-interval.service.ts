@@ -45,6 +45,8 @@ export class ShiftIntervalService {
 
   // US-24-TC01: slot 60 phút bắt đầu từ startAt; phần dư dưới 60 phút không thành slot.
   previewSlots(startAt: Date, endAt: Date): SlotPreview {
+    // Khoảng không có độ dài dương (end ≤ start) thì không có slot và không có phần dư, tránh trả số phút âm.
+    if (endAt.getTime() <= startAt.getTime()) return { slots: [], remainderMinutes: 0 };
     const slots: TimeInterval[] = [];
     let slotStart = startAt.getTime();
     while (slotStart + SLOT_MS <= endAt.getTime()) {
@@ -96,11 +98,12 @@ export class ShiftIntervalService {
   }
 
   // location trim 1–120 ký tự (US-24-F02).
+  // Đếm bằng .length (đơn vị UTF-16) giống maxlength của schema và maxLength của ô input HTML;
+  // nếu đếm khác nhau thì dữ liệu qua service vẫn có thể bị schema chặn (ví dụ emoji tính 2).
   private normalizeLocation(value: unknown): string {
     if (typeof value !== 'string') invalidField('location', 'Địa điểm phải từ 1 đến 120 ký tự');
     const location = value.trim();
-    const length = Array.from(location).length;
-    if (length < 1 || length > 120) invalidField('location', 'Địa điểm phải từ 1 đến 120 ký tự');
+    if (location.length < 1 || location.length > 120) invalidField('location', 'Địa điểm phải từ 1 đến 120 ký tự');
     return location;
   }
 }
