@@ -2,6 +2,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-d
 import { useAuth } from './AuthProvider';
 import { roleNames, rolePaths } from './auth.routes';
 import type { RoleCode } from './auth.types';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 export function AuthChecking() {
   const auth = useAuth();
@@ -65,4 +66,11 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
     {role === 'STAFF' && <p>Các chức năng quản lý cho vai trò này sẽ được bổ sung sau.</p>}
   </section>;
+}
+
+// US-47: chuông thông báo nằm trên thanh điều hướng chung nên mọi trang của member đều thấy; role khác không hiện.
+export function MemberNotificationBell() {
+  const auth = useAuth();
+  if (auth.status !== 'authenticated' || auth.user?.roleCode !== 'MEMBER') return null;
+  return <NotificationBell />;
 }
