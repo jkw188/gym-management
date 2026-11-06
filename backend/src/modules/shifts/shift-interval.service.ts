@@ -1,8 +1,8 @@
-// Tầng nghiệp vụ (US-24 bước 1): luật thời gian dùng chung của ca làm việc, không đọc/ghi DB.
-// Kiểm ca nháp hợp lệ, quy tắc chồng khoảng [start, end) và xem trước slot 60 phút; US-27/US-28 dùng lại.
+// Tầng nghiệp vụ (US-24 bước 1–2): luật thời gian dùng chung của ca làm việc, không đọc/ghi DB.
+// Kiểm ca nháp hợp lệ, quy tắc chồng khoảng [start, end), xem trước slot 60 phút và đổi ngày lọc Việt Nam sang UTC; US-27/US-28 dùng lại.
 import { Injectable } from '@nestjs/common';
 import { invalidField } from '../../common/errors/application-error';
-import { SlotPreview, TimeInterval, ValidDraft } from './shifts.types';
+import { DateRange, SlotPreview, TimeInterval, ValidDraft } from './shifts.types';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -12,6 +12,8 @@ const VIETNAM_OFFSET_MS = 7 * HOUR_MS;
 // Ca tối thiểu 60 phút và mỗi slot dài 60 phút (US-24-F02).
 const MIN_SHIFT_MS = 60 * MINUTE_MS;
 const SLOT_MS = 60 * MINUTE_MS;
+// Bộ lọc lịch xem tối đa 31 ngày (tính cả ngày đầu và ngày cuối).
+const MAX_FILTER_DAYS = 31;
 
 // ISO 8601 bắt buộc có Z hoặc offset ±hh:mm. Nhóm: năm, tháng, ngày, giờ, phút, giây, mili giây, timezone.
 const ISO_WITH_OFFSET = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -56,6 +58,38 @@ export class ShiftIntervalService {
     // Sau vòng lặp, slotStart là điểm cuối của slot cuối cùng (hoặc startAt nếu không có slot).
     const remainderMinutes = (endAt.getTime() - slotStart) / MINUTE_MS;
     return { slots, remainderMinutes };
+  }
+
+  // Đổi bộ lọc ngày Việt Nam (YYYY-MM-DD, gồm cả hai ngày đầu/cuối) thành khoảng UTC [from, to).
+  // Không gửi thì mặc định tuần hiện tại từ thứ Hai; tối đa 31 ngày (mục 2 của spec, US-24-TC03).
+  vietnamDateRange(fromDate: string | undefined, toDate: string | undefined, serverNow: Date): DateRange {
+    // "Nửa đêm UTC" của ngày Việt Nam hôm nay; getUTCDay(): 0 = Chủ nhật, 1 = thứ Hai…
+    const today = new Date(Math.floor((serverNow.getTime() + VIETNAM_OFFSET_MS) / DAY_MS) * DAY_MS);
+    const daysSinceMonday = (today.getUTCDay() + 6) % 7;
+    const monday = new Date(today.getTime() - daysSinceMonday * DAY_MS);
+
+    const fromDay = fromDate === undefined ? monday : this.parseDateOnly(fromDate, 'fromDate');
+    const toDay = toDate === undefined ? new Date(fromDay.getTime() + 6 * DAY_MS) : this.parseDateOnly(toDate, 'toDate');
+    if (toDay.getTime() < fromDay.getTime()) invalidField('toDate', 'toDate không được trước fromDate');
+    const dayCount = (toDay.getTime() - fromDay.getTime()) / DAY_MS + 1;
+    if (dayCount > MAX_FILTER_DAYS) invalidField('toDate', 'Chỉ xem tối đa 31 ngày mỗi lần');
+
+    // 00:00 giờ Việt Nam = 17:00 UTC ngày hôm trước, nên trừ 7 giờ. to là 00:00 của ngày sau toDate.
+    return {
+      from: new Date(fromDay.getTime() - VIETNAM_OFFSET_MS),
+      to: new Date(toDay.getTime() + DAY_MS - VIETNAM_OFFSET_MS),
+    };
+  }
+
+  // "YYYY-MM-DD" → Date lúc 00:00 UTC của ngày đó; ngày không có thật (30/02) → 400.
+  private parseDateOnly(value: string, field: string): Date {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    // Date.UTC tự "tràn" 30/02 thành 02/03, nên so lại từng phần để phát hiện ngày không có thật.
+    if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) {
+      invalidField(field, 'Ngày không hợp lệ');
+    }
+    return date;
   }
 
   // Đổi chuỗi ISO có timezone thành Date. US-24-TC03: thiếu offset, ngày không có thật, có giây/mili giây → 400.

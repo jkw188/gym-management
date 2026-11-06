@@ -25,3 +25,31 @@ export interface SlotPreview {
   slots: TimeInterval[];
   remainderMinutes: number;
 }
+
+// Ca trả về client (GET /:id, POST, PATCH). Không trả trainer_id, created_by, updated_by (US-24-TC01).
+export interface ShiftResponse {
+  id: string;
+  startAt: string;
+  endAt: string;
+  location: string;
+  status: ShiftStatus;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// GET /api/me/work-shifts: profileLinked=false khi account TRAINER chưa có hồ sơ PT (US-24-TC02).
+export interface ShiftPage {
+  profileLinked: boolean;
+  items: ShiftResponse[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+// Khoảng UTC [from, to) ứng với các ngày Việt Nam người dùng chọn để lọc lịch.
+export interface DateRange {
+  from: Date;
+  to: Date;
+}
