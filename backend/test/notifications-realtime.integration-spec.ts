@@ -433,9 +433,11 @@ describe('EN-03 bước 3: gateway /notifications và REST sync chỉ phục v�
     const { received } = await connected(a.accessToken);
     await notify([a.accountId]);
     // Mọi lệnh find vào auth_sessions (nơi AUTH-F06 đọc phiên) đều lỗi trong lúc dispatch.
+    // Mã 1 (InternalError) là lỗi DB thường. Không dùng mã 91 (ShutdownInProgress): driver sẽ coi server đang tắt,
+    // đánh dấu Unknown và chờ heartbeat tới 10 giây, làm lệnh ghi outbox sau đó ném ServerSelectionError ngẫu nhiên.
     await db().admin().command({
       configureFailPoint: 'failCommand', mode: 'alwaysOn',
-      data: { failCommands: ['find'], namespace: `${databaseName}.auth_sessions`, errorCode: 91, errmsg: 'Giả lập DB lỗi EN-03-TC12' },
+      data: { failCommands: ['find'], namespace: `${databaseName}.auth_sessions`, errorCode: 1, errmsg: 'Giả lập DB lỗi EN-03-TC12' },
     });
 
     await dispatchAndSettle();
@@ -688,7 +690,8 @@ describe('EN-03 bước 3: gateway /notifications và REST sync chỉ phục v�
       const { notificationId } = await settle([a.accountId]);
       await db().admin().command({
         configureFailPoint: 'failCommand', mode: 'alwaysOn',
-        data: { failCommands: ['find'], errorCode: 91, namespace: `${databaseName}.auth_sessions` },
+        // Mã 1 (InternalError), không dùng 91: xem giải thích ở test EN-03-TC12 phía trên.
+        data: { failCommands: ['find'], errorCode: 1, namespace: `${databaseName}.auth_sessions` },
       });
 
       await dispatchAndSettle();
