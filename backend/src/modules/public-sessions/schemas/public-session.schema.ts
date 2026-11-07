@@ -1,4 +1,4 @@
-// Tầng dữ liệu (US-26 bước 1): cấu trúc collection public_sessions, mỗi document là một lớp miễn phí.
+// Tầng dữ liệu (US-26 bước 1, 2): cấu trúc collection public_sessions, mỗi document là một lớp miễn phí.
 // Field theo mục 4.2.17 + phần bổ sung của US-66 (subject_code, DRAFT, version, audit). US-26 chỉ đọc; US-66 sẽ là nơi ghi.
 import { Schema, Types } from 'mongoose';
 import { SESSION_STATUSES, SessionStatus, SUBJECT_CODES, SubjectCode } from '../public-sessions.types';
