@@ -8,10 +8,40 @@ import { normalizeEmail, normalizeFullName, normalizePhone } from '../../common/
 import { Account } from './schemas/account.schema';
 import { CreateUserDto, ListUsersDto, UpdateUserDto } from './users.dto';
 import { duplicateIdentifier, rethrowDuplicate, versionConflict } from './account-errors';
+import { isDuplicateKey } from '../../common/http/http-error.filter';
+import { MemberRegistrationReader } from '../members/member-registration.reader';
+import { RegisterDto } from '../auth/register.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly repository: UsersRepository, private readonly passwords: PasswordService) {}
+  constructor(private readonly repository: UsersRepository, private readonly passwords: PasswordService,
+    private readonly members: MemberRegistrationReader) {}
+
+  async register(input: RegisterDto): Promise<{ id: string; nextAction: 'LOGIN' }> {
+    const fullName = normalizeFullName(input.fullName);
+    const phone = normalizePhone(input.phone);
+    const email = normalizeEmail(input.email);
+    this.passwords.validate(input.password);
+    const conflict = () => new ApplicationError(409, 'REGISTRATION_CONFLICT', 'Không thể đăng ký với thông tin định danh này. Vui lòng đăng nhập hoặc liên hệ quầy.');
+    try {
+      const role = await this.repository.findRoleByCode('MEMBER');
+      if (!role) throw this.roleNotConfigured();
+      if (await this.repository.findIdentifier('phone', phone) || (email && await this.repository.findIdentifier('email', email))) throw conflict();
+      if (await this.members.hasUnlinkedPhone(phone)) {
+        throw new ApplicationError(409, 'REGISTRATION_NEEDS_HELP', 'Vui lòng liên hệ quầy để được hỗ trợ đối chiếu thông tin đăng ký.');
+      }
+      const passwordHash = await this.passwords.hash(input.password);
+      const account = await this.repository.createAccount({ roleId: role.id.toHexString(), fullName, phone, email, passwordHash });
+      return { id: account.id.toHexString(), nextAction: 'LOGIN' };
+    } catch (error) {
+      // Unique index accounts quyết định kết quả kể cả khi hai request cùng vượt qua bước đọc.
+      if (isDuplicateKey(error)) throw conflict();
+      if (error instanceof ApplicationError && error.status === 409) throw error;
+      // Role có thể bị xóa giữa lúc đọc và ghi; không seed lại trong request.
+      if (error instanceof ApplicationError && error.code === 'NOT_FOUND') throw this.roleNotConfigured();
+      throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ đăng ký chưa sẵn sàng. Vui lòng thử lại sau.');
+    }
+  }
 
   async list(query: ListUsersDto) {
     if (!Number.isSafeInteger((query.page - 1) * query.limit)) invalidField('page', 'Trang không hợp lệ');

@@ -7,6 +7,7 @@ import { CreateUserDto, ListUsersDto, UpdateUserDto } from '../src/modules/users
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { UsersService } from '../src/modules/users/users.service';
 import { PasswordService } from '../src/common/security/password.service';
+import { MemberRegistrationReader } from '../src/modules/members/member-registration.reader';
 
 const create = { fullName: 'Test User', phone: '0901234567', password: '  password 123  ', roleCode: 'MEMBER' };
 const options = { whitelist: true, forbidNonWhitelisted: true };
@@ -55,7 +56,7 @@ describe('US-06 optimistic update failure classification', () => {
       findRoleById: jest.fn().mockResolvedValue({ id, code: 'ADMIN', name: 'Admin' }),
       updateAccount: jest.fn().mockResolvedValue(null),
     };
-    const service = new UsersService(repository as unknown as UsersRepository, new PasswordService());
+    const service = new UsersService(repository as unknown as UsersRepository, new PasswordService(), {} as MemberRegistrationReader);
     await expect(service.update(id.toHexString(), { fullName: 'New Name', version: 0 })).rejects.toMatchObject({
       status: exists ? 409 : 404, code: exists ? 'VERSION_CONFLICT' : 'USER_NOT_FOUND',
     });
