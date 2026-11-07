@@ -38,8 +38,9 @@ const BOOKING_GUIDE = 'Bạn không thể hủy lịch thay hội viên. Hãy đ
 // US-25-TC03, TC10: ca đã bị đổi ở nơi khác, PT cần tải lại để thấy trạng thái/version mới.
 const needsReload = (error: ApiError) => error.code === 'VERSION_CONFLICT' || error.code === 'INVALID_SHIFT_STATE';
 
-// Lỗi mạng (không có mã HTTP): chưa biết server đã ghi hay chưa, nên giữ key để gửi lại đúng yêu cầu (EN-02).
-const isNetworkError = (error: ApiError) => error.status === undefined;
+// Chưa biết server đã ghi hay chưa nên giữ key để gửi lại đúng yêu cầu (EN-02, US-25-TC11):
+// lỗi mạng (không có mã HTTP) hoặc server trả 503 OPERATION_OUTCOME_UNKNOWN. 409/400 là kết quả rõ ràng, bỏ key.
+const isOutcomeUnknown = (error: ApiError) => error.status === undefined || error.code === 'OPERATION_OUTCOME_UNKNOWN';
 
 const asApiError = (error: unknown, fallback: string) => (error instanceof ApiError ? error : new ApiError(fallback));
 
@@ -178,8 +179,8 @@ export function ShiftsPage() {
       void loadList();
     } catch (error) {
       const apiError = asApiError(error, 'Không công bố được ca.');
-      // Server đã trả lời (409…) thì yêu cầu này kết thúc; chỉ giữ key khi lỗi mạng.
-      if (!isNetworkError(apiError)) confirmKey.current = null;
+      // Server đã trả lời rõ (409, 400…) thì yêu cầu này kết thúc, bỏ key; kết quả chưa rõ thì giữ key.
+      if (!isOutcomeUnknown(apiError)) confirmKey.current = null;
       setConfirmError(apiError);
     } finally {
       sending.current = false;
@@ -245,7 +246,7 @@ export function ShiftsPage() {
       void loadList();
     } catch (error) {
       const apiError = asApiError(error, 'Không hủy được ca.');
-      if (!isNetworkError(apiError)) cancelKey.current = null;
+      if (!isOutcomeUnknown(apiError)) cancelKey.current = null;
       // Giữ dialog và lý do để PT đọc hướng dẫn hoặc gửi lại.
       setCancelError(apiError);
     } finally {
@@ -291,7 +292,7 @@ export function ShiftsPage() {
       {/* US-25-TC03, TC10: lỗi công bố ca; không tự tải lại hay tự gửi lại. */}
       {confirmError && <div className="form-error" role="alert">
         <p>{confirmError.message}</p>
-        {isNetworkError(confirmError) && <p>Chưa xác nhận được kết quả. Bấm "Công bố ca" lần nữa để gửi lại đúng yêu cầu này.</p>}
+        {isOutcomeUnknown(confirmError) && <p>Chưa xác nhận được kết quả. Bấm "Công bố ca" lần nữa để gửi lại đúng yêu cầu này.</p>}
         {needsReload(confirmError) && <>
           <p>Ca đã được thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.</p>
           <button type="button" onClick={reloadAfterConfirmError}>Tải lại ca</button>
@@ -323,7 +324,7 @@ export function ShiftsPage() {
           {cancelError && <div className="form-error" role="alert">
             <p>{cancelError.message}</p>
             {cancelError.code === 'SHIFT_HAS_BOOKINGS' && <p>{BOOKING_GUIDE}</p>}
-            {isNetworkError(cancelError) && <p>Chưa xác nhận được kết quả. Bấm "Xác nhận hủy ca" để gửi lại đúng yêu cầu này.</p>}
+            {isOutcomeUnknown(cancelError) && <p>Chưa xác nhận được kết quả. Bấm "Xác nhận hủy ca" để gửi lại đúng yêu cầu này.</p>}
             {needsReload(cancelError) && <>
               <p>Ca đã được thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.</p>
               <button type="button" onClick={reloadAfterCancelError}>Tải lại ca</button>
