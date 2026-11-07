@@ -41,7 +41,8 @@ export const ShiftEventSchema = new Schema<ShiftEvent>({
   // CREATED không có before; UPDATED/CONFIRMED/CANCELLED có cả before và after.
   before: { type: ShiftSnapshotSchema },
   after: { type: ShiftSnapshotSchema, required: true },
-  reason: { type: String, maxlength: 255 },
+  // US-25-TC04: lý do hủy ca (action CANCELLED), tối đa 500 ký tự như cancellation_reason.
+  reason: { type: String, maxlength: 500 },
   occurred_at: { type: Date, required: true },
   request_key: { type: String, required: true, maxlength: 120 },
 }, { collection: 'shift_events', versionKey: false, strict: 'throw' });

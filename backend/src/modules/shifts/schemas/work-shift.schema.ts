@@ -1,5 +1,5 @@
-// Tầng dữ liệu (US-24 bước 1): cấu trúc collection work_shifts, mỗi document là một ca làm việc của PT.
-// Thời điểm lưu Date UTC; ca SCHEDULED là nháp, chỉ US-25 mới chuyển sang CONFIRMED/CANCELLED.
+// Tầng dữ liệu (US-24 bước 1, US-25 bước 1): cấu trúc collection work_shifts, mỗi document là một ca làm việc của PT.
+// Thời điểm lưu Date UTC; ca SCHEDULED là nháp, US-25 chuyển sang CONFIRMED/CANCELLED và lưu thời điểm, lý do hủy.
 import { Schema, Types } from 'mongoose';
 import { SHIFT_STATUSES, ShiftStatus } from '../shifts.types';
 
@@ -14,6 +14,10 @@ export interface WorkShift {
   version: number;
   created_by: Types.ObjectId;
   updated_by: Types.ObjectId;
+  confirmed_at?: Date;
+  cancelled_at?: Date;
+  cancelled_by?: Types.ObjectId;
+  cancellation_reason?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -33,6 +37,12 @@ export const WorkShiftSchema = new Schema<WorkShift>({
   version: { type: Number, required: true, min: 0, default: 0, validate: Number.isInteger },
   created_by: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
   updated_by: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
+  // US-25-TC01: thời điểm server công bố ca. Không có completed_at ở S04 (hoàn tất ca thuộc S07).
+  confirmed_at: { type: Date },
+  // US-25-TC04: thời điểm, account hủy ca và lý do đã trim (tối đa 500 ký tự).
+  cancelled_at: { type: Date },
+  cancelled_by: { type: Schema.Types.ObjectId, ref: 'Account' },
+  cancellation_reason: { type: String, maxlength: 500 },
 // id: false tắt virtual id (chuỗi) mặc định của Mongoose để dùng field id thật ở trên.
 // timestamps: Mongoose tự ghi created_at khi tạo và updated_at mỗi lần lưu.
 }, { collection: 'work_shifts', id: false, versionKey: false, strict: 'throw',
