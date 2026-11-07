@@ -52,3 +52,54 @@ export interface NotificationItem {
   sequence: string;
   createdAt: string;
 }
+
+// ----- Inbox thông báo của chính member (US-47). -----
+
+// US-47: bộ lọc trạng thái đọc của danh sách inbox.
+export type ReadState = 'ALL' | 'UNREAD' | 'READ';
+
+export interface InboxQuery {
+  readState: ReadState;
+  page: number;
+  limit: number;
+}
+
+// Một dòng trong danh sách inbox: chỉ có bodyPreview, không có body đầy đủ (US-47-D03).
+export interface InboxItem {
+  id: string;
+  title: string;
+  bodyPreview: string;
+  createdAt: string;
+  readAt?: string;
+  deliveredAt?: string;
+}
+
+export interface InboxPage {
+  items: InboxItem[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  unreadCount: number;
+  asOf: string;
+}
+
+export interface UnreadCountResult {
+  unreadCount: number;
+  asOf: string;
+}
+
+// Chi tiết một thông báo: có body đầy đủ, không có danh sách người nhận hay eventKey (US-47-TC01).
+export interface InboxDetail {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  readAt?: string;
+  deliveredAt?: string;
+}
+
+export interface MarkReadResult {
+  id: string;
+  readAt: string;
+}

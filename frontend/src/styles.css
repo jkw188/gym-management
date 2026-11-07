@@ -47,3 +47,28 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .user-details { font-size: .9rem; }
 .user-notice { padding: 12px; border-left: 4px solid #23734b; background: #edf8f0; overflow-wrap: anywhere; }
 @media (max-width: 600px) { main { margin: 24px auto; padding: 20px; } }
+
+/* US-47: inbox thông báo. Chuỗi dài không có dấu cách (URL, mã giao dịch) được ngắt dòng để không tràn khung/màn hình. */
+.notification-inbox { overflow-wrap: anywhere; }
+.notification-inbox ul { list-style: none; padding: 0; }
+.notification-inbox li button { width: 100%; margin-bottom: 8px; text-align: left; }
+/* Giữ xuống dòng của body như người gửi viết. */
+.notification-body { white-space: pre-wrap; }
+
+/* US-24, US-25: trang /trainer/shifts – lịch tuần dạng 7 cột như cuốn lịch. */
+/* Chỉ trang ca làm việc được rộng hơn 840px để đủ chỗ cho 7 cột. */
+main:has(.shifts-page) { max-width: 1240px; }
+/* 7 cột, mỗi cột tối thiểu 140px; màn hình hẹp thì cuộn ngang trong khung lịch, trang không bị vỡ. */
+.shift-week { display: grid; grid-template-columns: repeat(7, minmax(140px, 1fr)); gap: 8px; overflow-x: auto; margin-top: 20px; padding-bottom: 8px; }
+.shift-day { min-width: 0; padding: 8px; border: 1px solid #c7d2de; border-radius: 8px; background: #f9fbfd; }
+.shift-day h3 { margin: 0 0 8px; font-size: .95rem; text-align: center; }
+.shift-day ul { list-style: none; margin: 0; padding: 0; }
+.shift-empty { margin: 0; color: #5b6f82; font-size: .85rem; text-align: center; }
+/* Mỗi ca: giờ, địa điểm, trạng thái xếp dọc; các nút ở dòng dưới. */
+.shift-item { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; padding: 8px; border: 1px solid #c7d2de; border-left: 4px solid #8c9fb1; border-radius: 6px; background: white; font-size: .85rem; overflow-wrap: anywhere; }
+.shift-time { font-weight: 600; }
+.shift-confirmed { border-left-color: #23734b; }
+.shift-cancelled { border-left-color: #bd3434; }
+.shift-completed { border-left-color: #234a77; }
+.shift-item-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.shift-item-actions button { padding: 4px 8px; font-size: .8rem; }
