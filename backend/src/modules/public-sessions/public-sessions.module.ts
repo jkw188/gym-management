@@ -8,19 +8,17 @@ import { PublicSessionsController } from './public-sessions.controller';
 import { PublicSessionsRepository } from './public-sessions.repository';
 import { PublicSessionSchema } from './schemas/public-session.schema';
 
-// US-26 bước 2: chỉ có MỘT model 'PublicSession' cho collection public_sessions.
-// Admin writer (US-66) và trang công khai cùng ghi/đọc model này, không tạo nguồn dữ liệu giả (US-26-TC01).
-const publicSessionModel = MongooseModule.forFeature([{ name: 'PublicSession', schema: PublicSessionSchema }]);
-
 @Module({
   imports: [
     // ShiftsModule export ShiftIntervalService: luật đổi ngày Việt Nam sang khoảng UTC dùng chung.
     ShiftsModule,
-    publicSessionModel,
+    // Model chỉ dùng nội bộ module này, không export.
+    MongooseModule.forFeature([{ name: 'PublicSession', schema: PublicSessionSchema }]),
   ],
   controllers: [PublicSessionsController],
   providers: [PublicSessionQueryService, PublicSessionsRepository],
-  // Export model để module khác (US-66 Admin, US-27/28 loại giờ PT bận) dùng đúng schema và index này.
-  exports: [publicSessionModel],
+  // US-26 bước 2: export repository, không export model. Module khác (US-66 Admin, US-27/28 loại giờ PT bận)
+  // đọc/ghi public_sessions qua repository – nơi duy nhất chạm MongoDB – không tạo nguồn dữ liệu giả (US-26-TC01).
+  exports: [PublicSessionsRepository],
 })
 export class PublicSessionsModule {}
