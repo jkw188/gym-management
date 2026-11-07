@@ -1,4 +1,4 @@
-// Tầng nghiệp vụ (US-25 bước 1): luật chuyển trạng thái ca làm việc, không đọc/ghi DB.
+// Tầng nghiệp vụ (US-25 bước 1–2): luật chuyển trạng thái ca làm việc, không đọc/ghi DB.
 // Công bố SCHEDULED→CONFIRMED, hủy ca trước giờ bắt đầu, và ca nào mới mở slot nhận booking.
 import { Injectable } from '@nestjs/common';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
@@ -58,14 +58,7 @@ export class ShiftTransitionService {
   // US-25-F02, F03: hủy ca SCHEDULED/CONFIRMED trước giờ bắt đầu, có lý do và không còn BOOKED.
   // bookedCount là số booking BOOKED tham chiếu ca, bước 2 đếm trong transaction rồi truyền vào.
   planCancel(shift: TransitionShift, input: { reason: unknown; bookedCount: number }, serverNow: Date): CancelPlan {
-    // US-25-TC04: reason phải là chuỗi, sau trim dài 10–500 ký tự.
-    if (typeof input.reason !== 'string') {
-      invalidField('reason', 'Vui lòng nhập lý do hủy ca');
-    }
-    const reason = input.reason.trim();
-    if (reason.length < MIN_REASON_LENGTH || reason.length > MAX_REASON_LENGTH) {
-      invalidField('reason', `Lý do hủy phải dài từ ${MIN_REASON_LENGTH} đến ${MAX_REASON_LENGTH} ký tự`);
-    }
+    const reason = this.normalizeReason(input.reason);
     // US-25-TC07: COMPLETED và CANCELLED là trạng thái cuối, không hủy lại.
     if (shift.status !== 'SCHEDULED' && shift.status !== 'CONFIRMED') {
       throw new ApplicationError(409, 'INVALID_SHIFT_STATE', 'Ca này không còn hủy được');
@@ -86,6 +79,19 @@ export class ShiftTransitionService {
       cancellationReason: reason,
       updatedAt: serverNow,
     };
+  }
+
+  // US-25-TC04: reason phải là chuỗi, sau trim dài 10–500 ký tự; trả lý do đã trim.
+  // Bước 2 gọi riêng hàm này TRƯỚC transaction để lý do sai trả 400 ngay và hash idempotency dùng lý do đã trim.
+  normalizeReason(value: unknown): string {
+    if (typeof value !== 'string') {
+      invalidField('reason', 'Vui lòng nhập lý do hủy ca');
+    }
+    const reason = value.trim();
+    if (reason.length < MIN_REASON_LENGTH || reason.length > MAX_REASON_LENGTH) {
+      invalidField('reason', `Lý do hủy phải dài từ ${MIN_REASON_LENGTH} đến ${MAX_REASON_LENGTH} ký tự`);
+    }
+    return reason;
   }
 
   // US-25-TC01, TC04, TC07: chỉ ca CONFIRMED chưa kết thúc mới cung cấp slot cho booking.

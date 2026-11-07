@@ -1,4 +1,4 @@
-// Tầng kiểu dữ liệu (US-24 bước 1): kiểu dùng chung của module ca làm việc PT.
+// Tầng kiểu dữ liệu (US-24 bước 1, US-25 bước 2): kiểu dùng chung của module ca làm việc PT.
 // Trạng thái ca, hành động audit và khoảng thời gian [startAt, endAt).
 
 // work_shifts.status (mục 4.2.14). SCHEDULED là ca nháp, chưa mở booking.
@@ -36,6 +36,9 @@ export interface ShiftResponse {
   version: number;
   createdAt: string;
   updatedAt: string;
+  // US-25: có khi ca đã công bố / đã hủy.
+  confirmedAt?: string;
+  cancelledAt?: string;
 }
 
 // GET /api/me/work-shifts: profileLinked=false khi account TRAINER chưa có hồ sơ PT (US-24-TC02).
@@ -52,4 +55,10 @@ export interface ShiftPage {
 export interface DateRange {
   from: Date;
   to: Date;
+}
+
+// GET /api/me/work-shifts/:id (US-25): thêm bookedCount = số lịch BOOKED đang tham chiếu ca.
+// Chỉ là ảnh chụp để UI hướng dẫn; lệnh hủy vẫn đếm lại trong transaction.
+export interface ShiftDetail extends ShiftResponse {
+  bookedCount: number;
 }
