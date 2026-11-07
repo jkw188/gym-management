@@ -14,13 +14,16 @@ import { NotificationsPage } from './features/notifications/NotificationsPage';
 import { ChangePasswordPage } from './features/security/ChangePasswordPage';
 import { UsersPage } from './features/users/UsersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
+import { ClassesPage } from './features/classes/ClassesPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider><main><h1>Gym Management</h1><p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p>
-    <nav aria-label="Điều hướng chính"><Link to="/">Trang chính</Link><Link to="/health">Kiểm tra nền tảng</Link><MemberNotificationBell /><LogoutButton /></nav>
+    <nav aria-label="Điều hướng chính"><Link to="/">Trang chính</Link><Link to="/health">Kiểm tra nền tảng</Link><Link to="/classes">Lịch lớp</Link><MemberNotificationBell /><LogoutButton /></nav>
     <Routes><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/health" element={<FoundationStatus />} />
+      {/* US-26: lịch lớp miễn phí công khai, KHÔNG bọc ProtectedRoute nên Guest xem được. */}
+      <Route path="/classes" element={<ClassesPage />} />
       {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
