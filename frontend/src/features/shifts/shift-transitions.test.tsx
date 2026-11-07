@@ -15,6 +15,7 @@
 //     - Hủy thành công: đóng dialog, role="status" "Đã hủy ca", tải lại danh sách.
 //     - 409 VERSION_CONFLICT hoặc INVALID_SHIFT_STATE: role="alert" + nút "Tải lại ca"; chỉ tải lại khi bấm.
 //     - 409 SHIFT_HAS_BOOKINGS: role="alert" có hướng dẫn hủy từng lịch. Lỗi mạng: alert, giữ lý do, bấm lại dùng đúng key cũ.
+//     - 503 OPERATION_OUTCOME_UNKNOWN cũng giữ key như lỗi mạng (EN-02); 409/400 là kết quả rõ ràng, lần sau dùng key mới.
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -308,6 +309,58 @@ describe('US-25 bước 3: công bố và hủy ca trên trang ca làm việc', 
     await submitCancel(user, dialog);
     await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
     expect(cancel.mock.calls[1][2]).toBe(cancel.mock.calls[0][2]);
+  });
+
+  // ---------- TC11: kết quả chưa rõ (503 OPERATION_OUTCOME_UNKNOWN) thì giữ key theo EN-02 ----------
+  const outcomeUnknown = () => new ApiError('Chưa xác định được kết quả', 503, 'req-9', undefined, undefined, 'OPERATION_OUTCOME_UNKNOWN');
+
+  it('US-25-TC11: công bố nhận 503 OPERATION_OUTCOME_UNKNOWN thì hướng dẫn gửi lại; bấm lại dùng đúng key cũ', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(shiftsApi, 'list').mockResolvedValue(pageOf([draftThu]));
+    const confirm = vi.spyOn(shiftsApi, 'confirm')
+      .mockRejectedValueOnce(outcomeUnknown())
+      .mockResolvedValueOnce({ ...draftThu, status: 'CONFIRMED', version: 3 });
+    renderPage();
+    await user.click(within(await draftItem()).getByRole('button', { name: 'Công bố ca' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/gửi lại/i);
+    await new Promise(done => setTimeout(done, 50));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    await user.click(within(await draftItem()).getByRole('button', { name: 'Công bố ca' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+    expect(confirm.mock.calls[1][2]).toBe(confirm.mock.calls[0][2]);
+  });
+
+  it('US-25-TC11: hủy nhận 503 OPERATION_OUTCOME_UNKNOWN thì giữ dialog và lý do; bấm lại dùng đúng key cũ', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(shiftsApi, 'list').mockResolvedValue(pageOf([confirmedFri]));
+    vi.spyOn(shiftsApi, 'get').mockResolvedValue(detailOf(confirmedFri));
+    const cancel = vi.spyOn(shiftsApi, 'cancel')
+      .mockRejectedValueOnce(outcomeUnknown())
+      .mockResolvedValueOnce({ ...confirmedFri, status: 'CANCELLED', version: 2 });
+    renderPage();
+    const dialog = await openCancel(user, await confirmedItem());
+    await typeReason(user, dialog, REASON);
+    await submitCancel(user, dialog);
+    expect((await screen.findByRole('alert')).textContent).toMatch(/gửi lại/i);
+    expect((within(dialog).getByLabelText('Lý do hủy') as HTMLTextAreaElement).value.trim()).toBe(REASON);
+    await submitCancel(user, dialog);
+    await waitFor(() => expect(cancel).toHaveBeenCalledTimes(2));
+    expect(cancel.mock.calls[1][2]).toBe(cancel.mock.calls[0][2]);
+  });
+
+  it('US-25-TC11: công bố nhận 409 (kết quả rõ ràng) thì lần bấm sau dùng key mới', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(shiftsApi, 'list').mockResolvedValue(pageOf([draftThu]));
+    const confirm = vi.spyOn(shiftsApi, 'confirm')
+      .mockRejectedValueOnce(conflict('SHIFT_ALREADY_STARTED', 'Ca đã bắt đầu'))
+      .mockResolvedValueOnce({ ...draftThu, status: 'CONFIRMED', version: 3 });
+    renderPage();
+    await user.click(within(await draftItem()).getByRole('button', { name: 'Công bố ca' }));
+    await screen.findByRole('alert');
+    await user.click(within(await draftItem()).getByRole('button', { name: 'Công bố ca' }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2));
+    expect(confirm.mock.calls[1][2]).toMatch(UUID);
+    expect(confirm.mock.calls[1][2]).not.toBe(confirm.mock.calls[0][2]);
   });
 
   it('US-25-TC10: hủy bị 409 VERSION_CONFLICT thì báo ca đã đổi, chỉ tải lại khi bấm "Tải lại ca"', async () => {
