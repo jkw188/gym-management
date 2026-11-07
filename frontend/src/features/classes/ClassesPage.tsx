@@ -1,6 +1,6 @@
 // Tầng giao diện – trang (US-26 bước 3): /classes – Guest/Member xem lịch lớp miễn phí đã công bố theo tuần, lọc bộ môn.
 // Chỉ xem: không có nút đăng ký/đặt chỗ, không gửi request ghi nào (US-26-F04, TC10).
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { addDays, mondayOf, vietnamDate, vietnamTime } from '../shifts/shift-time';
 import { classesApi, type PublicSession, type PublicSessionPage, type Subject } from './classes.api';
@@ -41,6 +41,8 @@ export function ClassesPage() {
   const [listError, setListError] = useState('');
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<PublicSession | null>(null);
+  // Số lượt bộ lọc: tăng mỗi lần đổi tuần/bộ môn/trang để nhận ra kết quả chi tiết về muộn (US-26-TC12).
+  const filterRound = useRef(0);
 
   // Taxonomy bộ môn do backend sở hữu (US-66), tải một lần.
   useEffect(() => {
@@ -63,25 +65,42 @@ export function ClassesPage() {
     return () => { ignore = true; };
   }, [weekStart, subjectCode, page, reloadCount]);
 
-  // Đổi tuần hoặc bộ môn thì về trang 1 và xóa thông báo cũ (US-26-TC05).
-  function changeWeek(days: number) {
+  // US-26-TC12: mọi lần đổi bộ lọc đều đóng hộp chi tiết, xóa thông báo cũ và tăng số lượt bộ lọc.
+  function startNewFilterRound() {
+    filterRound.current += 1;
+    setSelected(null);
     setNotice('');
+  }
+
+  // Đổi tuần hoặc bộ môn thì về trang 1 (US-26-TC05).
+  function changeWeek(days: number) {
+    startNewFilterRound();
     setPage(1);
     setWeekStart(addDays(weekStart, days));
   }
 
   function changeSubject(code: string) {
-    setNotice('');
+    startNewFilterRound();
     setPage(1);
     setSubjectCode(code);
+  }
+
+  function changePage(nextPage: number) {
+    startNewFilterRound();
+    setPage(nextPage);
   }
 
   // US-26-TC01: "Xem chi tiết" luôn hỏi lại server, không tin bản trong danh sách.
   async function openDetail(id: string) {
     setNotice('');
+    // Ghi nhớ lượt bộ lọc lúc bấm; bộ lọc đổi trong lúc chờ thì bỏ kết quả về muộn (US-26-TC12).
+    const round = filterRound.current;
     try {
-      setSelected(await classesApi.detail(id));
+      const detail = await classesApi.detail(id);
+      if (round !== filterRound.current) return;
+      setSelected(detail);
     } catch (error) {
+      if (round !== filterRound.current) return;
       // US-26-TC09: lớp vừa bị hủy/không còn công bố → báo và tải lại danh sách.
       if (error instanceof ApiError && error.code === 'SESSION_NOT_FOUND') {
         setNotice('Lớp này không còn được công bố. Lịch đã được tải lại.');
@@ -130,9 +149,9 @@ export function ClassesPage() {
     </ul>}
 
     {data && data.totalPages > 1 && <div className="user-actions">
-      {data.page > 1 && <button type="button" className="secondary" onClick={() => setPage(page - 1)}>Trang trước</button>}
+      {data.page > 1 && <button type="button" className="secondary" onClick={() => changePage(page - 1)}>Trang trước</button>}
       <span>Trang {data.page}/{data.totalPages}</span>
-      {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => setPage(page + 1)}>Trang sau</button>}
+      {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => changePage(page + 1)}>Trang sau</button>}
     </div>}
 
     {selected && <div role="dialog" aria-modal="true" aria-labelledby="class-detail-title" className="auth-card">
