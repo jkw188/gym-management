@@ -1,11 +1,11 @@
-// Tầng API (US-24 bước 2): 4 endpoint /api/me/work-shifts cho PT xem, tạo, sửa ca nháp của chính mình.
+// Tầng API (US-24 bước 2, US-25 bước 2): endpoint /api/me/work-shifts cho PT xem, tạo, sửa, công bố, hủy ca của chính mình.
 // Biết ai gọi qua JwtAuthGuard toàn cục; chỉ TRAINER; PT lấy từ phiên đăng nhập, không nhận từ client (US-24-F01).
 import { Body, Controller, Get, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IdempotencyKey } from '../../common/decorators/idempotency-key.decorator';
 import { CurrentUser, Roles } from '../auth/auth.decorators';
 import { AuthPrincipal } from '../auth/auth.types';
-import { CreateShiftDto, ShiftListQueryDto, UpdateShiftDto } from './shifts.dto';
+import { CancelShiftDto, ConfirmShiftDto, CreateShiftDto, ShiftListQueryDto, UpdateShiftDto } from './shifts.dto';
 import { ShiftsService } from './shifts.service';
 
 @Controller('me/work-shifts')
@@ -37,6 +37,24 @@ export class ShiftsController {
   async update(@CurrentUser() user: AuthPrincipal, @Param('id') id: string, @IdempotencyKey() key: string,
     @Body() dto: UpdateShiftDto, @Res({ passthrough: true }) response: Response) {
     const result = await this.shifts.update(user.id, id, dto, key);
+    response.status(result.status);
+    return result.body;
+  }
+
+  // US-25: công bố ca nháp. Trả 200; gửi lại cùng key trả đúng mã và body gốc (EN-02).
+  @Post(':id/confirm')
+  async confirm(@CurrentUser() user: AuthPrincipal, @Param('id') id: string, @IdempotencyKey() key: string,
+    @Body() dto: ConfirmShiftDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.shifts.confirm(user.id, id, dto, key);
+    response.status(result.status);
+    return result.body;
+  }
+
+  // US-25: hủy ca chưa bắt đầu, có lý do, không còn BOOKED.
+  @Post(':id/cancel')
+  async cancel(@CurrentUser() user: AuthPrincipal, @Param('id') id: string, @IdempotencyKey() key: string,
+    @Body() dto: CancelShiftDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.shifts.cancel(user.id, id, dto, key);
     response.status(result.status);
     return result.body;
   }

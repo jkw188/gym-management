@@ -1,4 +1,4 @@
-// Tầng kiểm tra dữ liệu (US-24 bước 1–2): body của POST/PATCH và query của GET /api/me/work-shifts.
+// Tầng kiểm tra dữ liệu (US-24 bước 1–2, US-25 bước 2): body của POST/PATCH, confirm/cancel và query của GET /api/me/work-shifts.
 // Chỉ kiểm kiểu cơ bản; luật thời gian (offset, 60 phút, nửa đêm, khoảng 31 ngày…) nằm ở ShiftIntervalService.
 // ValidationPipe toàn cục bật forbidNonWhitelisted nên trainerId, status, createdBy gửi lên đều bị 400 (US-24-F01).
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -49,4 +49,20 @@ export class ShiftListQueryDto {
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
   @Transform(queryInteger) @IsInt() @Min(1) @Max(100) limit = 20;
+}
+
+// POST /:id/confirm (US-25): chỉ gửi version đang xem để kiểm CAS.
+export class ConfirmShiftDto {
+  @ApiProperty({ example: 0, minimum: 0 })
+  @IsInt() @Min(0) version!: number;
+}
+
+// POST /:id/cancel (US-25): version đang xem và lý do hủy.
+// Chỉ kiểm là chuỗi; luật trim 10–500 ký tự nằm ở ShiftTransitionService.normalizeReason.
+export class CancelShiftDto {
+  @ApiProperty({ example: 0, minimum: 0 })
+  @IsInt() @Min(0) version!: number;
+
+  @ApiProperty({ example: 'PT bận việc gia đình', minLength: 10, maxLength: 500 })
+  @IsString() reason!: string;
 }

@@ -215,7 +215,13 @@ describe('US-24 bước 2: API ca nháp /api/me/work-shifts', () => {
       const pt = await trainer();
       const { body: created } = await create(pt, draft()).expect(201);
       const response = await getOne(pt, created.id).expect(200);
-      expect(Object.keys(response.body).sort()).toEqual(['createdAt', 'endAt', 'id', 'location', 'startAt', 'status', 'updatedAt', 'version']);
+      // US-25 bổ sung bookedCount (và có thể confirmedAt/cancelledAt) vào chi tiết ca, nên chỉ kiểm đủ field US-24 và không lộ field nội bộ.
+      expect(Object.keys(response.body)).toEqual(
+        expect.arrayContaining(['createdAt', 'endAt', 'id', 'location', 'startAt', 'status', 'updatedAt', 'version']),
+      );
+      for (const internal of ['trainer_id', 'trainerId', 'created_by', 'createdBy', 'updated_by', 'updatedBy', '_id']) {
+        expect(response.body).not.toHaveProperty(internal);
+      }
       expect(response.body).toMatchObject({ id: created.id, status: 'SCHEDULED', version: 0 });
     });
   });

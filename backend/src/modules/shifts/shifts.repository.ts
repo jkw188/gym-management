@@ -1,5 +1,5 @@
-// Tầng dữ liệu (US-24 bước 2): nơi duy nhất đọc/ghi work_shifts, shift_events, schedule_guards
-// và đọc hồ sơ PT (trainers), lịch đặt PT (pt_bookings) phục vụ ca nháp. Lệnh trong transaction nhận session rõ ràng.
+// Tầng dữ liệu (US-24 bước 2, US-25 bước 2): nơi duy nhất đọc/ghi work_shifts, shift_events, schedule_guards
+// và đọc hồ sơ PT (trainers), lịch đặt PT (pt_bookings) phục vụ ca. Lệnh trong transaction nhận session rõ ràng.
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Long } from 'mongodb';
@@ -24,8 +24,25 @@ export interface NewShiftEvent {
   action: ShiftAction;
   before?: ShiftSnapshot;
   after: ShiftSnapshot;
+  // US-25: lý do khi action CANCELLED.
+  reason?: string;
   occurredAt: Date;
   requestKey: string;
+}
+
+// US-25: giá trị ghi khi công bố ca (lấy từ ShiftTransitionService.planConfirm).
+export interface ConfirmChange {
+  version: number;
+  confirmedAt: Date;
+  updatedAt: Date;
+}
+
+// US-25: giá trị ghi khi hủy ca (lấy từ ShiftTransitionService.planCancel).
+export interface CancelChange {
+  version: number;
+  cancelledAt: Date;
+  cancellationReason: string;
+  updatedAt: Date;
 }
 
 @Injectable()
@@ -73,8 +90,36 @@ export class ShiftsRepository {
 
   // US-24-TC07: ca nháp có lịch đặt BOOKED tham chiếu là dữ liệu bất thường. pt_bookings thuộc US-28; ở đây chỉ đếm.
   async hasBookedReferences(shiftId: Types.ObjectId, session: ClientSession): Promise<boolean> {
-    const count = await this.connection.db!.collection('pt_bookings').countDocuments({ shift_id: shiftId, status: 'BOOKED' }, { session });
-    return count > 0;
+    return (await this.countBookedReferences(shiftId, session)) > 0;
+  }
+
+  // US-25-TC05: đếm MỌI booking BOOKED tham chiếu ca, không lọc theo giờ (booking giờ bất thường vẫn chặn hủy).
+  // Không truyền session khi GET chi tiết ca (chỉ là ảnh chụp cho UI).
+  countBookedReferences(shiftId: Types.ObjectId, session?: ClientSession): Promise<number> {
+    return this.connection.db!.collection('pt_bookings').countDocuments({ shift_id: shiftId, status: 'BOOKED' }, { session });
+  }
+
+  // US-25-TC01, US-25-TC10: CAS – chỉ ghi khi ca vẫn SCHEDULED và đúng version đã đọc; null nếu đã có người ghi trước.
+  // timestamps: false để updated_at lấy đúng giờ server mà service đã dùng khi kiểm luật.
+  confirmShift(shiftId: Types.ObjectId, expectedVersion: number, change: ConfirmChange, actorId: Types.ObjectId, session: ClientSession): Promise<WorkShift | null> {
+    return this.shifts.findOneAndUpdate(
+      { _id: shiftId, status: 'SCHEDULED', version: expectedVersion },
+      { $set: { status: 'CONFIRMED', version: change.version, confirmed_at: change.confirmedAt, updated_at: change.updatedAt, updated_by: actorId } },
+      { session, returnDocument: 'after', timestamps: false },
+    ).lean().exec();
+  }
+
+  // US-25-TC04, US-25-TC10: CAS – chỉ ghi khi ca vẫn SCHEDULED/CONFIRMED và đúng version; null nếu đã có người ghi trước.
+  // Không đụng tới pt_bookings: booking lịch sử giữ nguyên liên kết ca (US-25-TC08).
+  cancelShift(shiftId: Types.ObjectId, expectedVersion: number, change: CancelChange, actorId: Types.ObjectId, session: ClientSession): Promise<WorkShift | null> {
+    return this.shifts.findOneAndUpdate(
+      { _id: shiftId, status: { $in: ['SCHEDULED', 'CONFIRMED'] }, version: expectedVersion },
+      { $set: {
+        status: 'CANCELLED', version: change.version, cancelled_at: change.cancelledAt, cancelled_by: actorId,
+        cancellation_reason: change.cancellationReason, updated_at: change.updatedAt, updated_by: actorId,
+      } },
+      { session, returnDocument: 'after', timestamps: false },
+    ).lean().exec();
   }
 
   async insertShift(trainerId: Types.ObjectId, draft: ValidDraft, actorId: Types.ObjectId, session: ClientSession): Promise<WorkShift> {
@@ -99,7 +144,7 @@ export class ShiftsRepository {
   async insertEvent(event: NewShiftEvent, session: ClientSession): Promise<void> {
     await this.events.create([{
       shift_id: event.shiftId, actor_id: event.actorId, action: event.action,
-      before: event.before, after: event.after, occurred_at: event.occurredAt, request_key: event.requestKey,
+      before: event.before, after: event.after, reason: event.reason, occurred_at: event.occurredAt, request_key: event.requestKey,
     }], { session });
   }
 

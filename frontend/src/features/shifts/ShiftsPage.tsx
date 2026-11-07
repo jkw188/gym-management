@@ -1,9 +1,9 @@
-// Tầng giao diện – trang (US-24 bước 3): trang /trainer/shifts cho PT xem lịch tuần và tạo/sửa ca nháp của mình.
-// Không tự kiểm luật ca (60 phút, nửa đêm, chồng ca): backend kiểm và trả lỗi, trang chỉ hiển thị dễ hiểu (US-24-F05, TC12).
+// Tầng giao diện – trang (US-24 bước 3, US-25 bước 3): trang /trainer/shifts cho PT xem lịch tuần, tạo/sửa ca nháp, công bố và hủy ca.
+// Không tự kiểm luật ca (60 phút, nửa đêm, chồng ca, BOOKED): backend kiểm và trả lỗi, trang chỉ hiển thị dễ hiểu (US-24-F05, TC12).
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { addDays, dayLabel, mondayOf, previewSlots, toVietnamIso, vietnamDate, vietnamTime } from './shift-time';
-import { shiftsApi, type Shift, type ShiftPage, type ShiftStatus } from './shifts.api';
+import { shiftsApi, type Shift, type ShiftDetail, type ShiftPage, type ShiftStatus } from './shifts.api';
 
 // US-24-TC12: nhãn trạng thái rõ ràng cho PT.
 const STATUS_LABELS: Record<ShiftStatus, string> = {
@@ -22,6 +22,31 @@ interface ShiftForm { shift: Shift | null; date: string; from: string; to: strin
 // Chỉ ca nháp chưa bắt đầu mới sửa được (US-24-F04); ca đã công bố muốn đổi phải hủy theo US-25.
 const canEdit = (shift: Shift) => shift.status === 'SCHEDULED' && Date.parse(shift.startAt) > Date.now();
 
+// US-25-TC01: chỉ ca nháp chưa bắt đầu mới công bố được (giống điều kiện sửa).
+const canConfirm = canEdit;
+// US-25-TC07: chỉ ca Nháp/Công bố chưa bắt đầu mới hủy được.
+const canCancel = (shift: Shift) =>
+  (shift.status === 'SCHEDULED' || shift.status === 'CONFIRMED') && Date.parse(shift.startAt) > Date.now();
+
+// US-25-F02: lý do hủy sau trim dài 10–500 ký tự (server kiểm lại).
+const MIN_REASON_LENGTH = 10;
+const MAX_REASON_LENGTH = 500;
+
+// US-25-TC12: PT không hủy lịch thay hội viên; hướng dẫn xử lý từng lịch theo US-29, không có "hủy tất cả".
+const BOOKING_GUIDE = 'Bạn không thể hủy lịch thay hội viên. Hãy đề nghị Member tự hủy hoặc nhờ Staff/Admin hủy từng lịch, sau đó thử hủy ca lại.';
+
+// US-25-TC03, TC10: ca đã bị đổi ở nơi khác, PT cần tải lại để thấy trạng thái/version mới.
+const needsReload = (error: ApiError) => error.code === 'VERSION_CONFLICT' || error.code === 'INVALID_SHIFT_STATE';
+
+// Chưa biết server đã ghi hay chưa nên giữ key để gửi lại đúng yêu cầu (EN-02, US-25-TC11):
+// lỗi mạng (không có mã HTTP) hoặc server trả 503 OPERATION_OUTCOME_UNKNOWN. 409/400 là kết quả rõ ràng, bỏ key.
+const isOutcomeUnknown = (error: ApiError) => error.status === undefined || error.code === 'OPERATION_OUTCOME_UNKNOWN';
+
+const asApiError = (error: unknown, fallback: string) => (error instanceof ApiError ? error : new ApiError(fallback));
+
+// Dữ liệu dialog hủy ca: detail = null khi đang tải chi tiết ca (bookedCount).
+interface CancelState { shift: Shift; detail: ShiftDetail | null; loadError: string }
+
 export function ShiftsPage() {
   // Thứ Hai của tuần đang xem, dạng YYYY-MM-DD (ngày Việt Nam).
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
@@ -38,6 +63,20 @@ export function ShiftsPage() {
   const idempotencyKey = useRef<string | null>(null);
   // Chặn gửi kép ngay lập tức, kể cả khi state "submitting" chưa kịp cập nhật.
   const sending = useRef(false);
+
+  // US-25: công bố ca. confirmingId = ca đang gửi; confirmError hiện ngoài lịch.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<ApiError | null>(null);
+  // Key của lần công bố bị lỗi mạng, gắn với đúng ca và version: bấm lại cùng ca dùng lại key này.
+  const confirmKey = useRef<{ shiftId: string; version: number; key: string } | null>(null);
+
+  // US-25: dialog hủy ca.
+  const [cancelState, setCancelState] = useState<CancelState | null>(null);
+  const [reason, setReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<ApiError | null>(null);
+  const [reasonError, setReasonError] = useState('');
+  const cancelKey = useRef<string | null>(null);
 
   const weekEnd = addDays(weekStart, 6);
 
@@ -120,7 +159,110 @@ export function ShiftsPage() {
     void loadList();
   }
 
+  // ---------- US-25: công bố ca ----------
+  async function confirmShift(shift: Shift) {
+    // US-25-TC10: đang gửi thì bỏ qua các lần bấm thêm.
+    if (sending.current) return;
+    sending.current = true;
+    setConfirmingId(shift.id);
+    setConfirmError(null);
+    setNotice('');
+    // Gửi lại sau lỗi mạng (cùng ca, cùng version) thì dùng key cũ; còn lại tạo key mới.
+    const previous = confirmKey.current;
+    const key = previous && previous.shiftId === shift.id && previous.version === shift.version ? previous.key : crypto.randomUUID();
+    confirmKey.current = { shiftId: shift.id, version: shift.version, key };
+    try {
+      await shiftsApi.confirm(shift.id, { version: shift.version }, key);
+      confirmKey.current = null;
+      // US-25-TC01, TC12: trạng thái mới đọc lại từ REST, không chờ realtime.
+      setNotice('Đã công bố ca. Hội viên có thể đặt lịch trong ca này.');
+      void loadList();
+    } catch (error) {
+      const apiError = asApiError(error, 'Không công bố được ca.');
+      // Server đã trả lời rõ (409, 400…) thì yêu cầu này kết thúc, bỏ key; kết quả chưa rõ thì giữ key.
+      if (!isOutcomeUnknown(apiError)) confirmKey.current = null;
+      setConfirmError(apiError);
+    } finally {
+      sending.current = false;
+      setConfirmingId(null);
+    }
+  }
+
+  // US-25-TC03: chỉ tải lại khi PT bấm "Tải lại ca".
+  function reloadAfterConfirmError() {
+    setConfirmError(null);
+    void loadList();
+  }
+
+  // ---------- US-25: hủy ca ----------
+  // Mở dialog và tải chi tiết ca để biết bookedCount (chỉ là ảnh chụp, server kiểm lại khi hủy).
+  async function openCancel(shift: Shift) {
+    cancelKey.current = null;
+    setReason('');
+    setReasonError('');
+    setCancelError(null);
+    setNotice('');
+    setCancelState({ shift, detail: null, loadError: '' });
+    try {
+      const detail = await shiftsApi.get(shift.id);
+      setCancelState(current => (current?.shift.id === shift.id ? { ...current, detail } : current));
+    } catch (error) {
+      const message = asApiError(error, 'Không tải được thông tin ca.').message;
+      setCancelState(current => (current?.shift.id === shift.id ? { ...current, loadError: message } : current));
+    }
+  }
+
+  // US-25-TC04: đóng dialog chưa gửi thì không hủy ca.
+  function closeCancel() {
+    cancelKey.current = null;
+    setCancelState(null);
+  }
+
+  // Sửa lý do là một ý định mới: lần gửi sau dùng key mới.
+  function changeReason(value: string) {
+    cancelKey.current = null;
+    setReasonError('');
+    setReason(value);
+  }
+
+  async function submitCancel(event: FormEvent) {
+    event.preventDefault();
+    if (!cancelState || sending.current) return;
+    // US-25-TC04: lý do quá ngắn thì báo ngay, không gọi API.
+    const trimmed = reason.trim();
+    if (trimmed.length < MIN_REASON_LENGTH) {
+      setReasonError(`Lý do hủy cần ít nhất ${MIN_REASON_LENGTH} ký tự.`);
+      return;
+    }
+    sending.current = true;
+    setCancelling(true);
+    setCancelError(null);
+    cancelKey.current ??= crypto.randomUUID();
+    try {
+      await shiftsApi.cancel(cancelState.shift.id, { version: cancelState.shift.version, reason: trimmed }, cancelKey.current);
+      cancelKey.current = null;
+      setCancelState(null);
+      setNotice('Đã hủy ca.');
+      void loadList();
+    } catch (error) {
+      const apiError = asApiError(error, 'Không hủy được ca.');
+      if (!isOutcomeUnknown(apiError)) cancelKey.current = null;
+      // Giữ dialog và lý do để PT đọc hướng dẫn hoặc gửi lại.
+      setCancelError(apiError);
+    } finally {
+      sending.current = false;
+      setCancelling(false);
+    }
+  }
+
+  // US-25-TC10: ca đã đổi ở nơi khác → đóng dialog và tải lại khi PT bấm.
+  function reloadAfterCancelError() {
+    closeCancel();
+    void loadList();
+  }
+
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+  const bookedCount = cancelState?.detail?.bookedCount ?? 0;
   const preview = form && form.date && form.from && form.to ? previewSlots(form.from, form.to) : null;
 
   return <section className="auth-card shifts-page">
@@ -146,6 +288,55 @@ export function ShiftsPage() {
         Tuần này có {data.total} ca nhưng lịch chỉ hiển thị {data.items.length} ca đầu tiên. Một số ca cuối tuần chưa được hiện.
       </p>}
       {!form && <button type="button" onClick={openCreate}>Thêm ca nháp</button>}
+
+      {/* US-25-TC03, TC10: lỗi công bố ca; không tự tải lại hay tự gửi lại. */}
+      {confirmError && <div className="form-error" role="alert">
+        <p>{confirmError.message}</p>
+        {isOutcomeUnknown(confirmError) && <p>Chưa xác nhận được kết quả. Bấm "Công bố ca" lần nữa để gửi lại đúng yêu cầu này.</p>}
+        {needsReload(confirmError) && <>
+          <p>Ca đã được thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.</p>
+          <button type="button" onClick={reloadAfterConfirmError}>Tải lại ca</button>
+        </>}
+      </div>}
+
+      {/* US-25-TC04, TC12: dialog hủy ca có lý do và hướng dẫn khi ca còn lịch đặt. */}
+      {cancelState && <div role="dialog" aria-modal="true" aria-labelledby="cancel-shift-title" className="auth-card">
+        <h3 id="cancel-shift-title">Hủy ca</h3>
+        <p>{vietnamDate(new Date(cancelState.shift.startAt))} · {vietnamTime(cancelState.shift.startAt)}–{vietnamTime(cancelState.shift.endAt)} · {cancelState.shift.location}</p>
+
+        {!cancelState.detail && !cancelState.loadError && <p>Đang tải thông tin ca…</p>}
+        {cancelState.loadError && <div className="form-error" role="alert"><p>{cancelState.loadError}</p>
+          <button type="button" onClick={() => void openCancel(cancelState.shift)}>Thử lại</button></div>}
+
+        {cancelState.detail && <form onSubmit={submitCancel} noValidate aria-busy={cancelling}>
+          {/* US-25-TC12: còn lịch đặt thì không cho gửi, chỉ hướng dẫn xử lý từng lịch. */}
+          {bookedCount > 0 && <div className="form-error">
+            <p>Ca đang có {bookedCount} lịch đặt nên chưa hủy được.</p>
+            <p>{BOOKING_GUIDE}</p>
+          </div>}
+
+          <label htmlFor="cancel-reason">Lý do hủy</label>
+          <textarea id="cancel-reason" maxLength={MAX_REASON_LENGTH} value={reason} disabled={cancelling}
+            onChange={event => changeReason(event.target.value)} />
+          {reasonError && <p className="form-error" role="alert">{reasonError}</p>}
+
+          {/* US-25-TC05, TC10: lỗi từ server khi hủy. */}
+          {cancelError && <div className="form-error" role="alert">
+            <p>{cancelError.message}</p>
+            {cancelError.code === 'SHIFT_HAS_BOOKINGS' && <p>{BOOKING_GUIDE}</p>}
+            {isOutcomeUnknown(cancelError) && <p>Chưa xác nhận được kết quả. Bấm "Xác nhận hủy ca" để gửi lại đúng yêu cầu này.</p>}
+            {needsReload(cancelError) && <>
+              <p>Ca đã được thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.</p>
+              <button type="button" onClick={reloadAfterCancelError}>Tải lại ca</button>
+            </>}
+          </div>}
+
+          <div className="user-actions">
+            <button type="submit" disabled={cancelling || bookedCount > 0}>{cancelling ? 'Đang hủy…' : 'Xác nhận hủy ca'}</button>
+            <button type="button" className="secondary" onClick={closeCancel} disabled={cancelling}>Đóng</button>
+          </div>
+        </form>}
+      </div>}
 
       {form && <form onSubmit={submit} noValidate aria-busy={submitting} aria-label={form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'}>
         <h3>{form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'}</h3>
@@ -187,19 +378,32 @@ export function ShiftsPage() {
         </div>
       </form>}
 
-      {/* US-24-TC12: lịch tuần, mỗi ngày một vùng; giờ hiển thị theo Asia/Ho_Chi_Minh. */}
-      {days.map((day, index) => {
-        const items = data.items.filter(shift => vietnamDate(new Date(shift.startAt)) === day);
-        return <section key={day} aria-label={dayLabel(day, index)}>
-          <h3>{dayLabel(day, index)}</h3>
-          {items.length === 0 ? <p>Không có ca.</p> : <ul>
-            {items.map(shift => <li key={shift.id}>
-              <span>{vietnamTime(shift.startAt)}–{vietnamTime(shift.endAt)}</span> · <span>{shift.location}</span> · <strong>{STATUS_LABELS[shift.status]}</strong>
-              {canEdit(shift) && <button type="button" className="secondary" onClick={() => openEdit(shift)} disabled={Boolean(form)}>Sửa</button>}
-            </li>)}
-          </ul>}
-        </section>;
-      })}
+      {/* US-24-TC12: lịch tuần dạng 7 cột Thứ Hai → Chủ nhật, mỗi ngày một vùng; giờ hiển thị theo Asia/Ho_Chi_Minh.
+          Ca trong cột theo thứ tự server trả (startAt tăng dần). Màn hình hẹp thì cuộn ngang trong khung lịch. */}
+      <div className="shift-week">
+        {days.map((day, index) => {
+          const items = data.items.filter(shift => vietnamDate(new Date(shift.startAt)) === day);
+          return <section key={day} aria-label={dayLabel(day, index)} className="shift-day">
+            <h3>{dayLabel(day, index)}</h3>
+            {items.length === 0 ? <p className="shift-empty">Không có ca.</p> : <ul>
+              {items.map(shift => <li key={shift.id} className={`shift-item shift-${shift.status.toLowerCase()}`}>
+                <span className="shift-time">{vietnamTime(shift.startAt)}–{vietnamTime(shift.endAt)}</span>
+                <span>{shift.location}</span>
+                <strong>{STATUS_LABELS[shift.status]}</strong>
+                <div className="shift-item-actions">
+                  {canEdit(shift) && <button type="button" className="secondary" onClick={() => openEdit(shift)} disabled={Boolean(form)}>Sửa</button>}
+                  {/* US-25-TC01, TC10: khóa nút khi đang công bố ca này. */}
+                  {canConfirm(shift) && <button type="button" onClick={() => void confirmShift(shift)} disabled={confirmingId === shift.id}>
+                    {confirmingId === shift.id ? 'Đang công bố…' : 'Công bố ca'}
+                  </button>}
+                  {canCancel(shift) && <button type="button" className="secondary" onClick={() => void openCancel(shift)}
+                    disabled={Boolean(cancelState)}>Hủy ca</button>}
+                </div>
+              </li>)}
+            </ul>}
+          </section>;
+        })}
+      </div>
     </>}
   </section>;
 }

@@ -24,7 +24,7 @@ export interface IdempotentCommand {
 export interface WorkResult { status: number; body: Record<string, unknown>; resultIds: Record<string, unknown> }
 export interface OperationResult { status: number; body: Record<string, unknown> }
 
-// Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca nháp S04 chỉ dành cho TRAINER (US-24-F01).
+// Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca làm việc S04 chỉ dành cho TRAINER (US-24-F01, US-25).
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   SALE_REGISTER: ['STAFF', 'ADMIN'],
   SALE_CANCEL: ['STAFF', 'ADMIN'],
@@ -33,6 +33,9 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   MEMBER_LINK: ['STAFF', 'ADMIN'],
   SHIFT_CREATE: ['TRAINER'],
   SHIFT_UPDATE: ['TRAINER'],
+  // US-25: quyền shifts.confirmOwn/cancelOwn chỉ cho TRAINER.
+  SHIFT_CONFIRM: ['TRAINER'],
+  SHIFT_CANCEL: ['TRAINER'],
 };
 
 // Số lần thử lại khi hai request cùng key chạy đua và request này thua ở unique index.
