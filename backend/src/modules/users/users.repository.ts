@@ -17,7 +17,13 @@ export interface AccountChanges {
 @Injectable()
 export class UsersRepository implements OnModuleInit {
   private indexesReady = false;
-  constructor(@InjectModel('Account') private readonly accounts: Model<Account>, @InjectModel('Role') private readonly roles: Model<Role>, private readonly config: ConfigService) {}
+  constructor(
+    @InjectModel('Account')
+    private readonly accounts: Model<Account>,
+    @InjectModel('Role')
+    private readonly roles: Model<Role>,
+    private readonly config: ConfigService
+  ) { }
 
   async onModuleInit(): Promise<void> {
     if (this.config.get('nodeEnv') !== 'production') {

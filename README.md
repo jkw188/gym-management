@@ -1,7 +1,8 @@
-# Gym Management — EN-01, US-02 và US-06
+# Gym Management — EN-01, US-01, US-02 và US-06
 
 React + TypeScript (Vite), NestJS 11 với Express và MongoDB/Mongoose, kiến trúc Modular Monolith.
 EN-01 bổ sung nền tảng dùng chung; US-02 triển khai đăng nhập theo bốn vai trò, JWT/Passport, refresh và khôi phục phiên. US-06 bổ sung danh sách, chi tiết, tạo và sửa thông tin tài khoản dành cho Admin. Các module nghiệp vụ khác giữ nguyên.
+US-01 bổ sung đăng ký tài khoản Member công khai tại `/register`.
 
 ## Chuẩn bị môi trường sạch
 
@@ -78,6 +79,43 @@ npm run dev
 Mỗi HTTP response có `X-Request-Id` do server sinh. Lỗi dạng `{ "error": { "code": "...", "message": "...", "details": [{ "field": "...", "message": "..." }] }, "requestId": "<uuid>" }`; `details` là tùy chọn. Validation/ID sai 400, trùng index 409, DB unavailable 503; giữ 401/403/404/429. Không trả raw database error, stack, URI hoặc dữ liệu nhạy cảm. Log lỗi chỉ ghi allowlist timestamp/requestId/code/status, không serialize headers/body/exception.
 
 Global ValidationPipe bật transform/whitelist/forbidNonWhitelisted, tắt implicit conversion. Field lạ trong lỗi được thay bằng `unknownField` để không phản chiếu dữ liệu client. Endpoint DTO/RBAC thử chỉ tồn tại trong test; API tài khoản thật được bảo vệ bằng JWT/RBAC. Hai health endpoint vẫn public.
+
+## Đăng ký tài khoản US-01 / UC-03
+
+Đối chiếu `[GM]Requirement_US-01.docx` phiên bản 1.0: khách chưa đăng nhập tạo danh tính truy cập, không tự nhận hồ sơ hội viên hoặc gói tập. Phone là bắt buộc, email tùy chọn; quy định này thay phần “SĐT/Email” trong UC-03 cũ. Đã đăng nhập mở `/register` sẽ chuyển về trang theo vai trò; đang kiểm tra phiên phải chờ khôi phục xong.
+
+| API công khai | Kết quả |
+| --- | --- |
+| `POST /api/auth/register` | JSON `{fullName,phone,password,email?}`; `201 {id,nextAction:"LOGIN"}` sau khi insert được xác nhận; không cookie/token |
+| `400 VALIDATION_ERROR` | Thiếu/sai/thừa trường; details chỉ có tên trường và lỗi an toàn |
+| `409 REGISTRATION_CONFLICT` | Phone/email trùng accounts; thông báo chung, không phân biệt vai trò/trạng thái hoặc trường đã tồn tại |
+| `409 REGISTRATION_NEEDS_HELP` | Phone trùng members chưa liên kết; hướng dẫn liên hệ quầy, không tiết lộ hồ sơ |
+| `409 ROLE_NOT_CONFIGURED` | Chưa seed MEMBER; không tạo role trong request |
+| `429 TOO_MANY_REQUESTS` | Tối đa 5 yêu cầu đăng ký/IP/60 giây, có Retry-After, không khóa tài khoản |
+| `503 SERVICE_UNAVAILABLE` | Không đọc được nguồn cần kiểm tra hoặc ghi thất bại; không báo thành công giả |
+
+`fullName` 2–120 ký tự Unicode sau trim/gộp khoảng trắng; phone raw string tối đa 32 và chuẩn EN01-D01; email trim/lowercase tối đa 190, rỗng/omit bỏ field, null bị 400. Password 12–128 ký tự Unicode, không trim, dùng PasswordService Argon2id EN-01. Chỉ chấp nhận bốn field DTO; confirm chỉ kiểm frontend, role/status/ID/version do server quản lý.
+
+Luồng UC-03: React kiểm trường và confirm → RegistrationGuard giới hạn riêng và kiểm JSON → RegisterDto → AuthController → UsersService chuẩn hóa/tra role/định danh → adapter nội bộ đọc members → PasswordService hash → UsersRepository insert accounts với role MEMBER, ACTIVE, version/auth_version=0 → 201 → `/login?reason=registered` kèm thông báo thành công. Không auto login hoặc tạo members, membership, trainer, auth_sessions. Sơ đồ hiện hành: [registration-sequence.mmd](docs/registration-sequence.mmd).
+
+Adapter members chỉ mô tả `phone`, `account_id` theo báo cáo mục 4.2.7 và kiểm bản ghi có account_id thiếu/null. Index đọc `members_phone_lookup` không unique; các constraint ghi hồ sơ đầy đủ thuộc US-09. Chạy lại `npm run ensure-indexes` trước startup production; startup chỉ xác minh index, không tạo/xóa/sửa hồ sơ. Không thêm env/dependency hoặc yêu cầu transaction cho đăng ký.
+
+Unique indexes accounts quyết định chống trùng phone/email khi đồng thời. Việc đọc members không bảo đảm duy nhất một người giữa nhiều collection nếu quầy tạo hồ sơ cùng lúc; tuyệt đối không tự nối/ghi đè bằng phone. US-09 chịu trách nhiệm đối chiếu có xác minh. Limiter memory áp dụng cho một backend instance, tách biệt ngưỡng login; không tin X-Forwarded-For khi chưa cấu hình proxy tin cậy.
+
+UI có nhãn, hiện/ẩn password và confirm, focus trường lỗi/thông báo, khóa form khi pending; lỗi 400 đặt cạnh trường, 409 giữ bản nháp và hướng dẫn phù hợp, 429 hiển thị thời gian chờ. Password chỉ giữ trong memory của form và xóa khi thành công, không vào URL/storage. Lỗi mạng/mất response sau submit báo chưa xác định kết quả và cho chuyển đăng nhập hoặc liên hệ quầy; không tự gửi lại POST. Gửi lại do người dùng chủ động vẫn có thể gặp 409; API không có idempotency key.
+
+Truy vết nghiệm thu giữ nguyên mã US-01:
+
+| AC | TC và bằng chứng tự động |
+| --- | --- |
+| US-01-AC01 | TC01–02: `backend/test/registration.integration-spec.ts`, tạo đúng account, không sinh hồ sơ/phiên; login/me thật qua US-02 |
+| US-01-AC02 | TC03–05: DTO/field cấm, Unicode, email rỗng/null, hash Argon2id/giữ khoảng trắng, response/log an toàn |
+| US-01-AC03 | TC06–09: phone/email chuẩn hóa, hai POST đồng thời, hồ sơ ngoại tuyến thiếu/null account_id, quầy ghi sau bước kiểm tra không tự liên kết |
+| US-01-AC04 | TC10–13: role thiếu, lỗi insert MongoDB và mất kết nối thật, limiter riêng/Retry-After; `frontend/src/features/auth/registration.test.tsx` kiểm form/focus/bàn phím/pending/lỗi mạng/chuyển login |
+
+Backend chạy MongoDB 8.0.17 thật do mongodb-memory-server quản lý, database riêng `gym_management_test_us01`; test không thay MongoDB bằng dữ liệu giả. TC09 dùng hàng rào tại bước hash để đặt thao tác ghi hồ sơ thật đúng sau bước đọc. Frontend dùng jsdom/HTTP giả lập; vẫn cần kiểm tra trình duyệt thật và review trước khi ghi Done toàn bộ US-01.
+
+Kiểm tra nhanh: sau ensure-indexes và seed:admin, chạy backend/frontend, mở `/register`, nhập tên/số điện thoại mới/password ≥12 ký tự cùng confirm (email tùy chọn). Mong đợi về `/login` có thông báo, rồi đăng nhập đến `/member`. Thử đăng ký lại với phone `0`/`+84` tương đương để thấy lỗi chung; dùng DB test tạo member chưa liên kết cùng phone để kiểm tra hướng dẫn liên hệ quầy. Không xóa role hoặc ngắt DB của môi trường thật để thử lỗi.
 
 ## Xác thực US-02
 
@@ -168,7 +206,7 @@ npm run test:unit
 npm run test:integration
 ```
 
-`npm test` chạy cả unit và integration; hai script test:unit/test:integration bao gồm EN-01, US-02 và US-06. Cần `npm run build` trước vì integration kiểm tra subprocess từ `dist/main.js` và CLI thật. Integration dùng **tiến trình mongod thật** do mongodb-memory-server quản lý, MongoDB 8.0.17, port động và database `gym_management_test_en01`/`gym_management_test_us02`/`gym_management_test_us06`; không dùng DB dev/.env, không mô phỏng MongoDB. Binary được tải/cache lần đầu, có thể cần vài phút và quyền mạng/chạy mongod. Đặt `MONGOMS_DOWNLOAD_DIR` vào thư mục writable như `.cache/mongodb-binaries` nếu môi trường giới hạn user cache, hoặc `MONGOMS_SYSTEM_BINARY` khi đã cài mongod phù hợp. Khi hoàn tất, test đóng app và dọn database tạm.
+`npm test` chạy cả unit và integration; hai script test:unit/test:integration bao gồm EN-01, US-01, US-02 và US-06. Cần `npm run build` trước vì integration kiểm tra subprocess từ `dist/main.js` và CLI thật. Integration dùng **tiến trình mongod thật** do mongodb-memory-server quản lý, MongoDB 8.0.17, port động và database test riêng, gồm `gym_management_test_us01`; không dùng DB dev/.env, không mô phỏng MongoDB. Binary được tải/cache lần đầu, có thể cần vài phút và quyền mạng/chạy mongod. Đặt `MONGOMS_DOWNLOAD_DIR` vào thư mục writable như `.cache/mongodb-binaries` nếu môi trường giới hạn user cache, hoặc `MONGOMS_SYSTEM_BINARY` khi đã cài mongod phù hợp. Khi hoàn tất, test đóng app và dọn database tạm.
 
 Trong `frontend`: `npm run typecheck`, `npm run build`, `npm test` (Vitest + jsdom/Testing Library). Test US-02 kiểm tra bốn role, checking/restore, returnTo, form/pending/lỗi mạng, single-flight và retry giới hạn; mock HTTP ở frontend, không thay cho kiểm thử cookie trên browser/hosting thật. Hai ứng dụng chưa có script lint; không báo đã chạy lint. Thư viện US-02 thêm JWT/Passport/cookie-parser và type declarations ở backend, React Router ở frontend; Vitest/jsdom/Testing Library chỉ dành cho test. Override js-yaml hiện có dưới Swagger được giữ nguyên.
 

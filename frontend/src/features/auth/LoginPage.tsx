@@ -42,6 +42,7 @@ export function LoginPage() {
 
   return <section className="auth-card" aria-labelledby="login-title">
     <h2 id="login-title">Đăng nhập</h2><p>Dùng số điện thoại và mật khẩu của tài khoản phòng Gym.</p>
+    {params.get('reason') === 'registered' && <p role="status">Đã tạo tài khoản. Vui lòng đăng nhập bằng số điện thoại và mật khẩu vừa đăng ký.</p>}
     {params.get('reason') === 'identity-changed' && <p role="status">Đã lưu thông tin tài khoản. Vui lòng đăng nhập lại bằng thông tin mới.</p>}
     {params.get('reason') === 'password-changed' && <p role="status">Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.</p>}
     {params.get('reason') === 'password-unconfirmed' && <p role="status">Chưa xác nhận được mật khẩu đã đổi hay chưa. Hãy thử đăng nhập bằng mật khẩu mới, nếu không được thì dùng mật khẩu cũ.</p>}
@@ -62,5 +63,6 @@ export function LoginPage() {
       <button type="submit" disabled={pending}>{pending ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
     </form>
     <Link to="/forgot-password">Quên mật khẩu?</Link>
+    <p>Chưa có tài khoản? <Link to="/register">Đăng ký tài khoản</Link></p>
   </section>;
 }

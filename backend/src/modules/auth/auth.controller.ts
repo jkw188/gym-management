@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, Post, Query, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiBearerAuth, ApiBody, ApiNoContentResponse, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CookieOptions, Request, Response } from 'express';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ErrorResponseDto } from '../../common/http/error.dto';
@@ -15,6 +15,9 @@ import { PasswordErrorFilter } from './password-error.filter';
 import { LoginLimiter } from './login-limiter.service';
 import { AuthResponseDto, LoginDto, PrincipalDto } from './login.dto';
 import { LOGOUT_BODY_SCHEMA } from './logout.dto';
+import { RegisterDto, RegisterResponseDto } from './register.dto';
+import { RegistrationGuard } from './registration.guard';
+import { UsersService } from '../users/users.service';
 
 export function refreshCookieOptions(nodeEnv: string, frontendOrigin: string, expiresAt?: Date): CookieOptions {
   const hostname = new URL(frontendOrigin).hostname;
@@ -48,7 +51,14 @@ function requireEmptyBody(body: Record<string, unknown>, endpoint: string) {
 @ApiResponse({ status: 503, type: ErrorResponseDto })
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService, private readonly limiter: LoginLimiter, private readonly config: ConfigService) {}
+  constructor(private readonly auth: AuthService, private readonly limiter: LoginLimiter, private readonly config: ConfigService,
+    private readonly users: UsersService) {}
+
+  @Public() @UseGuards(RegistrationGuard) @Post('register')
+  @ApiCreatedResponse({ type: RegisterResponseDto })
+  @ApiResponse({ status: 409, type: ErrorResponseDto, description: 'REGISTRATION_CONFLICT / REGISTRATION_NEEDS_HELP / ROLE_NOT_CONFIGURED' })
+  @ApiResponse({ status: 429, type: ErrorResponseDto, headers: { 'Retry-After': { schema: { type: 'integer' } } } })
+  register(@Body() dto: RegisterDto) { return this.users.register(dto); }
 
   private respond(result: Awaited<ReturnType<AuthService['login']>>, response: Response) {
     response.cookie('gym_refresh', result.refreshToken, refreshCookieOptions(this.config.getOrThrow<string>('nodeEnv'),
