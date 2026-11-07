@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const { default: configuration, ConfigurationError, readMongoConfiguration } = require('../dist/config/configuration');
 const { AccountSchema } = require('../dist/modules/users/schemas/account.schema');
 const { RoleSchema } = require('../dist/modules/users/schemas/role.schema');
+const { MemberRegistrationSchema } = require('../dist/modules/members/member-registration.reader');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
@@ -30,12 +31,13 @@ async function run() {
       await connection.asPromise();
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
+      const members = connection.model('MemberRegistration', MemberRegistrationSchema);
       const session = connection.model('AuthSession', AuthSessionSchema);
       const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
       const passwordReset = connection.model('PasswordReset', PasswordResetSchema);
       // EN-02 bước 2: unique index (actor_id, operation, client_key); collection mới nên chưa có dữ liệu trùng.
       const operationRequest = connection.model('OperationRequest', OperationRequestSchema);
-      await Promise.all([account.createIndexes(), role.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),
+      await Promise.all([account.createIndexes(), role.createIndexes(), members.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),
         passwordReset.createIndexes(), operationRequest.createIndexes()]);
       // EN-03 bước 1: index notifications/recipients/outbox và counter sequence phải có trước khi nhận ghi.
       const notification = connection.model('Notification', NotificationSchema);

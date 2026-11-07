@@ -1,0 +1,54 @@
+sequenceDiagram
+    actor Guest as Khách
+    participant UI as React /register
+    participant Controller as AuthController
+    participant Guard as RegistrationGuard
+    participant Users as UsersService
+    participant Members as MemberRegistrationReader
+    participant Password as PasswordService EN-01
+    participant Repository as UsersRepository
+    participant DB as MongoDB
+
+    Guest->>UI: Nhập fullName, phone, email?, password, confirm
+    UI->>UI: Kiểm tra trường/confirm, focus lỗi; pending chặn gửi kép
+    Note over UI: Phiên đang kiểm tra: chờ restore; đã đăng nhập: về trang theo vai trò
+    UI->>Controller: POST /api/auth/register JSON (không gửi confirm)
+    Controller->>Guard: Route public; kiểm JSON object và limiter riêng
+    alt Yêu cầu thứ 6/IP/60 giây
+        Guard-->>UI: 429 TOO_MANY_REQUESTS + Retry-After
+    else Được phép xử lý
+        Controller->>Controller: RegisterDto từ chối sai/thiếu/thừa field
+        Controller->>Users: register(dto)
+        Users->>Users: Chuẩn hóa EN01-D01, không trim password
+        Users->>Repository: Tìm MEMBER đã seed, kiểm tra phone/email
+        Repository->>DB: Đọc roles/accounts
+        alt Thiếu MEMBER
+            Users-->>UI: 409 ROLE_NOT_CONFIGURED (không seed)
+        else Định danh trùng accounts
+            Users-->>UI: 409 REGISTRATION_CONFLICT (thông báo chung)
+        else Có thể đăng ký
+            Users->>Members: hasUnlinkedPhone(normalizedPhone)
+            Members->>DB: exists members {phone, account_id:null}, index phone
+            DB-->>Members: Có/không; không xuất dữ liệu hồ sơ
+            alt Hồ sơ ngoại tuyến chưa liên kết
+                Users-->>UI: 409 REGISTRATION_NEEDS_HELP; liên hệ quầy
+            else Không có hồ sơ cần hỗ trợ
+                Users->>Password: hash(password) Argon2id
+                Password-->>Users: passwordHash
+                Users->>Repository: createAccount(MEMBER, fullName, phone, email?, hash)
+                Repository->>DB: Insert accounts ACTIVE, version=0, auth_version=0
+                alt Unique index từ chối (kể cả request đồng thời)
+                    DB-->>Users: Duplicate key
+                    Users-->>UI: 409 REGISTRATION_CONFLICT, không lộ field trùng
+                else Insert được xác nhận
+                    DB-->>Users: Account đã lưu
+                    Users-->>UI: 201 {id,nextAction:LOGIN}, không cookie/token
+                    UI->>UI: Xóa password khỏi form; /login?reason=registered
+                    UI-->>Guest: Đã tạo tài khoản, yêu cầu đăng nhập qua US-02
+                end
+            end
+        end
+    end
+    Note over Users,DB: Không tạo members/membership/trainer/auth_sessions; không tự liên kết bằng phone.
+    Note over Members,DB: Quầy tạo hồ sơ sau bước đọc có thể cùng tồn tại: US-09 xác minh, không dùng transaction để tự nối.
+    Note over UI,DB: Lỗi nguồn đọc/ghi: 503 SERVICE_UNAVAILABLE. Mất response: kết quả chưa xác định; không tự retry POST.

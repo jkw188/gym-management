@@ -14,6 +14,7 @@ import { ChangePasswordLimiter } from './change-password-limiter.service';
 import { AuthRateLimitSchema } from './schemas/auth-rate-limit.schema';
 import { JwtStrategy } from './jwt.strategy';
 import { LoginLimiter } from './login-limiter.service';
+import { RegistrationGuard, RegistrationLimiter } from './registration.guard';
 import { PasswordResetController } from './password-reset.controller';
 import { PasswordResetLimiter } from './password-reset-limiter.service';
 import { PasswordResetMailer } from './password-reset-mailer.service';
@@ -33,7 +34,7 @@ import { AuthSessionSchema } from './schemas/auth-session.schema';
   controllers: [AuthController, PasswordResetController],
   providers: [AuthService, AuthSessionsRepository, AuthRateLimitsRepository, ChangePasswordLimiter,
     PasswordResetService, PasswordResetsRepository, PasswordResetLimiter, PasswordResetMailer,
-    JwtStrategy, LoginLimiter, AuthOriginGuard, JwtAuthGuard, RolesGuard,
+    JwtStrategy, LoginLimiter, RegistrationGuard, RegistrationLimiter, AuthOriginGuard, JwtAuthGuard, RolesGuard,
     { provide: APP_GUARD, useExisting: JwtAuthGuard }, { provide: APP_GUARD, useExisting: RolesGuard }],
   exports: [AuthService, JwtAuthGuard, RolesGuard, PassportModule],
 })
