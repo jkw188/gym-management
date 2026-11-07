@@ -19,6 +19,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ReportsModule } from './modules/reports/reports.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
+import { PublicSessionsModule } from './modules/public-sessions/public-sessions.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { ShiftsModule } from './modules/shifts/shifts.module';
     ReportsModule,
     OperationsModule,
     ShiftsModule,
+    PublicSessionsModule,
   ],
 })
 export class AppModule {}
