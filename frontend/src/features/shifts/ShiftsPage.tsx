@@ -378,25 +378,32 @@ export function ShiftsPage() {
         </div>
       </form>}
 
-      {/* US-24-TC12: lịch tuần, mỗi ngày một vùng; giờ hiển thị theo Asia/Ho_Chi_Minh. */}
-      {days.map((day, index) => {
-        const items = data.items.filter(shift => vietnamDate(new Date(shift.startAt)) === day);
-        return <section key={day} aria-label={dayLabel(day, index)}>
-          <h3>{dayLabel(day, index)}</h3>
-          {items.length === 0 ? <p>Không có ca.</p> : <ul>
-            {items.map(shift => <li key={shift.id}>
-              <span>{vietnamTime(shift.startAt)}–{vietnamTime(shift.endAt)}</span> · <span>{shift.location}</span> · <strong>{STATUS_LABELS[shift.status]}</strong>
-              {canEdit(shift) && <button type="button" className="secondary" onClick={() => openEdit(shift)} disabled={Boolean(form)}>Sửa</button>}
-              {/* US-25-TC01, TC10: khóa nút khi đang công bố ca này. */}
-              {canConfirm(shift) && <button type="button" onClick={() => void confirmShift(shift)} disabled={confirmingId === shift.id}>
-                {confirmingId === shift.id ? 'Đang công bố…' : 'Công bố ca'}
-              </button>}
-              {canCancel(shift) && <button type="button" className="secondary" onClick={() => void openCancel(shift)}
-                disabled={Boolean(cancelState)}>Hủy ca</button>}
-            </li>)}
-          </ul>}
-        </section>;
-      })}
+      {/* US-24-TC12: lịch tuần dạng 7 cột Thứ Hai → Chủ nhật, mỗi ngày một vùng; giờ hiển thị theo Asia/Ho_Chi_Minh.
+          Ca trong cột theo thứ tự server trả (startAt tăng dần). Màn hình hẹp thì cuộn ngang trong khung lịch. */}
+      <div className="shift-week">
+        {days.map((day, index) => {
+          const items = data.items.filter(shift => vietnamDate(new Date(shift.startAt)) === day);
+          return <section key={day} aria-label={dayLabel(day, index)} className="shift-day">
+            <h3>{dayLabel(day, index)}</h3>
+            {items.length === 0 ? <p className="shift-empty">Không có ca.</p> : <ul>
+              {items.map(shift => <li key={shift.id} className={`shift-item shift-${shift.status.toLowerCase()}`}>
+                <span className="shift-time">{vietnamTime(shift.startAt)}–{vietnamTime(shift.endAt)}</span>
+                <span>{shift.location}</span>
+                <strong>{STATUS_LABELS[shift.status]}</strong>
+                <div className="shift-item-actions">
+                  {canEdit(shift) && <button type="button" className="secondary" onClick={() => openEdit(shift)} disabled={Boolean(form)}>Sửa</button>}
+                  {/* US-25-TC01, TC10: khóa nút khi đang công bố ca này. */}
+                  {canConfirm(shift) && <button type="button" onClick={() => void confirmShift(shift)} disabled={confirmingId === shift.id}>
+                    {confirmingId === shift.id ? 'Đang công bố…' : 'Công bố ca'}
+                  </button>}
+                  {canCancel(shift) && <button type="button" className="secondary" onClick={() => void openCancel(shift)}
+                    disabled={Boolean(cancelState)}>Hủy ca</button>}
+                </div>
+              </li>)}
+            </ul>}
+          </section>;
+        })}
+      </div>
     </>}
   </section>;
 }
