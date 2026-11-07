@@ -30,7 +30,7 @@ const origin = 'http://localhost:5173';
 const databaseName = 'gym_management_test_us26_api';
 const password = 'MậtKhẩuUS-26-123';
 const base = '/api/public-sessions';
-const PUBLIC_FIELDS = ['ended', 'endAt', 'id', 'location', 'startAt', 'status', 'subjectCode', 'subjectLabel', 'title', 'trainerId', 'trainerName'];
+const PUBLIC_FIELDS = ['endAt', 'ended', 'id', 'location', 'startAt', 'status', 'subjectCode', 'subjectLabel', 'title', 'trainerId', 'trainerName'];
 
 describe('US-26 bước 1: API công khai xem lớp miễn phí', () => {
   let mongo: MongoMemoryReplSet;
