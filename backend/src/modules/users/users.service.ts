@@ -12,6 +12,9 @@ import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { MemberRegistrationReader } from '../members/member-registration.reader';
 import { RegisterDto } from '../auth/register.dto';
 
+// US-09 bước 2: account có thể liên kết với hồ sơ hội viên (chỉ field cần cho quầy, không có email/role/hash).
+export interface MemberLinkCandidate { id: string; fullName: string; phone: string; hasTrainerProfile: boolean }
+
 @Injectable()
 export class UsersService {
   constructor(private readonly repository: UsersRepository, private readonly passwords: PasswordService,
@@ -53,6 +56,22 @@ export class UsersService {
       if (!currentRole) throw this.roleNotConfigured();
       return mapUserResponse(account, currentRole);
     }), page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) };
+  }
+
+  // US-09 bước 2: tra account theo ĐÚNG số phone đã chuẩn hóa cho nhân viên liên kết hồ sơ hội viên.
+  // Chỉ trả account role MEMBER và status ACTIVE, tối đa một (phone unique); không mở danh sách account US-06.
+  async findMemberLinkCandidate(phone: string): Promise<MemberLinkCandidate | null> {
+    const account = await this.repository.findAccountByPhone(phone);
+    // US-09-TC09: account LOCKED hoặc role khác MEMBER coi như không có ứng viên.
+    if (!account || account.status !== 'ACTIVE') return null;
+    const role = await this.repository.findRoleById(account.role_id.toHexString());
+    if (role?.code !== 'MEMBER') return null;
+    return {
+      id: account._id.toHexString(),
+      fullName: account.full_name,
+      phone: account.phone,
+      hasTrainerProfile: await this.repository.hasTrainerProfile(account._id),
+    };
   }
 
   async listRoles() {

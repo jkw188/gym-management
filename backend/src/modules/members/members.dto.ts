@@ -28,3 +28,10 @@ export class CreateMemberDto {
   @IsEmpty(SERVER_OWNED) planId?: never;
   @IsEmpty(SERVER_OWNED) sessionsQuota?: never;
 }
+
+// US-09 bước 2: query của GET /api/members/link-candidates. Chỉ nhận phone đầy đủ; chuẩn hóa ở service.
+// Không có query tên: gửi name hay field lạ khác đều bị ValidationPipe toàn cục trả 400 (US-09-TC08).
+export class LinkCandidatesQueryDto {
+  @ApiProperty({ example: '0901234567' })
+  @IsString() phone!: string;
+}

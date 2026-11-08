@@ -1,11 +1,12 @@
-// Tầng API (US-09 bước 1): POST /api/members cho Staff/Admin tạo hồ sơ hội viên tại quầy.
+// Tầng API (US-09 bước 1–2): POST /api/members tạo hồ sơ và GET /api/members/link-candidates tra account để liên kết,
+// chỉ cho Staff/Admin.
 // Biết ai gọi qua JwtAuthGuard toàn cục; người tạo lấy từ phiên đăng nhập, không nhận từ client.
-import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { IdempotencyKey } from '../../common/decorators/idempotency-key.decorator';
 import { CurrentUser, Roles } from '../auth/auth.decorators';
 import { AuthPrincipal } from '../auth/auth.types';
-import { CreateMemberDto } from './members.dto';
+import { CreateMemberDto, LinkCandidatesQueryDto } from './members.dto';
 import { MembersService } from './members.service';
 
 @Controller('members')
@@ -21,5 +22,11 @@ export class MembersController {
     const result = await this.members.create(user.id, dto, key);
     response.status(result.status);
     return result.body;
+  }
+
+  // US-09 bước 2: tra account theo đúng số phone. Staff dùng route này, không dùng GET /api/users của Admin (US-09-TC02).
+  @Get('link-candidates')
+  linkCandidates(@Query() query: LinkCandidatesQueryDto) {
+    return this.members.findLinkCandidates(query.phone);
   }
 }

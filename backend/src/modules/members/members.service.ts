@@ -1,18 +1,21 @@
-// Tầng nghiệp vụ (US-09 bước 1): luật tạo hồ sơ hội viên tại quầy: chuẩn hóa dữ liệu, chống trùng phone,
-// chống tạo lặp theo Idempotency-Key (EN-02). Tạo hồ sơ KHÔNG tạo account, gói, giao dịch hay buổi PT (US-09-F01).
+// Tầng nghiệp vụ (US-09 bước 1–2): luật tạo hồ sơ hội viên tại quầy (chuẩn hóa dữ liệu, chống trùng phone,
+// chống tạo lặp theo Idempotency-Key EN-02) và tra account để liên kết.
+// Tạo hồ sơ KHÔNG tạo account, gói, giao dịch hay buổi PT (US-09-F01).
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { normalizeAddress, normalizeBirthDate, normalizeFullName, normalizePhone } from '../../common/utils/normalization';
 import { IdempotencyService, WorkResult } from '../operations/idempotency.service';
+import { UsersService } from '../users/users.service';
 import { CreateMemberDto } from './members.dto';
 import { toMemberResponse } from './members.mapper';
 import { isDuplicatePhone, MembersRepository } from './members.repository';
-import { NewMemberInput } from './members.types';
+import { LinkCandidate, NewMemberInput } from './members.types';
 
 @Injectable()
 export class MembersService {
-  constructor(private readonly repository: MembersRepository, private readonly idempotency: IdempotencyService) {}
+  constructor(private readonly repository: MembersRepository, private readonly idempotency: IdempotencyService,
+    private readonly users: UsersService) {}
 
   // POST /api/members. actorId lấy từ phiên đăng nhập, không nhận từ client.
   async create(actorId: string, dto: CreateMemberDto, clientKey: string) {
@@ -36,6 +39,18 @@ export class MembersService {
         }
       },
     );
+  }
+
+  // GET /api/members/link-candidates (US-09 bước 2): chỉ đọc, không ghi DB và không tự nối hồ sơ (US-09-TC08).
+  async findLinkCandidates(phoneInput: string): Promise<{ items: LinkCandidate[] }> {
+    // US-09-TC08: chuẩn hóa EN01-D01 rồi so khớp chính xác; số sai định dạng → 400 field phone (US-09-TC09).
+    const phone = normalizePhone(phoneInput);
+    const account = await this.users.findMemberLinkCandidate(phone);
+    if (!account) return { items: [] };
+    // US-09-TC09: đã được hồ sơ khác tham chiếu hoặc đã gắn hồ sơ PT thì vẫn hiện nhưng canLink=false.
+    const linked = await this.repository.isAccountLinked(new Types.ObjectId(account.id));
+    const canLink = !linked && !account.hasTrainerProfile;
+    return { items: [{ id: account.id, fullName: account.fullName, phone: account.phone, canLink }] };
   }
 }
 

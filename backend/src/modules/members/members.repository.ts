@@ -35,6 +35,11 @@ export class MembersRepository implements OnModuleInit {
     return !!await this.members.exists({ phone, account_id: null }).maxTimeMS(5000).exec();
   }
 
+  // US-09-F05: account đã được một hồ sơ hội viên tham chiếu thì không liên kết thêm được.
+  async isAccountLinked(accountId: Types.ObjectId): Promise<boolean> {
+    return !!await this.members.exists({ account_id: accountId }).maxTimeMS(5000).exec();
+  }
+
   // Tạo hồ sơ: _id sinh trước để member_code = "HV-" + id (US-09-F02). Không ghi account_id (US-09-TC04).
   async insertMember(input: NewMemberInput, actorId: Types.ObjectId, session: ClientSession): Promise<Member> {
     const _id = new Types.ObjectId();
