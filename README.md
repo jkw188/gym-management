@@ -3,6 +3,7 @@
 React + TypeScript (Vite), NestJS 11 với Express và MongoDB/Mongoose, kiến trúc Modular Monolith.
 EN-01 bổ sung nền tảng dùng chung; US-02 triển khai đăng nhập theo bốn vai trò, JWT/Passport, refresh và khôi phục phiên. US-06 bổ sung danh sách, chi tiết, tạo và sửa thông tin tài khoản dành cho Admin; US-07/08 bổ sung khóa/mở khóa và đổi vai trò qua transaction bảo vệ Admin cuối cùng.
 US-01 bổ sung đăng ký tài khoản Member công khai tại `/register`.
+US-09 bổ sung tạo hồ sơ hội viên tại quầy và bước liên kết tài khoản sau đối chiếu trực tiếp, dành cho Staff/Admin tại `/staff/members/new` và `/admin/members/new`. Hồ sơ độc lập với account/gói; dùng idempotency EN-02 và transaction replica set. Hợp đồng UC-18/Q12, index, giới hạn US-11/settlement và cách retry: [docs/members-contract.md](docs/members-contract.md).
 
 ## Chuẩn bị môi trường sạch
 
