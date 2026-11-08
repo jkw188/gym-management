@@ -1,0 +1,43 @@
+classDiagram
+  class TransactionRunner {
+    run(work) Promise
+  }
+  class DataGuardsService {
+    acquire(session, targets) Promise~void~
+  }
+  class IdempotencyService {
+    execute(command, work) Promise~OperationResult~
+    lookup(principal, operation, clientKey) Promise
+  }
+  class OperationRequestsRepository {
+    findByKey(actorId, operation, clientKey, session)
+    insert(record, session) Promise~void~
+  }
+  class OperationsController {
+    lookup(user, params)
+  }
+  class EnvironmentCheck {
+    assertReady() Promise~void~
+  }
+  class ServerClock {
+    now() Date
+    today() string
+  }
+  class ReceivingAccountPolicy {
+    assertTransferAllowed(code) void
+  }
+  class ShiftsService
+  class NotificationsService {
+    persistBusinessEvent(session, source, recipients)
+  }
+  OperationsController --> IdempotencyService
+  ShiftsService --> IdempotencyService
+  IdempotencyService --> TransactionRunner
+  IdempotencyService --> OperationRequestsRepository
+  TransactionRunner --> ClientSession
+  DataGuardsService --> ClientSession
+  OperationRequestsRepository --> ClientSession
+  NotificationsService --> ClientSession
+  note for DataGuardsService "EN-02: security_state → plans → members → transactions; real Int64 increments"
+  note for EnvironmentCheck "All financial unique indexes, topology, write/rollback probe"
+  note for NotificationsService "Persist only; outbox dispatcher runs after commit"

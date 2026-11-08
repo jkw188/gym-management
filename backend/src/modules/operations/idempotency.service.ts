@@ -10,6 +10,7 @@ import { AuthPrincipal } from '../auth/auth.types';
 import { RoleCode } from '../users/schemas/role.schema';
 import { OperationRequestsRepository } from './operation-requests.repository';
 import { Operation } from './schemas/operation-request.schema';
+import { ACCESS_POLICY } from '../users/access.policy';
 
 // Lệnh nghiệp vụ cần chống lặp. actorId lấy từ người đang đăng nhập, không nhận từ client (EN-02-F04).
 export interface IdempotentCommand {
@@ -26,11 +27,11 @@ export interface OperationResult { status: number; body: Record<string, unknown>
 
 // Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca làm việc S04 chỉ dành cho TRAINER (US-24-F01, US-25).
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
-  SALE_REGISTER: ['STAFF', 'ADMIN'],
-  SALE_CANCEL: ['STAFF', 'ADMIN'],
-  PAYMENT_CONFIRM: ['STAFF', 'ADMIN'],
-  MEMBER_CREATE: ['STAFF', 'ADMIN'],
-  MEMBER_LINK: ['STAFF', 'ADMIN'],
+  SALE_REGISTER: ACCESS_POLICY['serviceSales.create'].roles,
+  SALE_CANCEL: ACCESS_POLICY['serviceSales.cancel'].roles,
+  PAYMENT_CONFIRM: ACCESS_POLICY['transactions.confirmPayment'].roles,
+  MEMBER_CREATE: ACCESS_POLICY['members.create'].roles,
+  MEMBER_LINK: ACCESS_POLICY['members.link'].roles,
   SHIFT_CREATE: ['TRAINER'],
   SHIFT_UPDATE: ['TRAINER'],
   // US-25: quyền shifts.confirmOwn/cancelOwn chỉ cho TRAINER.
@@ -48,13 +49,17 @@ export class IdempotencyService {
   // Chạy work đúng một lần cho mỗi key. work ghi bằng session được truyền vào; record kết quả được insert
   // trong CÙNG transaction, nên work lỗi thì cả dữ liệu nghiệp vụ lẫn record đều rollback (EN-02-TC07).
   async execute(command: IdempotentCommand, work: (session: ClientSession) => Promise<WorkResult>): Promise<OperationResult> {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(command.clientKey)) {
+      throw new ApplicationError(400, 'VALIDATION_ERROR', 'Idempotency-Key phải là UUID v4');
+    }
+    const clientKey = command.clientKey.toLowerCase();
     const actorId = new Types.ObjectId(command.actorId);
     const requestHash = hashRequest(command.payload, command.targetId);
 
     for (let attempt = 1; ; attempt++) {
       try {
         return await this.transactions.run(async session => {
-          const existing = await this.requests.findByKey(actorId, command.operation, command.clientKey, session);
+          const existing = await this.requests.findByKey(actorId, command.operation, clientKey, session);
           if (existing) {
             // EN-02-TC06: cùng key nhưng payload/target khác sau chuẩn hóa thì từ chối, không ghi thêm.
             if (existing.request_hash !== requestHash) {
@@ -65,8 +70,9 @@ export class IdempotencyService {
           }
 
           const result = await work(session);
+          assertSafeResult(result);
           await this.requests.insert({
-            actorId, operation: command.operation, clientKey: command.clientKey, requestHash,
+            actorId, operation: command.operation, clientKey, requestHash,
             resultIds: result.resultIds, responseStatus: result.status, responseBody: result.body, committedAt: new Date(),
           }, session);
           return { status: result.status, body: result.body };
@@ -92,7 +98,7 @@ export class IdempotencyService {
       throw new ApplicationError(403, 'FORBIDDEN', 'Không có quyền truy cập');
     }
     // EN-02-TC15: chỉ tìm theo actor đang đăng nhập, nên key của người khác cũng ra 404, không lộ kết quả.
-    const record = await this.requests.findByKey(new Types.ObjectId(principal.id), operation, clientKey);
+    const record = await this.requests.findByKey(new Types.ObjectId(principal.id), operation, clientKey.toLowerCase());
     if (!record) {
       // EN-02-TC08: chưa thấy không có nghĩa là thất bại; request gốc có thể vẫn đang chạy.
       throw new ApplicationError(404, 'OPERATION_UNKNOWN', 'Chưa thấy kết quả. Yêu cầu có thể vẫn đang xử lý, chỉ gửi lại với cùng khóa');
@@ -104,6 +110,31 @@ export class IdempotencyService {
 // EN-02-D01: request_hash = SHA-256 của DTO đã chuẩn hóa cộng targetId. Chỉ lưu hash, không lưu payload (EN-02-TC16).
 function hashRequest(payload: Record<string, unknown>, targetId = ''): string {
   return createHash('sha256').update(`${canonicalJson(payload)}|${targetId}`).digest('hex');
+}
+
+// transactions.request_key is a digest, never the raw UUID header.
+export function transactionRequestKey(actorId: string, operation: Operation, clientKey: string): string {
+  return createHash('sha256').update(`${new Types.ObjectId(actorId).toHexString()}|${operation}|${clientKey.toLowerCase()}`).digest('hex');
+}
+
+// Callers build response DTOs using their own public-field allowlist (e.g. toShiftResponse).
+// Reject non-JSON results and credential fields as a second boundary, before any commit/replay record.
+function assertSafeResult(result: WorkResult): void {
+  if (!Number.isInteger(result.status) || result.status < 200 || result.status > 299) throw new Error('OPERATION_RESULT_INVALID');
+  const inspect = (value: unknown): void => {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean' ||
+      (typeof value === 'number' && Number.isFinite(value))) return;
+    if (Array.isArray(value)) { value.forEach(inspect); return; }
+    if (typeof value !== 'object' || Object.getPrototypeOf(value) !== Object.prototype) throw new Error('OPERATION_RESULT_NOT_JSON');
+    for (const [key, child] of Object.entries(value)) {
+      if (/password|secret|credential|token|authorization|cookie|pepper|otp/i.test(key)) throw new Error('OPERATION_RESULT_SENSITIVE');
+      inspect(child);
+    }
+  };
+  inspect(result.body);
+  for (const [key, id] of Object.entries(result.resultIds)) {
+    if (!/^[a-z][a-zA-Z]*Id$/.test(key) || !(id instanceof Types.ObjectId || typeof id === 'string' && /^[a-f\d]{24}$/i.test(id))) throw new Error('OPERATION_RESULT_IDS_INVALID');
+  }
 }
 
 // Sắp xếp key của object theo thứ tự chữ cái (cả object lồng nhau), để đổi thứ tự field vẫn ra cùng chuỗi (EN-02-TC04).
