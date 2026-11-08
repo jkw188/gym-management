@@ -15,5 +15,5 @@ export const IdempotencyKey = createParamDecorator((_data: unknown, context: Exe
       { field: 'Idempotency-Key', message: 'Header Idempotency-Key phải là UUID v4' },
     ]);
   }
-  return value;
+  return value.toLowerCase();
 });

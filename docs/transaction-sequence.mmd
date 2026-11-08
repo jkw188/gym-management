@@ -1,0 +1,41 @@
+sequenceDiagram
+  autonumber
+  participant Client
+  participant Guard as JWT/Roles Guard
+  participant Service as Business service
+  participant Idem as IdempotencyService
+  participant Runner as TransactionRunner
+  participant Locks as DataGuardsService
+  participant DB as MongoDB replica set
+  participant Worker as Outbox worker
+  Note over Service,DB: EN-02 integration contract. US-09/12/14/22 business APIs remain to be implemented.
+  Client->>Guard: Command + Bearer + UUID v4 Idempotency-Key
+  Guard->>Service: Current principal, validated DTO
+  Service->>Idem: execute(actorId, operation, key, normalized payload/target)
+  Idem->>Runner: run(callback)
+  Runner->>DB: withTransaction(snapshot, majority, primary, timeout 10s)
+  Idem->>DB: Read own operation_requests using session
+  alt Existing key, different hash
+    Idem-->>Client: 409 IDEMPOTENCY_CONFLICT
+  else Existing key, same hash
+    Idem-->>Client: Original status/body after authentication
+  else New intent
+    Idem->>Service: work(session), may run again on transient errors
+    Service->>Locks: acquire(session, ALL targets)
+    Locks->>DB: Increment security_state → sorted plans → members → transactions
+    Service->>DB: Read protected data, validate business rules in session
+    Service->>DB: Write related business documents + notification/outbox in session
+    Service-->>Idem: Allowlisted public DTO + result IDs
+    Idem->>DB: Insert committed result using same session
+    Runner->>DB: Commit all writes, or abort all on error
+    Runner-->>Idem: Result / unknown commit outcome
+    Idem-->>Client: Original result or 503 OPERATION_OUTCOME_UNKNOWN
+    Worker->>DB: Claim committed outbox only
+    Worker-->>Client: Realtime event after commit
+  end
+  Note over Client,DB: Duplicate operation key: abort losing transaction, retry same key within limits.
+  Client->>Guard: GET /operations/:operation/:key
+  Guard->>Idem: Current principal; ownership + operation role
+  Idem->>DB: Read committed result by current actor
+  Idem-->>Client: 200 COMMITTED or 404 OPERATION_UNKNOWN
+  Note over Client: 404 may mean original request is still running. Keep the same key.

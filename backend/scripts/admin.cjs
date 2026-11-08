@@ -21,6 +21,7 @@ const { NotificationRecipientSchema } = require('../dist/modules/notifications/s
 const { NotificationOutboxSchema } = require('../dist/modules/notifications/schemas/notification-outbox.schema');
 const { NotificationCounterSchema } = require('../dist/modules/notifications/schemas/notification-counter.schema');
 const { EnvironmentCheck } = require('../dist/infrastructure/environment/environment-check');
+const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction/financial-integrity');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -33,6 +34,8 @@ async function run() {
       serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
     try {
       await connection.asPromise();
+      // EN-02: preflight duplicates, install constraints, backfill missing BSON Int64 revisions.
+      await ensureFinancialIntegrity(connection);
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
       await Promise.all([connection.model('Permission', PermissionSchema).createIndexes(),
@@ -78,7 +81,7 @@ async function run() {
     return;
   }
   if (process.argv[2] === 'check-environment') {
-    // EN-02-F01, EN-02-TC02: kiểm replica set và unique index trước nghiệm thu. Chỉ đọc, không tạo index.
+    // EN-02-F01: verify indexes, write and abort a probe; never repair configuration.
     const config = readMongoConfiguration(process.env);
     const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
       serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
@@ -89,7 +92,7 @@ async function run() {
     } catch (error) {
       // In thẳng lý do (không qua mapError) để người chạy biết thiếu replica set hay thiếu index; thoát mã 1.
       console.error(JSON.stringify({ timestamp: new Date().toISOString(), code: 'ENVIRONMENT_NOT_READY',
-        message: error instanceof Error ? error.message : String(error) }));
+        message: error instanceof Error && error.message.startsWith('ENVIRONMENT_') ? error.message : 'Không thể kiểm tra môi trường MongoDB' }));
       process.exitCode = 1;
     } finally { await connection.close(); }
     return;
@@ -128,8 +131,9 @@ async function run() {
 
 run().catch(error => {
   const mapped = mapError(error);
+  const en02 = error instanceof Error && /^EN02_(DUPLICATE_DATA|INVALID_REVISION|INDEX_CONFLICT): [a-z_]+\/[a-z_]+$/.test(error.message);
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), requestId: randomUUID(),
-    code: error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
-    message: error instanceof ConfigurationError ? error.message : mapped.message }));
+    code: en02 ? error.message.split(':')[0] : error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
+    message: en02 || error instanceof ConfigurationError ? error.message : mapped.message }));
   process.exitCode = 1;
 });
