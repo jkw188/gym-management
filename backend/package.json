@@ -17,9 +17,10 @@
     "seed:access": "npm run build && node scripts/admin.cjs seed-access",
     "retry-notification": "npm run build && node scripts/admin.cjs retry-notification",
     "test": "jest --runInBand",
-    "test:unit": "jest --runInBand test/foundation.spec.ts test/auth.spec.ts test/users.spec.ts test/shift-interval.spec.ts test/shift-transition.spec.ts",
-    "test:integration": "jest --runInBand test/foundation.integration-spec.ts test/auth.integration-spec.ts test/logout.integration-spec.ts test/profile.integration-spec.ts test/users.integration-spec.ts test/change-password.integration-spec.ts test/password-reset.integration-spec.ts test/password-reset-standalone.integration-spec.ts test/password-reset-email.integration-spec.ts test/password-reset-confirm.integration-spec.ts test/password-reset-race.integration-spec.ts test/transaction-runner.integration-spec.ts test/environment-check.integration-spec.ts test/idempotency.integration-spec.ts test/notifications-persist.integration-spec.ts test/notifications-outbox.integration-spec.ts test/notifications-outbox-process.integration-spec.ts test/notifications-realtime.integration-spec.ts test/notification-inbox.integration-spec.ts test/notification-inbox-api.integration-spec.ts test/notification-inbox-e2e.integration-spec.ts test/work-shifts-schema.integration-spec.ts test/work-shifts-api.integration-spec.ts test/work-shifts-concurrency.integration-spec.ts test/work-shifts-transition-schema.integration-spec.ts test/work-shifts-transition-api.integration-spec.ts test/work-shifts-transition-concurrency.integration-spec.ts test/registration.integration-spec.ts test/account-security.integration-spec.ts test/access-roles.integration-spec.ts",
-    "typecheck:test": "tsc --project tsconfig.test.json --noEmit"
+    "test:unit": "jest --config jest.unit.config.cjs --runInBand",
+    "test:integration": "jest --config jest.integration.config.cjs --runInBand",
+    "typecheck:test": "tsc --project tsconfig.test.json --noEmit",
+    "test:e2e": "node scripts/test-e2e.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -72,5 +73,6 @@
     "supertest": "^7.3.1",
     "ts-jest": "^29.4.15",
     "typescript": "~5.9.3"
-  }
+  },
+  "packageManager": "npm@11.11.1"
 }

@@ -1,4 +1,4 @@
-# Gym Management — EN-01, US-01, US-02, US-06, US-07 và US-08
+# Gym Management — EN-01, EN-04 và các nghiệp vụ Sprint 1
 
 React + TypeScript (Vite), NestJS 11 với Express và MongoDB/Mongoose, kiến trúc Modular Monolith.
 EN-01 bổ sung nền tảng dùng chung; US-02 triển khai đăng nhập theo bốn vai trò, JWT/Passport, refresh và khôi phục phiên. US-06 bổ sung danh sách, chi tiết, tạo và sửa thông tin tài khoản dành cho Admin; US-07/08 bổ sung khóa/mở khóa và đổi vai trò qua transaction bảo vệ Admin cuối cùng.
@@ -6,7 +6,7 @@ US-01 bổ sung đăng ký tài khoản Member công khai tại `/register`.
 
 ## Chuẩn bị môi trường sạch
 
-- Node.js 24.x, npm và MongoDB đang chạy (local hoặc dịch vụ riêng). Không bắt buộc Docker hoặc replica set ở EN-01.
+- Node.js **24.13.0** (`.nvmrc`), npm **11.11.1** (`packageManager` trong hai package.json) và MongoDB đang chạy (local hoặc dịch vụ riêng). CI dùng cùng phiên bản Node/npm; không nâng dependencies để chạy EN-04. Không bắt buộc Docker hoặc replica set ở EN-01.
 - Cài riêng từng ứng dụng bằng `npm ci` trong `backend` và `frontend`; không cài ở thư mục gốc.
 - Sao chép `.env.example` thành `.env` trong từng ứng dụng **nếu chưa có file**. PowerShell: `Copy-Item .env.example .env`; macOS/Linux: `cp .env.example .env`. Với `.env` đã có, bổ sung các biến còn thiếu, không ghi đè cấu hình cá nhân.
 - `.env`, credentials, `node_modules`, build và cache không được đưa vào Git. Không đặt secret vào `VITE_*`.
@@ -17,7 +17,7 @@ US-01 bổ sung đăng ký tài khoản Member công khai tại `/register`.
 | `PORT` | Số nguyên 1–65535; mặc định 3000 cho dev/test; production phải khai báo |
 | `FRONTEND_ORIGIN` | Chính xác một HTTP(S) origin, không path/query/credentials/dấu `/` cuối; mặc định dev/test `http://localhost:5173`; production phải khai báo |
 | `MONGODB_URI` | Bắt buộc; `.env.example` dùng local `mongodb://127.0.0.1:27017`; URI có credentials chỉ lưu trong `.env` |
-| `MONGODB_DB` | Bắt buộc; dev minh họa `gym_management`; test bắt buộc `gym_management_test` hoặc tiền tố `gym_management_test_` để tránh dùng nhầm database thật |
+| `MONGODB_DB` | Bắt buộc; dev minh họa `gym_management`; test chấp nhận `gym_test_…` cho EN-04 và tên `gym_management_test`/`gym_management_test_…` của các test cũ. Runner EN-04 chỉ cấp database `gym_test_…` có suffix run/worker/suite và kiểm quyền sở hữu trước cleanup |
 | `SEED_ADMIN_PHONE`, `SEED_ADMIN_NAME`, `SEED_ADMIN_PASSWORD` | Chỉ bắt buộc khi seed; không có mật khẩu mặc định |
 | `SEED_ADMIN_EMAIL` | Tùy chọn; trim/lowercase, rỗng thì bỏ field |
 | `JWT_ACCESS_SECRET` | Bắt buộc; sinh từ ít nhất 32 byte ngẫu nhiên, không có mặc định và không đưa vào frontend |
@@ -226,7 +226,7 @@ npm run test:unit
 npm run test:integration
 ```
 
-`npm test` chạy cả unit và integration; hai script test:unit/test:integration bao gồm EN-01, US-01, US-02 và US-06. Cần `npm run build` trước vì integration kiểm tra subprocess từ `dist/main.js` và CLI thật. Integration dùng **tiến trình mongod thật** do mongodb-memory-server quản lý, MongoDB 8.0.17, port động và database test riêng, gồm `gym_management_test_us01`; không dùng DB dev/.env, không mô phỏng MongoDB. Binary được tải/cache lần đầu, có thể cần vài phút và quyền mạng/chạy mongod. Đặt `MONGOMS_DOWNLOAD_DIR` vào thư mục writable như `.cache/mongodb-binaries` nếu môi trường giới hạn user cache, hoặc `MONGOMS_SYSTEM_BINARY` khi đã cài mongod phù hợp. Khi hoàn tất, test đóng app và dọn database tạm.
+`npm test` giữ hành vi chạy unit và integration hiện có; `test:unit` tự tìm `test/**/*.spec.ts` và `src/**/*.spec.ts`, `test:integration` tự tìm `test/**/*.integration-spec.ts`. Bộ EN-04 riêng tại `test/**/*.e2e-spec.ts` chạy bằng `npm run test:e2e`, không bị chạy lặp trong `npm test`. Cần `npm run build` trước integration vì có subprocess từ `dist/main.js` và CLI thật. Integration dùng **tiến trình mongod thật** do mongodb-memory-server quản lý, MongoDB 8.0.17, port động và database test riêng, gồm `gym_management_test_us01`; không dùng DB dev/.env, không mô phỏng MongoDB. Binary được tải/cache lần đầu, có thể cần vài phút và quyền mạng/chạy mongod. Đặt `MONGOMS_DOWNLOAD_DIR` vào thư mục writable như `.cache/mongodb-binaries` nếu môi trường giới hạn user cache, hoặc `MONGOMS_SYSTEM_BINARY` khi đã cài mongod phù hợp. Khi hoàn tất, test đóng app và dọn database tạm.
 
 Trong `frontend`: `npm run typecheck`, `npm run build`, `npm test` (Vitest + jsdom/Testing Library). Test US-02 kiểm tra bốn role, checking/restore, returnTo, form/pending/lỗi mạng, single-flight và retry giới hạn; mock HTTP ở frontend, không thay cho kiểm thử cookie trên browser/hosting thật. Hai ứng dụng chưa có script lint; không báo đã chạy lint. Thư viện US-02 thêm JWT/Passport/cookie-parser và type declarations ở backend, React Router ở frontend; Vitest/jsdom/Testing Library chỉ dành cho test. Override js-yaml hiện có dưới Swagger được giữ nguyên.
 
@@ -276,3 +276,78 @@ Frontend giữ `api`, `components`, `features`, `hooks`, `layouts`, `pages`, `ro
 - [NestJS OpenAPI](https://docs.nestjs.com/openapi/introduction)
 - [Mongoose Schema](https://mongoosejs.com/docs/api/schema.html)
 - [MongoDB NODE-7832](https://jira.mongodb.org/browse/NODE-7832): cấu hình Node OS runtime adapter tường minh để driver hoạt động trong Jest VM.
+
+## EN-04 — Quality gate và bằng chứng nghiệm thu
+
+EN-04 cung cấp công cụ kiểm tra; không tạo API, không thay thế AC của từng US và không tự cập nhật trạng thái Excel. Dùng nhánh `feature/EN-04-<description>` hoặc `feature/US-xx-<description>`; commit/PR ghi mã requirement, kết quả và cách kiểm tra. PR theo `.github/pull_request_template.md`, liệt kê từng file, tác động schema/API/env và lỗi còn mở. Không commit `.env`, credentials, token, dữ liệu MongoDB, node_modules, build hoặc artifacts; không tự sửa Git history, push hay deploy.
+
+### Chạy từ source sạch
+
+Dùng Node/npm ở mục chuẩn bị. Trong backend, chỉ tạo `.env.test` nếu chưa có:
+
+```powershell
+Copy-Item .env.test.example .env.test
+```
+
+Linux/macOS dùng `cp .env.test.example .env.test`. Không sao chép `.env` dev sang cấu hình test. Không điền JWT/SMTP/seed production: runner tự sinh secret ngẫu nhiên cho từng run và tắt gửi thư thật.
+
+Từ gốc repository:
+
+```sh
+node scripts/quality-gate.cjs
+```
+
+Gate lần lượt chạy `npm ci --no-audit --no-fund` ở backend/frontend, typecheck source và test backend, typecheck frontend, build hai ứng dụng, unit backend, test frontend, toàn bộ integration đã có và E2E S01. Khi repo thêm script lint, gate tự chạy lint; hiện chưa có. Bất kỳ lệnh lỗi, thiếu báo cáo, thiếu file test S01 bắt buộc trong kết quả thực thi, test fail hoặc test skip đều làm gate exit khác 0. Không dùng watch, skip suite bắt buộc hoặc forceExit. Giới hạn mỗi lệnh 20 phút; CI giới hạn toàn job 30 phút. Không chạy hai gate chung một checkout vì npm ci và artifacts cùng thư mục; dùng hai checkout riêng cho hai gate.
+
+Trên Windows, đóng dev server/test watcher trong checkout trước khi chạy gate, hoặc dùng bản sao source sạch riêng. `npm ci` xóa node_modules cũ; thư viện native đang được tiến trình giữ mở có thể khiến lệnh thất bại giữa chừng. Không dừng tiến trình không rõ chủ sở hữu hoặc chạy lại cài sạch trên thư mục đang sử dụng.
+
+Có thể chạy từng nhóm sau `npm ci`:
+
+| Thư mục | Lệnh | Điều kiện |
+| --- | --- | --- |
+| backend | `npm run typecheck` / `npm run typecheck:test` / `npm run build` | Source và test đều phải kiểm kiểu |
+| backend | `npm run test:unit` | Unit thuần; không cần MongoDB hoặc secret |
+| backend | `npm run test:integration` | Build trước; các suite cũ tự tạo mongod riêng |
+| backend | `npm run test:e2e` | NODE_ENV=test; `.env.test` hoặc biến môi trường riêng |
+| frontend | `npm run typecheck` / `npm run build` | TypeScript và Vite |
+| frontend | `npm test -- --pool=threads --maxWorkers=1` | Vitest/jsdom, không thay nghiệm thu browser |
+
+### MongoDB, fixture và an toàn cleanup
+
+`test:e2e` chỉ đọc `.env.test` ở runner. Thiếu NODE_ENV=test thì fail. Khi để trống MONGODB_TEST_URI, mongodb-memory-server khởi tạo **mongod thật 8.0.17 dạng replica set**, cổng/thư mục dữ liệu tạm và tự dừng sau test; không cần Docker hoặc MongoDB dev. Cần tải binary lần đầu; dùng MONGOMS_DOWNLOAD_DIR để chọn cache writable hoặc MONGOMS_SYSTEM_BINARY trỏ mongod 8.0.17 có sẵn. Khi offline và chưa có binary, setup thất bại, không đánh pass.
+
+Nếu dùng dịch vụ test riêng, cấu hình ví dụ:
+
+```dotenv
+NODE_ENV=test
+MONGODB_TEST_URI=mongodb://127.0.0.1:27018/gym_test_s01?replicaSet=rsTest
+```
+
+Để tái tạo local: tạo thư mục dữ liệu **test riêng**, chạy `mongod --replSet rsTest --port 27018 --dbpath <test-directory> --bind_ip 127.0.0.1`, rồi `mongosh --port 27018 --eval 'rs.initiate()'`. Không dùng chung dữ liệu/cổng với dev. Tài khoản test cần tạo collection/index và đọc/ghi/drop các DB tạm trên dịch vụ test chuyên dụng; không dùng quyền/secret production.
+
+Runner kiểm URI explicit có DB bắt đầu `gym_test_` (chỉ a-z, số, dấu gạch dưới; tối đa 24 ký tự phần base), không trùng MONGODB_DB hoặc DB trong MONGODB_URI nếu được cung cấp, không fallback URI dev. Kiểm `hello` bắt buộc replica set và session trước fixture; standalone fail `TEST_REPLICA_SET_REQUIRED` ngay cả khi chỉ chọn một test US-07/08.
+
+Mỗi run có ID ngẫu nhiên, tên DB dạng `<base>_<run>_<worker>_<suite>` dưới 64 ký tự. Lease chỉ dọn đúng DB nó tạo, kiểm NODE_ENV, tên và marker chủ sở hữu trước mọi reset/drop; DB có sẵn hoặc marker khác bị từ chối. Reset xóa document nhưng giữ index/marker. Hai run E2E có thể dùng chung replica set vì tên/fixture độc lập. Các suite integration cũ vẫn dùng tiến trình/cổng/thư mục mongod riêng, không nhận URI dịch vụ ngoài từ EN-04.
+
+Fixture E2E dùng Nest TestingModule và configureHttp chung với main (ValidationPipe, prefix, error filter, cookie/CORS). Tạo index, seed catalog quyền và security_state, hash mật khẩu fixture, tạo bốn account; lấy mọi token qua POST /api/auth/login. Mỗi test reset DB và cửa sổ LoginLimiter bằng một instance mới của implementation thật; không override Guard, JWT/session hoặc dựng principal. Hai Nest app/connection chung DB kiểm cạnh tranh. App/connection đóng trước khi lease dọn DB, rồi runner dừng replica set; timeout hữu hạn.
+
+### Truy vết hồi quy S01
+
+| Nhóm | Bằng chứng tự động |
+| --- | --- |
+| EN-01 / US-01 | foundation.spec/integration và registration.integration: env/index/hash/seed, đăng ký không nâng quyền/auto-link; S01 E2E kiểm luồng register/login |
+| US-02 / US-03 | auth/logout.integration: bốn role, JWT/cookie/session, refresh CAS, revoke, DB lỗi; S01 E2E race refresh và logout |
+| US-04 / US-06 | profile/users.integration và unit mapper/DTO: ownership, định danh unique, version CAS, identity thu hồi phiên; S01 E2E qua hai connection |
+| US-07 / US-08 | account-security/access-roles.integration: khóa/role/Admin cuối cùng, rollback/retry, hai instance; S01 E2E kiểm HTTP cạnh tranh status/role, audit rollback |
+| Ma trận endpoint × role | s01.e2e-spec.ts: 11 endpoint, anonymous 401 và ADMIN/STAFF/TRAINER/MEMBER với expected role độc lập ACCESS_POLICY; logout public theo policy US-03 kiểm riêng |
+| An toàn test | test-database.spec.ts không cần DB; database-safety.e2e-spec.ts kiểm lease song song, marker sai và cleanup không ảnh hưởng DB khác |
+
+TC03/08/11 là kiểm tra phá lỗi có chủ đích: trong checkout thử riêng, thêm lỗi TS vào source FE/BE rồi chạy typecheck tương ứng; đổi RolesGuard thành allow-all rồi chạy ma trận E2E; thêm một unit assertion sai rồi chạy unit/gate. Mỗi trường hợp phải exit khác 0, sau đó khôi phục chính thay đổi thử. Không sửa hoặc bỏ assertion để che lỗi. TC05 thử URI dev/sai prefix; TC07 dùng standalone test riêng. TC06/12 chạy E2E hai lần hoặc hai tiến trình với cùng replica set, bảo đảm không treo hay đụng fixture. Không làm probe trên source đang review hoặc DB dev.
+
+### Báo cáo và CI
+
+`artifacts/quality-gate.json` lưu commit, dirty flag (source local chưa commit không được coi là bằng chứng commit sạch), Node/npm/OS, thời gian UTC từng bước, lệnh, exit code và số pass/fail/skip. `unit.json`, `frontend.json`, `integration.json`, `e2e.json` giữ tên test/trạng thái đã lược lỗi thô; `e2e-environment.json` ghi phiên bản MongoDB thực tế và replica set. Báo cáo không ghi URI, biến môi trường, HTTP body hoặc token. Artifacts bị ignore, không phải file báo cáo nghiệp vụ tạo sau mỗi prompt. Khi không chạy gate, không tuyên bố đã có báo cáo gate đầy đủ.
+
+Workflow `.github/workflows/ci.yml` chạy trên pull_request và push main/develop/nhánh tích hợp hiện tại feature/jikang/sprint1. Chỉ cấp contents:read, không truyền secret production hoặc deploy; replica set tạm được tạo trong job. Artifact JSON được upload kể cả khi fail. Khi đổi nhánh tích hợp phải cập nhật trigger. Chỉ ghi CI đã chạy khi có run GitHub thực tế; YAML hoặc gate local không chứng minh CI từ xa đã pass. Branch protection/required check phải do người có quyền repo cấu hình và kiểm chứng, chưa tự bật bằng source này.
+
+Checklist UI trước nghiệm thu: đăng nhập lần lượt bốn vai trò; kiểm redirect/returnTo và thiếu quyền; reload có pending trước khi restore; cookie HttpOnly/Lax/Secure đúng môi trường; không lưu token vào local/session storage. Kiểm form pending/empty/error, mất mạng và 409 không replay ghi; logout/khóa/đổi role xóa cache, token cũ bị từ chối. Các test jsdom dùng HTTP giả lập, cần người kiểm trên browser/hosting thật. Gắn commit/link artifact/kết quả thật vào Tasks/NhatKy trong Excel hiện có khi được cung cấp; không tự ghi Done toàn sprint từ EN-04.
