@@ -7,8 +7,7 @@ import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 import { SeedAdminService } from './seed-admin.service';
 import { UsersController } from './users.controller';
-import { MemberRegistrationReader } from '../members/member-registration.reader';
-import { MemberSchema } from '../members/schemas/member.schema';
+import { MembersModule } from '../members/members.module';
 import { AuthSessionSchema } from '../auth/schemas/auth-session.schema';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { SecurityStateSchema } from './schemas/security-state.schema';
@@ -20,11 +19,13 @@ import { AccessController } from './access.controller';
 
 @Module({
   imports: [MongooseModule.forFeature([{ name: 'Account', schema: AccountSchema }, { name: 'Role', schema: RoleSchema },
-    { name: 'MemberRegistration', schema: MemberSchema }, { name: 'AuthSession', schema: AuthSessionSchema },
+    { name: 'AuthSession', schema: AuthSessionSchema },
     { name: 'SecurityState', schema: SecurityStateSchema }, { name: 'SecurityEvent', schema: SecurityEventSchema },
-    { name: 'Permission', schema: PermissionSchema }, { name: 'RolePermission', schema: RolePermissionSchema }]), TransactionModule],
+    { name: 'Permission', schema: PermissionSchema }, { name: 'RolePermission', schema: RolePermissionSchema }]), TransactionModule,
+    // US-01: hỏi hồ sơ hội viên chưa liên kết theo phone qua MemberRegistrationReader của MembersModule.
+    MembersModule],
   controllers: [UsersController, AccessController],
-  providers: [UsersRepository, UsersService, PasswordService, SeedAdminService, MemberRegistrationReader, AccountSecurityService, AccessCatalogService],
+  providers: [UsersRepository, UsersService, PasswordService, SeedAdminService, AccountSecurityService, AccessCatalogService],
   exports: [UsersService, UsersRepository, PasswordService, SeedAdminService, AccountSecurityService],
 })
 export class UsersModule {}

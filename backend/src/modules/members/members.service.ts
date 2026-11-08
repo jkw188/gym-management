@@ -3,9 +3,8 @@
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
-import { normalizeFullName, normalizePhone } from '../../common/utils/normalization';
+import { normalizeAddress, normalizeBirthDate, normalizeFullName, normalizePhone } from '../../common/utils/normalization';
 import { IdempotencyService, WorkResult } from '../operations/idempotency.service';
-import { normalizeAddress, normalizeBirthDate } from '../profile/profile.service';
 import { CreateMemberDto } from './members.dto';
 import { toMemberResponse } from './members.mapper';
 import { isDuplicatePhone, MembersRepository } from './members.repository';
@@ -41,7 +40,7 @@ export class MembersService {
 }
 
 // US-09-F02: họ tên 2–120 ký tự, phone chuẩn hóa EN01-D01, ngày sinh hợp lệ không ở tương lai, địa chỉ ≤ 255.
-// Dùng lại các hàm chuẩn hóa sẵn có (EN-01, US-04) để cùng một luật ở mọi nơi.
+// Dùng các hàm chuẩn hóa chung trong common/utils/normalization.ts để cùng một luật ở mọi nơi.
 function normalizeInput(dto: CreateMemberDto): NewMemberInput {
   return {
     fullName: normalizeFullName(dto.fullName),
