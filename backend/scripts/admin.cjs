@@ -7,6 +7,10 @@ const mongoose = require('mongoose');
 const { default: configuration, ConfigurationError, readMongoConfiguration } = require('../dist/config/configuration');
 const { AccountSchema } = require('../dist/modules/users/schemas/account.schema');
 const { RoleSchema } = require('../dist/modules/users/schemas/role.schema');
+const { SecurityStateSchema, ACCOUNT_ADMINISTRATION } = require('../dist/modules/users/schemas/security-state.schema');
+const { SecurityEventSchema } = require('../dist/modules/users/schemas/security-event.schema');
+const { PermissionSchema, RolePermissionSchema } = require('../dist/modules/users/schemas/permission.schema');
+const { AccessCatalogService } = require('../dist/modules/users/access-catalog.service');
 const { MemberRegistrationSchema } = require('../dist/modules/members/member-registration.reader');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
@@ -31,6 +35,12 @@ async function run() {
       await connection.asPromise();
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
+      await Promise.all([connection.model('Permission', PermissionSchema).createIndexes(),
+        connection.model('RolePermission', RolePermissionSchema).createIndexes()]);
+      const securityState = connection.model('SecurityState', SecurityStateSchema);
+      const securityEvent = connection.model('SecurityEvent', SecurityEventSchema);
+      await securityEvent.createIndexes();
+      await securityState.updateOne({ _id: ACCOUNT_ADMINISTRATION }, { $setOnInsert: { revision: 0n } }, { upsert: true });
       const members = connection.model('MemberRegistration', MemberRegistrationSchema);
       const session = connection.model('AuthSession', AuthSessionSchema);
       const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
@@ -51,6 +61,19 @@ async function run() {
       // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
       await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INDEXES_ENSURED' }));
+    } finally { await connection.close(); }
+    return;
+  }
+  if (process.argv[2] === 'seed-access') {
+    const config = readMongoConfiguration(process.env);
+    const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
+      serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
+    try {
+      await connection.asPromise();
+      const catalog = new AccessCatalogService(connection.model('Role', RoleSchema),
+        connection.model('Permission', PermissionSchema), connection.model('RolePermission', RolePermissionSchema));
+      await catalog.seed();
+      console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'ACCESS_CATALOG_SEEDED' }));
     } finally { await connection.close(); }
     return;
   }

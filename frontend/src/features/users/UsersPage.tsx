@@ -5,6 +5,8 @@ import { useAuth } from '../auth/AuthProvider';
 import { roleNames } from '../auth/auth.routes';
 import type { RoleCode } from '../auth/auth.types';
 import { UserForm } from './UserForm';
+import { AccountStatusDialog } from './AccountStatusDialog';
+import { AccountRoleDialog } from './AccountRoleDialog';
 import { usersApi, type UserAccount, type UserRole, type UsersPage as PageData, type UsersQuery } from './users.api';
 
 type Editor = { mode: 'create' } | { mode: 'edit'; id: string; account?: UserAccount; error?: string };
@@ -25,6 +27,8 @@ export function UsersPage() {
   const [rolesError, setRolesError] = useState<string>();
   const [rolesLoading, setRolesLoading] = useState(true);
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [statusTarget, setStatusTarget] = useState<string>();
+  const [roleTarget, setRoleTarget] = useState<string>();
   const [notice, setNotice] = useState('');
   const detailRequest = useRef<AbortController | null>(null);
 
@@ -92,9 +96,29 @@ export function UsersPage() {
 
   return <section aria-labelledby="users-title">
     <Link to="/admin">Về trang quản trị</Link><h2 id="users-title">Quản lý tài khoản</h2>
-    <p>Tạo và sửa thông tin tài khoản. Hội viên mới cần hồ sơ và gói tập riêng để sử dụng dịch vụ.</p>
+    <p>Tạo, sửa thông tin, phân quyền và khóa/mở khóa tài khoản. Hội viên mới cần hồ sơ và gói tập riêng để sử dụng dịch vụ.</p>
+    {roleTarget && <AccountRoleDialog key={roleTarget} id={roleTarget} ownAccount={roleTarget === user?.id}
+      onClose={() => setRoleTarget(undefined)}
+      onUnauthenticated={() => { apiClient.requireLogin(); navigate('/login', { replace: true }); }}
+      onSaved={result => {
+        if (result.reauthenticationRequired) { apiClient.requireLogin(); navigate('/login', { replace: true }); return; }
+        setRoleTarget(undefined);
+        setNotice(result.changed ? `Đã phân quyền ${result.user.roleName} cho tài khoản ${result.user.id}. Các phiên cũ đã mất hiệu lực.` : 'Vai trò đã đúng, không có thay đổi.');
+        setData(current => current ? { ...current, items: current.items.map(item => item.id === result.user.id ? result.user : item) } : null);
+        setRevision(value => value + 1);
+      }} />}
+    {statusTarget && <AccountStatusDialog key={statusTarget} id={statusTarget} ownAccount={statusTarget === user?.id}
+      onClose={() => setStatusTarget(undefined)}
+      onUnauthenticated={() => { apiClient.requireLogin(); navigate('/login', { replace: true }); }}
+      onSaved={result => {
+        if (result.reauthenticationRequired) { apiClient.requireLogin(); navigate('/login', { replace: true }); return; }
+        setStatusTarget(undefined);
+        setNotice(result.changed ? `Đã ${result.user.status === 'LOCKED' ? 'khóa' : 'mở khóa'} tài khoản ${result.user.id}.` : 'Trạng thái tài khoản đã đúng, không có thay đổi.');
+        setData(current => current ? { ...current, items: current.items.map(item => item.id === result.user.id ? result.user : item) } : null);
+        setRevision(value => value + 1);
+      }} />}
     {notice && <p role="status" className="user-notice">{notice}</p>}
-    <div className="user-actions"><button type="button" disabled={!!editor || rolesLoading || !!rolesError || !roles.length} onClick={() => setEditor({ mode: 'create' })}>Tạo tài khoản mới</button>
+    <div className="user-actions"><button type="button" disabled={!!editor || !!statusTarget || !!roleTarget || rolesLoading || !!rolesError || !roles.length} onClick={() => setEditor({ mode: 'create' })}>Tạo tài khoản mới</button>
       <button type="button" className="secondary" disabled={loading} onClick={() => setRevision(value => value + 1)}>Tải lại danh sách</button></div>
     {rolesLoading && <p role="status">Đang tải vai trò…</p>}
     {rolesError && <div role="alert" className="form-error">{rolesError} <button type="button" onClick={() => setRolesRevision(value => value + 1)}>Tải lại vai trò</button></div>}
@@ -120,7 +144,9 @@ export function UsersPage() {
         <thead><tr><th scope="col">Họ tên</th><th scope="col">Liên hệ</th><th scope="col">Vai trò</th><th scope="col">Trạng thái</th><th scope="col">Thao tác</th></tr></thead>
         <tbody>{data.items.map(account => <tr key={account.id}><td>{account.fullName}</td><td>{account.phone}{account.email && <><br />{account.email}</>}</td>
           <td>{account.roleName}</td><td>{account.status === 'ACTIVE' ? 'Hoạt động' : 'Đã khóa'}</td>
-          <td><button type="button" className="secondary" disabled={!!editor} aria-label={`Xem và sửa ${account.fullName}`} onClick={() => void edit(account.id)}>Xem / Sửa</button></td></tr>)}</tbody>
+          <td><button type="button" className="secondary" disabled={!!editor || !!statusTarget || !!roleTarget} aria-label={`Xem và sửa ${account.fullName}`} onClick={() => void edit(account.id)}>Xem / Sửa</button>
+            <button type="button" className="secondary" disabled={!!editor || !!statusTarget || !!roleTarget} aria-label={`Khóa / Mở khóa ${account.fullName}`} onClick={() => setStatusTarget(account.id)}>Khóa / Mở khóa</button>
+            <button type="button" className="secondary" disabled={!!editor || !!statusTarget || !!roleTarget} aria-label={`Phân quyền ${account.fullName}`} onClick={() => setRoleTarget(account.id)}>Phân quyền</button></td></tr>)}</tbody>
       </table></div> : <p>Không có tài khoản phù hợp.</p>}
       <div className="user-actions" aria-label="Phân trang">
         <button type="button" disabled={loading || query.page <= 1} onClick={() => setQuery(current => ({ ...current, page: current.page - 1 }))}>Trang trước</button>

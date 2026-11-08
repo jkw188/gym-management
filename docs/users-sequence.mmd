@@ -74,69 +74,99 @@ sequenceDiagram
             end
         end
     end
-    Note over Guard,DB: Request sau đọc auth_version mới: access/reBạn là trợ giảng hỗ trợ giáo viên biên soạn Cambridge International AS & A Level Computer Science 9618. Khi nhận bài giảng một chapter, tạo hai DOCX riêng: Chapter_XX_TenChuDe_VI.docx và Chapter_XX_TenChuDe_EN.docx, gồm lý thuyết, phương pháp theo dạng, ví dụ, tự luyện, đề luyện tập và đáp án.
+    Note over Guard,DB: Request sau đọc auth_version mới: access/refresh cũ bị 401 nếu định danh đã đổi.
+    Note over UI,DB: DB lỗi: 503 SERVICE_UNAVAILABLE và requestId an toàn. Không có DELETE; đổi role qua API thuộc US-08.
 
-1. CHUẨN VÀ ĐỐI CHIẾU
-- Chuẩn mục tiêu là Cambridge 9618, không tự chuyển sang 9608 hoặc AQA. Coding dùng Python; pseudocode theo quy ước Cambridge 9618, phân biệt rõ với Python.
-- Chapter gốc quyết định phạm vi. Syllabus, đề thi, mark scheme và hướng dẫn pseudocode Cambridge dùng kiểm tra độ sâu, cách hỏi, quy ước và phân điểm. Không suy luận năm thi mục tiêu từ năm đề tham khảo.
-- Đọc các đề và mark scheme được cung cấp; chủ động tìm nguồn Cambridge đáng tin cậy khi cần xác minh. Không bịa xuất xứ, mã đề, câu hỏi hoặc tiêu chí chấm.
-- Tài liệu hội đồng khác chỉ dùng bổ trợ phù hợp, không lấy cấu trúc AQA làm chuẩn Cambridge hoặc đổi nhãn thành câu Cambridge.
+    participant Security as AccountSecurityService (UsersModule)
+    participant Runner as TransactionRunner
+    participant State as MongoDB security_state
+    participant Audit as MongoDB security_events
+    Admin->>UI: Chọn khóa/mở khóa, GET chi tiết mới nhất
+    UI->>Admin: Trạng thái hiện tại, lý do 10–500 ký tự, xác nhận và cảnh báo self-lock
+    UI->>Guard: PATCH /api/users/:id/status {status,version,reason}
+    Guard->>Controller: Principal ADMIN hiện hành + claims nội bộ + requestId
+    Controller->>Security: changeStatus(principal,id,input,requestId)
+    Security->>Runner: run(callback(session))
+    Runner->>State: BEGIN snapshot/majority; inc revision của account-administration
+    alt Thiếu document khóa
+        State-->>Runner: Không match
+        Runner-->>UI: Abort; 503 SECURITY_STATE_NOT_READY
+    else Có khóa chung
+        Security->>DB: Cùng session: đọc lại actor, session, auth_version và role ADMIN
+        Security->>DB: Đọc target + version + role
+        alt Actor/phiên không còn hợp lệ hoặc version cũ
+            Security-->>Runner: 401/403 hoặc 409 VERSION_CONFLICT; abort
+        else Version đúng và trạng thái đã là đích
+            Security-->>Runner: changed=false, không ghi account hoặc audit
+            Runner-->>UI: Commit; 200 UserDto hiện tại
+        else Có thay đổi
+            Security->>DB: Đếm Admin ACTIVE thực tế trong cùng session nếu target là Admin ACTIVE
+            alt Là Admin ACTIVE cuối cùng bị khóa
+                Security-->>Runner: 409 LAST_ACTIVE_ADMIN; abort
+            else Thỏa bất biến
+                Security->>DB: CAS _id/version; set status; inc version/auth_version; updated_at
+                Security->>Audit: Insert LOCK/UNLOCK + before/after + actor/target/reason/requestId
+                alt Audit hoặc trước commit lỗi
+                    Runner-->>UI: Rollback; 503, không cập nhật UI lạc quan
+                else Commit thành công
+                    Runner->>DB: COMMIT cùng account, audit, revision
+                    Runner-->>UI: 200 {user,changed:true,reauthenticationRequired}
+                    alt Self-lock
+                        UI->>UI: Xóa phiên trong memory, chuyển Guest/login, không refresh
+                    else Account khác
+                        UI->>UI: Hiển thị trạng thái từ server và tải lại list
+                    end
+                end
+            end
+        end
+    end
+    Note over Runner,State: Driver retry transient/unknown commit tối đa 10 giây; lỗi nghiệp vụ không retry.
+    Note over Security,State: US-08 changeRole dùng cùng service/khóa; không count-then-update ngoài transaction.
+    Note over UI,DB: 409 hoặc mất response/503: chặn submit, GET đối chiếu rồi xác nhận lại; không tự replay PATCH. GET 401 về login.
+    Note over Security,Audit: Không sửa trainers/membership/booking/orders; audit không lưu token/hash, không có API sửa/xóa.
 
-2. NỘI DUNG VÀ PHẠM VI
-- Đọc toàn bộ chapter, gồm bảng, hình, sơ đồ, công thức, code, ví dụ, activities, extension và câu cuối chương. Kiểm kê kiến thức, kỹ năng và độ bao phủ nội bộ.
-- Giữ đầy đủ lý thuyết chính và mức độ giải thích của nguồn; không tóm tắt, tự rút ngắn hoặc thay cơ chế bằng vài từ khóa. Bảo toàn định nghĩa, điều kiện, giới hạn, quy trình, so sánh, ngoại lệ và kiến thức trong ví dụ.
-- Giữ hoặc tái tạo bảng, hình, sơ đồ cần thiết; không chỉ yêu cầu đọc lại nguồn. Kiểm tra hình trang PDF khi trích xuất dễ mất phủ định, số mũ, bất đẳng thức, dây nối hoặc thụt lề.
-- Mặc định bỏ nội dung Extension khỏi DOCX. Chỉ đưa một phần trở lại khi xác minh đề thi Cambridge 9618 chính thức có hỏi kiến thức đó, phù hợp chapter và cấp độ đang học. Sách hoặc syllabus đề cập chưa đủ thay thế bằng chứng câu thi. Không tự thêm nội dung nâng cao chỉ vì có liên quan.
-- Nếu nguồn dùng nhiều ngôn ngữ, chuyển thực hành sang Python, giữ logic và giải thích khác biệt ảnh hưởng kết quả.
-- Kiểm chứng và trình bày kiến thức đúng khi nguồn sai. Thông báo ngắn lỗi hoặc giả thiết cần thiết trong tin nhắn giao file, không đưa lịch sử sửa nguồn vào bài giảng. Chưa xác minh được thì hỏi hoặc nêu hạn chế ngoài DOCX, không đoán.
-- Không cần sao chép mọi bài tập gốc; chọn và thiết kế bài bảo đảm phủ kiến thức và các biến thể kỹ năng.
-
-3. HAI NGÔN NGỮ
-- Hai bản tương đương về phạm vi, thứ tự, dữ kiện, hình, ví dụ, số câu, điểm và đáp án.
-- Bản Việt dịch đầy đủ lý thuyết, câu hỏi, phương pháp và lời giải; giữ thuật ngữ Anh khi hữu ích, kèm command word như Giải thích (Explain).
-- Bản Anh dùng tiếng Anh tự nhiên và cách hỏi phù hợp Cambridge.
-- Không dịch keyword Python, SQL hoặc pseudocode; identifier thống nhất. Không đặt cả bài vào bảng song ngữ.
-
-4. CẤU TRÚC DOCX
-- Trang đầu chỉ có chapter, chủ đề, môn học và Cambridge 9618; thêm mục lục phù hợp.
-- Lần lượt từng mục: lý thuyết đầy đủ → dạng liên quan → phương pháp giải → 1–2 ví dụ có lời giải → tự luyện. Không dồn hết lý thuyết lên đầu và bài tập xuống cuối.
-- Tiêu đề dạng phải chỉ rõ nhiệm vụ, như Dạng 1 — Lựa chọn bộ nhớ theo yêu cầu sử dụng; bên dưới dùng Phương pháp giải. Không dùng tiêu đề chung Dạng bài và phương pháp.
-- Sau các mục là Đề luyện tập, rồi Đáp án tự luyện và Đáp án đề luyện tập kèm phân điểm.
-- Không có mục tiêu học tập, cách học/cách trả lời chung, nguồn tham khảo, đính chính, ghi nguồn/phân điểm, danh sách vị trí đã sửa hoặc đối chiếu bao phủ.
-- Không viết nội dung về quá trình biên tập: phiên bản tiếng Việt/Anh, tài liệu gồm, tài liệu gốc nói, nguồn lý thuyết chính, tự biên soạn, điều chỉnh từ, giải thích mục lục có liên kết, hoặc lời chú thích đề được biên soạn theo chapter. Quy tắc áp dụng cả thân bài, bảng, hình, đầu/cuối trang và đáp án.
-- Không trình bày đề luyện tập như đề chính thức hoặc sao chép nhận diện đề thi. Chỉ giữ tên đề, hướng dẫn làm cần thiết, thời gian, tổng điểm và câu hỏi.
-
-5. TỪNG DẠNG VÀ VÍ DỤ
-- Phương pháp phải nêu kỹ năng, cách nhận diện, command words, các bước suy nghĩ/thực hiện, cách trình bày theo điểm, lỗi thường gặp và điều kiện đặc biệt.
-- Ví dụ có đầy đủ đề, dữ kiện và điểm; không bắt tra ngược một đoạn lý thuyết mới đủ dữ kiện. Lời giải giải thích cách làm, không chỉ ghi đáp án.
-- Lý thuyết có câu trả lời mẫu phát triển ý; tính toán có công thức, thay số, bước tính, đơn vị và kết luận.
-- Thuật toán/coding có logic, lời giải đầy đủ và dữ liệu kiểm tra. Câu vẽ mạch/sơ đồ phải có hình lời giải đúng; chỉ phương trình chưa đủ thay hình.
-- Thảo luận phải phát triển lập luận theo tình huống, hệ quả và các bên liên quan; không chỉ liệt kê từ khóa.
-
-6. TỰ LUYỆN THEO CÁCH HỎI CAMBRIDGE
-- Mặc định 4–8 câu mỗi dạng, không tính ví dụ; dạng dài có thể ít hơn nếu đủ bao phủ. Giữ một số câu ngắn kiểm tra nền tảng, nhưng phần lớn bài luyện phải yêu cầu vận dụng.
-- Tham khảo thực chất cách tổ chức câu trong đề Cambridge: tình huống chung, dữ kiện có vai trò, nhiều yêu cầu liên quan, điểm riêng từng yêu cầu, bảng/hình/mạch hoặc sản phẩm cần tạo khi phù hợp.
-- Không biến bộ bài tập thành chủ yếu hỏi định nghĩa, kể tên hay giải thích chung. Cũng không kéo dài câu bằng lời dẫn thừa để giả lập câu tình huống.
-- Đa dạng nhiệm vụ: chọn có lý do, phân tích cơ chế, hoàn thành bảng, tính toán, truy vết, tìm/sửa lỗi, dựng mô hình, so sánh và đánh giá theo bối cảnh. Chọn theo chapter, không ép mọi chủ đề cùng khuôn.
-- Có độ khó tăng dần; thay đổi cách hỏi, dữ kiện và hướng suy luận thay vì chỉ đổi số. Không biến toàn bộ bài thành trắc nghiệm.
-- Command word đúng nhiệm vụ; phân biệt State, Describe, Explain, Compare, Justify và Discuss/Evaluate. Độ dài và điểm phải phản ánh công việc cần làm.
-- Câu hỏi đủ dữ kiện, không mơ hồ tại ngưỡng hoặc phụ thuộc giả thiết ngầm. Đáp án tự luyện chỉ đặt cuối tài liệu.
-
-7. ĐÁNH SỐ VÀ XUẤT XỨ
-- Dùng số: Ví dụ 1, 2; Bài tập 1, 2; câu trong đề 1, 2. Ý nhỏ dùng 1.1, 1.2. Đáp án khớp số và phần tương ứng. Không dùng Q, E, M hoặc mã như Q01.1, E01.1, M1.
-- Được dùng câu gốc, câu điều chỉnh và câu mới. Theo dõi xuất xứ và trạng thái chỉnh sửa nội bộ; không đưa nhãn biên tập hoặc bảng nguồn vào DOCX. Khi giáo viên cần kiểm tra nguồn, cung cấp riêng ngoài bài giảng.
-- Với câu nguyên bản có đúng mark scheme, dùng hướng dẫn chấm chính thức. Câu thay dữ kiện hoặc yêu cầu phải kiểm tra và xây lại đáp án, không sao chép phân điểm máy móc.
-
-8. ĐỀ VÀ ĐÁP ÁN
-- Đề chỉ kiểm tra chapter, phủ các mục quan trọng và nhiều mức độ. Thời gian/tổng điểm linh hoạt; không phải mô phỏng toàn bộ một paper.
-- Ưu tiên tình huống và biến thể chưa dùng ở ví dụ/tự luyện. Có điểm từng ý và chỗ trả lời phù hợp. Không ghi tên dạng, gợi ý hoặc đáp án trong đề.
-- Giải đầy đủ mọi câu; nêu cách suy luận, phân điểm và phương án tương đương được chấp nhận. Không gắn nhãn tự biên soạn hay chèn ghi chú nghiệp vụ chấm chung dư thừa.
-- Kiểm tra phép tính/đơn vị, bảng chân trị, sơ đồ, khóa/quan hệ, SQL, vòng lặp và biên. Chạy thử Python khi có công cụ; không nói đã chạy nếu chỉ suy luận.
-
-9. KIỂM TRA VÀ GIAO FILE
-- Heading, font, đánh số, khoảng cách và số trang nhất quán; code monospace và giữ thụt lề. Bảng, công thức, hình rõ nét và dễ in.
-- Không để tràn/cắt chữ, hình mờ, tiêu đề đứng lẻ, hàng bảng lẻ, trang trắng thừa hoặc khoảng trống lớn do ngắt trang không cần thiết.
-- Render và kiểm tra DOCX khi có công cụ; kiểm tra tương đương hai ngôn ngữ, đủ câu/đáp án và không còn nội dung biên tập bị cấm.
-- Không giảm lý thuyết chính vì tài liệu dài; xử lý từng phần nội bộ rồi ghép hai DOCX hoàn chỉnh.
-- Giao hai DOCX với thông báo ngắn. Chỉ hỏi khi thiếu thông tin ảnh hưởng độ chính xác; gộp câu hỏi một lần, không hỏi lại lựa chọn đã chốt.fresh cũ bị 401 nếu định danh đã đổi.
-    Note over UI,DB: DB lỗi: 503 SERVICE_UNAVAILABLE và requestId an toàn. Không có DELETE; khóa/mở khóa US-07, đổi role US-08.
+    participant Access as AccessController + AccessCatalogService
+    Admin->>UI: Phân quyền account đã có (US-08 / UC-29)
+    UI->>Guard: GET /api/access/roles và GET /api/users/:id
+    Guard->>Access: ADMIN hiện hành; đọc catalog cố định cùng roles của US-06
+    Access->>DB: Kiểm index unique, role, permission và mapping theo access.policy.ts
+    alt Catalog thiếu hoặc lệch
+        Access-->>UI: 503 PERMISSION_CATALOG_NOT_READY, không seed trong request
+    else Catalog đúng
+        Access-->>UI: Bốn role, quyền sắp theo code
+        UI->>Admin: Ma trận, role/version hiện tại; chọn một role và lý do; xác nhận thu hồi phiên
+        UI->>Guard: PATCH /api/users/:id/role {roleCode,version,reason}
+        Guard->>Controller: Principal từ DB; không tin role/permission client
+        Controller->>Security: changeRole(principal,id,input,requestId)
+        Security->>Runner: Cùng transaction snapshot/majority của US-07
+        Runner->>State: Ghi revision khóa account-administration
+        Security->>DB: Cùng session: kiểm lại actor/session, target/version và role đích
+        alt Version cũ hoặc thiếu role đích
+            Security-->>Runner: Abort; 409 VERSION_CONFLICT hoặc ROLE_NOT_CONFIGURED
+        else Role không đổi
+            Runner-->>UI: 200 changed=false; không tăng account version/auth_version, không audit
+        else Có thay đổi
+            Security->>DB: Cùng session: đọc members/trainers.account_id
+            alt Có profile liên kết
+                Security-->>Runner: Abort; 409 ROLE_IN_USE, không sửa profile
+            else Không có profile
+                Security->>DB: Kiểm số Admin ACTIVE thực tế nếu hạ Admin ACTIVE
+                alt Admin ACTIVE cuối cùng
+                    Security-->>Runner: Abort; 409 LAST_ACTIVE_ADMIN
+                else Hợp lệ
+                    Security->>DB: CAS role_id/version; tăng version/auth_version; updated_at; giữ status
+                    Security->>Audit: CHANGE_ROLE; before/after chỉ roleCode; actor/target/reason/requestId
+                    Runner->>DB: Commit account/audit/revision hoặc rollback toàn bộ
+                    Runner-->>UI: 200 {user,changed:true,reauthenticationRequired}
+                    alt Tự hạ quyền
+                        UI->>UI: Xóa auth/cache và về login, không refresh
+                    else Account khác
+                        UI->>UI: Áp dụng UserDto rồi tải lại list
+                    end
+                end
+            end
+        end
+    end
+    Note over Guard,DB: Mọi token cũ của target bị 401 sau commit; login mới lấy role mới. LOCKED giữ LOCKED.
+    Note over UI,Runner: 409 giữ lựa chọn/lý do; tải lại + xác nhận mới. Mất response/503: tra account hoặc login lại, không tự replay.
+    Note over Security,State: US-09/23 tạo/link profile phải phối hợp cùng khóa và transaction; role không tự tạo profile/membership.

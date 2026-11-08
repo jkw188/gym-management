@@ -1,7 +1,7 @@
-# Gym Management — EN-01, US-01, US-02 và US-06
+# Gym Management — EN-01, US-01, US-02, US-06, US-07 và US-08
 
 React + TypeScript (Vite), NestJS 11 với Express và MongoDB/Mongoose, kiến trúc Modular Monolith.
-EN-01 bổ sung nền tảng dùng chung; US-02 triển khai đăng nhập theo bốn vai trò, JWT/Passport, refresh và khôi phục phiên. US-06 bổ sung danh sách, chi tiết, tạo và sửa thông tin tài khoản dành cho Admin. Các module nghiệp vụ khác giữ nguyên.
+EN-01 bổ sung nền tảng dùng chung; US-02 triển khai đăng nhập theo bốn vai trò, JWT/Passport, refresh và khôi phục phiên. US-06 bổ sung danh sách, chi tiết, tạo và sửa thông tin tài khoản dành cho Admin; US-07/08 bổ sung khóa/mở khóa và đổi vai trò qua transaction bảo vệ Admin cuối cùng.
 US-01 bổ sung đăng ký tài khoản Member công khai tại `/register`.
 
 ## Chuẩn bị môi trường sạch
@@ -173,7 +173,27 @@ Kiểm tra trùng trước giúp báo lỗi; unique index quyết định khi re
 
 UI khóa submit khi pending, giữ dữ liệu khi validation/trùng/version conflict; stale version chặn lưu tiếp và chỉ tải bản mới sau khi xác nhận bỏ bản nháp. POST không tự retry khi lỗi mạng/503 hoặc response mất; nếu không biết kết quả, tìm lại theo phone trước khi thử tạo lại. Tạo thành công luôn hiện ID dù list tải lỗi; nút tải lại chỉ GET, không gửi POST lần nữa. Đây không phải API có idempotency key.
 
-Sơ đồ [sequence](docs/users-sequence.mmd) và [class](docs/users-class.mmd) cùng phần UC-28/mục accounts trong báo cáo DOCX mô tả triển khai này. UC-28 mới có create/update; khóa/mở khóa US-07 chưa triển khai.
+Sơ đồ [sequence](docs/users-sequence.mmd) và [class](docs/users-class.mmd) cùng phần UC-28/mục accounts trong báo cáo DOCX mô tả US-06 và nhánh khóa/mở khóa US-07.
+
+## Khóa/mở khóa tài khoản US-07 — UC-28
+
+Admin chọn **Khóa / Mở khóa** tại `/admin/users`; hộp thoại GET lại account hiện hành, yêu cầu lý do trim 10–500 ký tự và xác nhận. Cảnh báo riêng khi tự khóa. Thao tác chỉ đổi quyền truy cập; không sửa trạng thái PT, membership, booking, đơn hàng hoặc xóa lịch sử.
+
+`PATCH /api/users/:id/status` (Bearer ADMIN) nhận `{status:"ACTIVE"|"LOCKED",version,reason}`; trả `{user:<UserDto US-06>,changed,reauthenticationRequired}`. Không nhận actorId, roleCode hoặc trường hệ thống. Version cũ luôn trả `409 VERSION_CONFLICT`, kể cả trạng thái đích trùng hiện tại. Version đúng và cùng trạng thái trả `changed=false`, không tăng version/auth_version/updated_at hoặc ghi audit.
+
+`UsersModule` xuất `AccountSecurityService.changeStatus` và `changeRole` dùng chung cho US-07/08; API/giao diện đổi role được mô tả ở mục US-08 bên dưới. Mọi luồng giảm quyền Admin, bao gồm script vận hành tương lai, phải qua dịch vụ này. Trong transaction snapshot/majority, ghi tăng revision Int64 của `security_state {_id:"account-administration"}` trước khi đọc lại actor, phiên, auth_version, target/version và đếm Admin ACTIVE thực tế. Việc ghi chung bảo vệ cả hai app/connection; không dùng mutex process hoặc count ngoài transaction. Cấm khóa/hạ vai trò Admin ACTIVE cuối cùng (`409 LAST_ACTIVE_ADMIN`). Seed chỉ thêm Admin ACTIVE, không mở khóa hoặc nâng quyền account đã có.
+
+Chuyển trạng thái thật tăng version và auth_version đúng một lần, cập nhật updated_at và insert `security_events` trong cùng transaction. Audit chỉ có `_id,actor_id,target_id,action,before,after,reason,created_at,request_id`; action LOCK/UNLOCK/CHANGE_ROLE, before/after chỉ status hoặc roleCode. Index `{target_id:1,created_at:-1,_id:-1}` và `{actor_id:1,created_at:-1}`; không có API sửa/xóa audit. Login/access/refresh kế tiếp bị chặn khi khóa; mở khóa chỉ cho đăng nhập mới, không phục hồi token cũ. Verified claims dùng symbol nội bộ để kiểm tra lại phiên trong transaction, không xuất vào JSON.
+
+Driver retry transient conflict/unknown commit theo `TransactionRunner` với deadline 10 giây. Không retry lỗi nghiệp vụ. Thiếu document khóa trả `503 SECURITY_STATE_NOT_READY`; standalone, DB lỗi hoặc hết deadline trả `503 SERVICE_UNAVAILABLE`. Không có đường ghi bỏ transaction. Kết quả 503 hoặc mất response có thể chưa xác định: UI chặn submit tiếp, yêu cầu GET lại trạng thái/version, không tự lấy version mới để gửi PATCH. 409 cũng yêu cầu tải lại/xác nhận mới. Submit và GET đối chiếu trạng thái không tự refresh hoặc replay; self-lock thành công xóa phiên trong memory về login, GET 401 sau mất response cũng về login.
+
+### Môi trường dev và nghiệm thu quản trị (EN-04)
+
+MongoDB replica set bắt buộc cho US-07/US-08. EN-01 CRUD một document vẫn chạy được standalone. Có thể dùng replica set hiện có hoặc khởi tạo local bằng `mongod --replSet rs0 --dbpath <thư-mục-dữ-liệu> --bind_ip 127.0.0.1`, sau đó chạy `rs.initiate()` trong mongosh và cấu hình `MONGODB_URI=mongodb://127.0.0.1:27017/?replicaSet=rs0`. Thư mục dữ liệu phải được tạo trước.
+
+Trước khi nhận API, trong `backend` chạy `npm run ensure-indexes`, `npm run check-environment`, rồi seed Admin nếu chưa có. `ensure-indexes` tạo hai index audit và khởi tạo revision=0 bằng `$setOnInsert`; chạy lại giữ revision đã có, không ghi đè tài khoản. Không xóa/sửa account hoặc security_state trực tiếp khi vận hành ứng dụng. Không thêm env/dependency. EN-02 tiếp tục sở hữu nền tảng transaction rộng hơn; US-07 dùng phần bảo vệ quản trị cần sẵn sàng ở S01.
+
+Kiểm tra US-07: `npm run build` rồi `npm test -- --runTestsByPath test/account-security.integration-spec.ts` trong backend; `npm test -- --pool=threads --maxWorkers=1 src/features/users/account-status.test.tsx` trong frontend. Backend chạy mongod thật 8.0.17 trên replica set test riêng với hai Nest app và hai connection, JWT/Guard/session và index thật; kiểm tra lock/lock, lock/role và role/role, rollback khi audit hoặc trước commit lỗi, retry transient, deadline unknown commit, thiếu khóa, DB ngắt và standalone. Bộ test US-07 kiểm cuộc đua role qua service bằng principal thật; bộ US-08 bổ sung kiểm qua HTTP API đổi role. Test frontend dùng jsdom/HTTP giả lập, chưa thay thế kiểm tra bố cục, focus và cookie trên trình duyệt/hosting thật.
 
 ## Hợp đồng MongoDB EN01-D01/D02
 
@@ -211,6 +231,27 @@ npm run test:integration
 Trong `frontend`: `npm run typecheck`, `npm run build`, `npm test` (Vitest + jsdom/Testing Library). Test US-02 kiểm tra bốn role, checking/restore, returnTo, form/pending/lỗi mạng, single-flight và retry giới hạn; mock HTTP ở frontend, không thay cho kiểm thử cookie trên browser/hosting thật. Hai ứng dụng chưa có script lint; không báo đã chạy lint. Thư viện US-02 thêm JWT/Passport/cookie-parser và type declarations ở backend, React Router ở frontend; Vitest/jsdom/Testing Library chỉ dành cho test. Override js-yaml hiện có dưới Swagger được giữ nguyên.
 
 US-06 có `backend/test/users.spec.ts`, `backend/test/users.integration-spec.ts` và `frontend/src/features/users/users.test.tsx`: validation/mapper, 401/403 qua login/Guard/session thật, list/search/paging, role thiếu, hash/không sinh profile/phiên, trùng phone/email và version đồng thời, no-op/$unset, hiệu lực access/refresh, MongoDB ngắt thực tế, OpenAPI, UI pending/lỗi/version conflict và response POST mất. Test frontend giả lập HTTP, không xác nhận bố cục/cookie trên trình duyệt thật. Nếu worker mặc định của Vitest bị timeout trong môi trường hạn chế, chạy `npm test -- --pool=threads --maxWorkers=1`.
+
+## US-08 — Gán vai trò và thu hồi quyền (UC-29)
+
+Trong `backend`, chạy `npm run ensure-indexes`, sau đó `npm run seed:access` để upsert bốn role, chín permission S01 và mapping cố định. Lệnh seed chỉ cần cấu hình MongoDB; chạy lại giữ ID permission/mapping và không sửa account. Mapping dư bị báo lỗi để người vận hành rà soát, không tự xóa. API không seed hoặc sửa mapping; seed Admin vẫn dùng `npm run seed:admin` riêng.
+
+| Endpoint dành cho Admin ACTIVE | Hợp đồng |
+| --- | --- |
+| `GET /api/access/roles` | `{items:[{code,name,permissions:[{code,name}]}]}`, thứ tự ADMIN/STAFF/TRAINER/MEMBER, permission theo code |
+| `PATCH /api/users/:id/role` | `{roleCode,version,reason}`, reason trim 10–500; trả `{user,changed,reauthenticationRequired}` |
+
+`GET /api/users/roles` giữ hợp đồng code/name cho tạo account. `access.policy.ts` là nguồn duy nhất cho decorator phân quyền và seed catalog S01: accounts.read/create/update/changeStatus/changeRole dành cho Admin; profile.readOwn/updateOwn dành cho Member/PT; auth.me/logout dành cho bốn role. RolesGuard dùng principal đọc từ account/session/role hiện hành trong DB, không cấp quyền tùy ý từ role_permissions hoặc claims client. Logout giữ policy US-02: public ở HTTP, kiểm phiên/ownership bằng access hoặc refresh và idempotent sau khi hết hạn. Register/login/refresh và health giữ policy riêng; các quyền module ở sprint khác không nằm trong catalog S01.
+
+Catalog thiếu role/permission/mapping/index unique hoặc mapping lệch trả `503 PERMISSION_CATALOG_NOT_READY`, không tự sửa và không dùng catalog hỏng để suy ra quyền cho phép. RolesGuard thực thi ma trận cố định trong code. Collections mới theo báo cáo: `permissions` có `_id=id`, code unique ≤80, name ≤120; `role_permissions` tham chiếu roles.id/permissions.id với unique `(role_id,permission_id)`.
+
+Đổi vai trò dùng đúng AccountSecurityService/security_state/transaction US-07. Sau khi ghi revision và kiểm lại actor/session, backend kiểm version, role đích và members/trainers.account_id trong cùng session; có liên kết thì `409 ROLE_IN_USE` với mọi thay đổi thật. Version cũ luôn `409 VERSION_CONFLICT`; no-op version đúng không tăng version/auth_version hay audit. Role đích hợp lệ nhưng thiếu seed trả `409 ROLE_NOT_CONFIGURED`. Không hạ Admin ACTIVE cuối cùng (`409 LAST_ACTIVE_ADMIN`); account LOCKED giữ LOCKED. Đổi thật tăng hai version, updated_at và audit CHANGE_ROLE cùng commit; mọi access/refresh cũ bị từ chối. Không sinh hồ sơ hoặc membership.
+
+Tại `/admin/users`, chọn **Phân quyền**, xem vai trò/version và ma trận, chọn một vai trò, nhập lý do và xác nhận thu hồi phiên. Tự hạ quyền thành công xóa auth trong memory và về login. 409 giữ lựa chọn/lý do nhưng khóa submit đến khi tải lại và xác nhận mới; mất response/503 yêu cầu tra lại account hoặc đăng nhập lại, không tự refresh/replay PATCH hoặc báo thành công. `ROLE_IN_USE` không có nút ép đổi/xóa hồ sơ.
+
+US-09/US-23 khi thêm luồng tạo/link hồ sơ phải ghi cùng khóa `account-administration`, kiểm role/status và dùng transaction cùng session. Kiểm profile trước transaction hoặc ghi profile trực tiếp sẽ phá bảo vệ cạnh tranh của US-08. Chức năng cần hồ sơ/membership phải kiểm nghiệp vụ riêng; role MEMBER/TRAINER không chứng minh đã có hồ sơ hoặc gói tập hiệu lực.
+
+Kiểm thử US-08: `npm run build` rồi `npm test -- --runTestsByPath test/access-roles.integration-spec.ts test/account-security.integration-spec.ts` ở backend; `npm test -- --pool=threads --maxWorkers=1 src/features/users/account-role.test.tsx` ở frontend. Integration dùng replica set/standalone mongod thật, Guard/session/JWT thật và hai Nest app/connection; kiểm matrix/catalog, hai request cùng version, hai Admin hạ quyền lẫn nhau, khóa/role, actor mất quyền khi request đang chờ, rollback, transient retry và unknown commit deadline. Frontend dùng HTTP giả lập/jsdom; bố cục, focus trap và cookie trên trình duyệt/hosting thật cần kiểm tra thủ công trước nghiệm thu đầy đủ.
 
 | Requirement | Kiểm tra tương ứng |
 | --- | --- |
