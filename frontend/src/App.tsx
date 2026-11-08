@@ -15,6 +15,7 @@ import { ChangePasswordPage } from './features/security/ChangePasswordPage';
 import { UsersPage } from './features/users/UsersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
+import { MemberCreatePage } from './features/members/MemberCreatePage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider><main><h1>Gym Management</h1><p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p>
@@ -27,7 +28,11 @@ export default function App() {
       {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
-      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} />
+        {/* US-09: Admin tạo hồ sơ hội viên và liên kết tài khoản. */}
+        <Route path="/admin/members/new" element={<MemberCreatePage />} /></Route>
+      {/* US-09: Staff tạo hồ sơ hội viên và liên kết tài khoản tại quầy. */}
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members/new" element={<MemberCreatePage />} /></Route>
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/profile" element={<ProfilePage role="MEMBER" />} />
         <Route path="/member/security" element={<ChangePasswordPage />} />
         {/* US-47: inbox thông báo của member. */}
