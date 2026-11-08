@@ -32,7 +32,7 @@ function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: s
   const mongoDb = env.MONGODB_DB?.trim() ?? '';
   if (!/^mongodb(?:\+srv)?:\/\//.test(mongoUri)) invalid.push('MONGODB_URI');
   if (!mongoDb || /[\/\\."$*<>:|?\s\0]/.test(mongoDb)) invalid.push('MONGODB_DB');
-  if (nodeEnv === 'test' && !/^gym_management_test(?:_[a-zA-Z0-9_-]+)?$/.test(mongoDb)) invalid.push('MONGODB_DB (test database required)');
+  if (nodeEnv === 'test' && !/^(?:gym_test_[a-zA-Z0-9_-]+|gym_management_test(?:_[a-zA-Z0-9_-]+)?)$/.test(mongoDb)) invalid.push('MONGODB_DB (test database required)');
   return { mongoUri, mongoDb };
 }
 

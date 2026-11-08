@@ -11,8 +11,28 @@ export interface UsersPage { items: UserAccount[]; page: number; limit: number; 
 export interface UsersQuery { page: number; limit: number; q?: string; roleCode?: string; status?: string }
 export interface CreateUserInput { fullName: string; phone: string; email?: string; password: string; roleCode: RoleCode }
 export interface UpdateUserInput { fullName?: string; phone?: string; email?: string | null; version: number }
+export interface ChangeStatusInput { status: UserAccount['status']; version: number; reason: string }
+export interface ChangeStatusResult { user: UserAccount; changed: boolean; reauthenticationRequired: boolean }
+export interface AccessRole extends UserRole { permissions: { code: string; name: string }[] }
+export interface ChangeRoleInput { roleCode: RoleCode; version: number; reason: string }
 
 export const usersApi = {
+  accessRoles(signal?: AbortSignal) {
+    return apiClient.requestOnce<{ items: AccessRole[] }>('/access/roles', { signal });
+  },
+  changeRole(id: string, input: ChangeRoleInput) {
+    return apiClient.requestOnce<ChangeStatusResult>(`/users/${encodeURIComponent(id)}/role`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    });
+  },
+  statusDetail(id: string, signal?: AbortSignal) {
+    return apiClient.requestOnce<UserAccount>(`/users/${encodeURIComponent(id)}`, { signal });
+  },
+  changeStatus(id: string, input: ChangeStatusInput) {
+    return apiClient.requestOnce<ChangeStatusResult>(`/users/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    });
+  },
   list(query: UsersQuery, signal?: AbortSignal) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(query)) if (value !== undefined && value !== '') params.set(key, String(value));

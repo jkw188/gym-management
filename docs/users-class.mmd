@@ -10,6 +10,10 @@ classDiagram
         submitOriginalVersion()
     }
     class UsersApi {
+        accessRoles()
+        changeRole()
+        statusDetail()
+        changeStatus()
         list()
         roles()
         detail()
@@ -23,6 +27,8 @@ classDiagram
         requireCurrentAdmin()
     }
     class UsersController {
+        changeRole(id, ChangeRoleDto, principal, requestId)
+        changeStatus(id, ChangeStatusDto, principal, requestId)
         list(ListUsersDto)
         roles()
         detail(id)
@@ -92,5 +98,82 @@ classDiagram
     UsersRepository --> Role : read seeded roles
     Account "*" --> "1" Role : role_id
     AuthSession "*" --> "1" Account : account_id
-    note for UsersController "POST/GET/PATCH only. No DELETE, role/status/password update."
+    class AccountStatusDialog {
+        loadCurrentStatus()
+        confirmReasonAndSelfLock()
+        reconcileUnknownOutcomeByGet()
+    }
+    class AccountSecurityService {
+        changeStatus(principal, id, input, requestId)
+        changeRole(principal, id, input, requestId)
+        revalidateActorAndSession()
+        protectLastActiveAdmin()
+    }
+    class SecurityState {
+        string _id_account_administration
+        Int64 revision
+    }
+    class SecurityEvent {
+        ObjectId actor_id
+        ObjectId target_id
+        string action
+        object before
+        object after
+        string reason
+        Date created_at
+        string request_id
+    }
+    class TransactionRunner {
+        run(callbackWithSession)
+    }
+    UsersPage --> AccountStatusDialog
+    AccountStatusDialog --> UsersApi : one request without refresh or replay
+    UsersController --> AccountSecurityService : US-07 status and US-08 role endpoints
+    AccountSecurityService --> TransactionRunner : snapshot majority deadline 10 seconds
+    AccountSecurityService --> SecurityState : first write serializes US-07 and US-08
+    AccountSecurityService --> Account : version CAS and auth_version increment
+    AccountSecurityService --> AuthSession : revalidate verified principal in transaction
+    AccountSecurityService --> Role : current role and active admin count
+    AccountSecurityService --> SecurityEvent : insert within the same transaction
+    note for UsersController "No DELETE. Separate PATCH /users/:id/status and /users/:id/role; general update cannot change role."
+    note for AccountSecurityService "US-07/08 share one transaction/lock; role change checks members/trainers references in the same session. Future profile writers must use the same lock."
     note for Account "Existing EN-01 schema. US-06 never creates or syncs member/trainer profiles."
+    class AccountRoleDialog {
+        loadAccountAndFixedMatrix()
+        confirmRoleReasonAndSessionRevocation()
+        preserveDraftOnConflict()
+        requireLoginOnSelfDemotion()
+    }
+    class AccessController {
+        roles()
+    }
+    class AccessCatalogService {
+        list()
+        seedOperationalCommandOnly()
+    }
+    class AccessPolicy {
+        fixedModuleMatrix
+        FixedPermission(code)
+    }
+    class Permission {
+        ObjectId id
+        string code_unique
+        string name
+    }
+    class RolePermission {
+        ObjectId role_id
+        ObjectId permission_id
+        unique_role_id_permission_id
+    }
+    UsersPage --> AccountRoleDialog
+    AccountRoleDialog --> UsersApi : requestOnce without refresh or replay
+    UsersApi --> AccessController : GET /access/roles
+    AccessController --> AccessCatalogService
+    AccessCatalogService --> Role : same roles as US-06
+    AccessCatalogService --> Permission
+    AccessCatalogService --> RolePermission : verify fixed mapping
+    AccessCatalogService --> AccessPolicy : seed and verification
+    UsersController --> AccessPolicy : decorator roles from fixed policy
+    AccessController --> AccessPolicy : ADMIN only
+    RolePermission "*" --> "1" Role
+    RolePermission "*" --> "1" Permission

@@ -8,7 +8,9 @@ export class UsersHttpErrorFilter extends HttpErrorFilter {
   override catch(exception: unknown, host: ArgumentsHost): void {
     const error = mapError(exception);
     if (error.status === 401) exception = new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
-    if (error.status === 503) exception = new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    if (error.status === 503 && !['SECURITY_STATE_NOT_READY', 'PERMISSION_CATALOG_NOT_READY', 'SERVICE_UNAVAILABLE'].includes(error.code)) {
+      exception = new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    }
     super.catch(exception, host);
   }
 }

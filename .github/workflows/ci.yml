@@ -1,0 +1,43 @@
+name: EN-04 quality gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop, 'feature/jikang/sprint1']
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      npm_config_cache: ${{ github.workspace }}/.cache/npm
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Pin npm
+        run: npm install --global npm@11.11.1
+      - uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongod-${{ runner.os }}-${{ runner.arch }}-8.0.17
+      - name: Install, static checks, build, unit, integration and S01 E2E
+        run: node scripts/quality-gate.cjs
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: en04-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/*.json
+          retention-days: 14
+          if-no-files-found: warn
