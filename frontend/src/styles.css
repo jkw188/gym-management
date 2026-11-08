@@ -78,3 +78,8 @@ main:has(.shifts-page) { max-width: 1240px; }
 .shift-completed { border-left-color: #234a77; }
 .shift-item-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .shift-item-actions button { padding: 4px 8px; font-size: .8rem; }
+/* US-26: trang lịch lớp miễn phí công khai. */
+main:has(.classes-page) { max-width: 960px; }
+.class-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; list-style: none; margin: 20px 0 0; padding: 0; }
+.class-detail { display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.session-ended { align-self: flex-start; padding: 2px 6px; border-radius: 4px; background: #e6eaef; color: #3d4f61; font-size: .8rem; }
