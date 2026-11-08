@@ -7,7 +7,8 @@ import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 import { SeedAdminService } from './seed-admin.service';
 import { UsersController } from './users.controller';
-import { MemberRegistrationReader, MemberRegistrationSchema } from '../members/member-registration.reader';
+import { MemberRegistrationReader } from '../members/member-registration.reader';
+import { MemberSchema } from '../members/schemas/member.schema';
 import { AuthSessionSchema } from '../auth/schemas/auth-session.schema';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { SecurityStateSchema } from './schemas/security-state.schema';
@@ -19,7 +20,7 @@ import { AccessController } from './access.controller';
 
 @Module({
   imports: [MongooseModule.forFeature([{ name: 'Account', schema: AccountSchema }, { name: 'Role', schema: RoleSchema },
-    { name: 'MemberRegistration', schema: MemberRegistrationSchema }, { name: 'AuthSession', schema: AuthSessionSchema },
+    { name: 'MemberRegistration', schema: MemberSchema }, { name: 'AuthSession', schema: AuthSessionSchema },
     { name: 'SecurityState', schema: SecurityStateSchema }, { name: 'SecurityEvent', schema: SecurityEventSchema },
     { name: 'Permission', schema: PermissionSchema }, { name: 'RolePermission', schema: RolePermissionSchema }]), TransactionModule],
   controllers: [UsersController, AccessController],

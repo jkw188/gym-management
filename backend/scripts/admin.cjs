@@ -11,7 +11,8 @@ const { SecurityStateSchema, ACCOUNT_ADMINISTRATION } = require('../dist/modules
 const { SecurityEventSchema } = require('../dist/modules/users/schemas/security-event.schema');
 const { PermissionSchema, RolePermissionSchema } = require('../dist/modules/users/schemas/permission.schema');
 const { AccessCatalogService } = require('../dist/modules/users/access-catalog.service');
-const { MemberRegistrationSchema } = require('../dist/modules/members/member-registration.reader');
+const { MemberSchema } = require('../dist/modules/members/schemas/member.schema');
+const { LEGACY_PHONE_INDEX } = require('../dist/modules/members/member-registration.reader');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
@@ -41,7 +42,10 @@ async function run() {
       const securityEvent = connection.model('SecurityEvent', SecurityEventSchema);
       await securityEvent.createIndexes();
       await securityState.updateOne({ _id: ACCOUNT_ADMINISTRATION }, { $setOnInsert: { revision: 0n } }, { upsert: true });
-      const members = connection.model('MemberRegistration', MemberRegistrationSchema);
+      // US-09: members dùng schema của MembersModule; xóa index phone cũ (không unique) trước khi tạo index unique.
+      const members = connection.model('Member', MemberSchema);
+      const memberIndexes = await members.collection.listIndexes().toArray().catch(() => []);
+      if (memberIndexes.some(index => index.name === LEGACY_PHONE_INDEX)) await members.collection.dropIndex(LEGACY_PHONE_INDEX);
       const session = connection.model('AuthSession', AuthSessionSchema);
       const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
       const passwordReset = connection.model('PasswordReset', PasswordResetSchema);
