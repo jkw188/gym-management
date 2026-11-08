@@ -7,7 +7,6 @@ import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { normalizeEmail, normalizeFullName, normalizePhone, validateObjectId } from '../../common/utils/normalization';
 import { Account } from './schemas/account.schema';
 import { Role, ROLE_CODES, RoleCode } from './schemas/role.schema';
-import { ACCOUNT_ADMINISTRATION, SecurityState } from './schemas/security-state.schema';
 import { ListUsersDto } from './users.dto';
 
 export interface CreateAccountInput { roleId: string; fullName: string; phone: string; email?: string; passwordHash: string }
@@ -23,8 +22,6 @@ export class UsersRepository implements OnModuleInit {
     private readonly accounts: Model<Account>,
     @InjectModel('Role')
     private readonly roles: Model<Role>,
-    @InjectModel('SecurityState')
-    private readonly securityState: Model<SecurityState>,
     private readonly config: ConfigService
   ) { }
 
@@ -58,14 +55,6 @@ export class UsersRepository implements OnModuleInit {
   async hasTrainerProfile(accountId: Types.ObjectId, session?: ClientSession): Promise<boolean> {
     const profile = await this.accounts.db.collection('trainers').findOne({ account_id: accountId }, { projection: { _id: 1 }, maxTimeMS: 5000, session });
     return profile !== null;
-  }
-
-  // US-09-F06: khóa quản trị chung với đổi role/khóa account (US-07, US-08): ghi tăng revision trong transaction.
-  // Hai transaction cùng ghi document này thì một bên phải chờ/chạy lại, nên không thể vừa liên kết vừa đổi role.
-  // Trả false nếu document chưa được khởi tạo (chưa chạy ensure-indexes).
-  async bumpAccountAdministration(session: ClientSession): Promise<boolean> {
-    const result = await this.securityState.updateOne({ _id: ACCOUNT_ADMINISTRATION }, { $inc: { revision: 1n } }, { session }).exec();
-    return result.matchedCount === 1;
   }
 
   // US-09 bước 3: đọc role trong transaction để kiểm lại điều kiện sau khi đã giữ khóa.

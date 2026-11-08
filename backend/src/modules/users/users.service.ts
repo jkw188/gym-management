@@ -15,7 +15,7 @@ import { RegisterDto } from '../auth/register.dto';
 
 // US-09 bước 2: account có thể liên kết với hồ sơ hội viên (chỉ field cần cho quầy, không có email/role/hash).
 export interface MemberLinkCandidate { id: string; fullName: string; phone: string; hasTrainerProfile: boolean }
-// US-09 bước 3: thông tin account đọc trong transaction liên kết (dùng cho cả nhân viên thực hiện và account đích).
+// US-09 bước 3: thông tin account đích đọc trong transaction liên kết.
 export interface AccountForLink { phone: string; status: AccountStatus; roleCode?: RoleCode; hasTrainerProfile: boolean }
 
 @Injectable()
@@ -77,14 +77,7 @@ export class UsersService {
     };
   }
 
-  // US-09-F06: giữ khóa quản trị chung (US-07) trong transaction liên kết hồ sơ. Chưa khởi tạo thì 503.
-  async lockAccountAdministration(session: ClientSession): Promise<void> {
-    if (!await this.repository.bumpAccountAdministration(session)) {
-      throw new ApplicationError(503, 'SECURITY_STATE_NOT_READY', 'Chưa khởi tạo bảo vệ tài khoản. Cần chạy ensure-indexes');
-    }
-  }
-
-  // US-09 bước 3: đọc lại account trong transaction (sau khi giữ khóa) để MembersService kiểm điều kiện liên kết.
+  // US-09 bước 3: đọc lại account đích trong transaction (sau khi giữ khóa) để MembersService kiểm điều kiện liên kết.
   // Trả null nếu không có account; chỉ trả field cần dùng, không có email/hash.
   async findAccountForLink(accountId: string, session: ClientSession): Promise<AccountForLink | null> {
     const account = await this.repository.findAccountInSession(new Types.ObjectId(accountId), session);

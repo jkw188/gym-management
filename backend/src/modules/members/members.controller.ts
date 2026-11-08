@@ -34,7 +34,7 @@ export class MembersController {
   @Post(':id/link')
   async link(@CurrentUser() user: AuthPrincipal, @Param('id') id: string, @IdempotencyKey() key: string,
     @Body() dto: LinkMemberDto, @Res({ passthrough: true }) response: Response) {
-    const result = await this.members.link(user.id, id, dto, key);
+    const result = await this.members.link(user, id, dto, key);
     response.status(result.status);
     return result.body;
   }

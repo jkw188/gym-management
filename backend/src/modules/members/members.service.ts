@@ -6,6 +6,8 @@ import { Types } from 'mongoose';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { normalizeAddress, normalizeBirthDate, normalizeFullName, normalizePhone, validateObjectId } from '../../common/utils/normalization';
 import { IdempotencyService, WorkResult } from '../operations/idempotency.service';
+import { AuthPrincipal } from '../auth/auth.types';
+import { AccountSecurityService } from '../users/account-security.service';
 import { UsersService } from '../users/users.service';
 import { CreateMemberDto, LinkMemberDto } from './members.dto';
 import { toMemberResponse } from './members.mapper';
@@ -15,7 +17,7 @@ import { LinkCandidate, NewMemberInput } from './members.types';
 @Injectable()
 export class MembersService {
   constructor(private readonly repository: MembersRepository, private readonly idempotency: IdempotencyService,
-    private readonly users: UsersService) {}
+    private readonly users: UsersService, private readonly accountSecurity: AccountSecurityService) {}
 
   // POST /api/members. actorId lấy từ phiên đăng nhập, không nhận từ client.
   async create(actorId: string, dto: CreateMemberDto, clientKey: string) {
@@ -55,7 +57,9 @@ export class MembersService {
 
   // POST /api/members/:id/link (US-09 bước 3): liên kết hồ sơ với account MEMBER ACTIVE sau khi nhân viên xác minh
   // trực tiếp. Mọi kiểm tra và lệnh ghi nằm trong MỘT transaction (US-09-F06).
-  async link(actorId: string, memberId: string, dto: LinkMemberDto, clientKey: string) {
+  // Nhận cả principal (không chỉ id) để kiểm lại phiên và auth_version của nhân viên sau khi giữ khóa.
+  async link(actor: AuthPrincipal, memberId: string, dto: LinkMemberDto, clientKey: string) {
+    const actorId = actor.id;
     // US-09-TC09: id sai định dạng hoặc ghi nhận sai độ dài thì 400 ngay, chưa mở transaction.
     validateObjectId(memberId);
     const verificationNote = normalizeVerificationNote(dto.verificationNote);
@@ -68,15 +72,11 @@ export class MembersService {
       { actorId, operation: 'MEMBER_LINK', clientKey, targetId: memberId,
         payload: { accountId: dto.accountId, version: dto.version, verificationMethod: dto.verificationMethod, verificationNote } },
       async (session): Promise<WorkResult> => {
-        // US-09-F06 thứ tự khóa: (1) khóa quản trị chung với đổi role/khóa account, (2) service_revision của hồ sơ.
-        await this.users.lockAccountAdministration(session);
+        // US-09-F06 thứ tự khóa: (1) khóa quản trị chung với US-07/US-08 kèm kiểm lại nhân viên (ACTIVE, phiên còn hiệu lực,
+        // auth_version khớp, role STAFF/ADMIN) bằng cùng hàm của US-07; (2) service_revision của hồ sơ.
+        await this.accountSecurity.lockAndVerifyActor(actor, ['STAFF', 'ADMIN'], session);
         const member = await this.repository.bumpServiceRevision(memberObjectId, session);
         if (!member) throw new ApplicationError(404, 'MEMBER_NOT_FOUND', 'Không tìm thấy hồ sơ hội viên');
-
-        // Kiểm lại nhân viên sau khi giữ khóa: có thể vừa bị khóa hoặc đổi vai trò.
-        const actor = await this.users.findAccountForLink(actorId, session);
-        if (!actor || actor.status !== 'ACTIVE') throw new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
-        if (actor.roleCode !== 'STAFF' && actor.roleCode !== 'ADMIN') throw new ApplicationError(403, 'FORBIDDEN', 'Không có quyền truy cập');
 
         // US-09-TC08: hồ sơ đã liên kết (kể cả gửi lại bằng key khác) → 409, không ghi audit mới.
         if (member.account_id) throw new ApplicationError(409, 'MEMBER_ALREADY_LINKED', 'Hồ sơ đã được liên kết tài khoản');
