@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { ClientSession, Types } from 'mongoose';
 import { mapAccount, mapRole, mapUserResponse } from './account.mapper';
 import { RoleCode } from './schemas/role.schema';
 import { UsersRepository } from './users.repository';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { PasswordService } from '../../common/security/password.service';
 import { normalizeEmail, normalizeFullName, normalizePhone } from '../../common/utils/normalization';
-import { Account } from './schemas/account.schema';
+import { Account, AccountStatus } from './schemas/account.schema';
 import { CreateUserDto, ListUsersDto, UpdateUserDto } from './users.dto';
 import { duplicateIdentifier, rethrowDuplicate, versionConflict } from './account-errors';
 import { isDuplicateKey } from '../../common/http/http-error.filter';
@@ -14,6 +15,8 @@ import { RegisterDto } from '../auth/register.dto';
 
 // US-09 bước 2: account có thể liên kết với hồ sơ hội viên (chỉ field cần cho quầy, không có email/role/hash).
 export interface MemberLinkCandidate { id: string; fullName: string; phone: string; hasTrainerProfile: boolean }
+// US-09 bước 3: thông tin account đọc trong transaction liên kết (dùng cho cả nhân viên thực hiện và account đích).
+export interface AccountForLink { phone: string; status: AccountStatus; roleCode?: RoleCode; hasTrainerProfile: boolean }
 
 @Injectable()
 export class UsersService {
@@ -71,6 +74,27 @@ export class UsersService {
       fullName: account.full_name,
       phone: account.phone,
       hasTrainerProfile: await this.repository.hasTrainerProfile(account._id),
+    };
+  }
+
+  // US-09-F06: giữ khóa quản trị chung (US-07) trong transaction liên kết hồ sơ. Chưa khởi tạo thì 503.
+  async lockAccountAdministration(session: ClientSession): Promise<void> {
+    if (!await this.repository.bumpAccountAdministration(session)) {
+      throw new ApplicationError(503, 'SECURITY_STATE_NOT_READY', 'Chưa khởi tạo bảo vệ tài khoản. Cần chạy ensure-indexes');
+    }
+  }
+
+  // US-09 bước 3: đọc lại account trong transaction (sau khi giữ khóa) để MembersService kiểm điều kiện liên kết.
+  // Trả null nếu không có account; chỉ trả field cần dùng, không có email/hash.
+  async findAccountForLink(accountId: string, session: ClientSession): Promise<AccountForLink | null> {
+    const account = await this.repository.findAccountInSession(new Types.ObjectId(accountId), session);
+    if (!account) return null;
+    const role = await this.repository.findRoleByIdInSession(account.role_id, session);
+    return {
+      phone: account.phone,
+      status: account.status,
+      roleCode: role?.code,
+      hasTrainerProfile: await this.repository.hasTrainerProfile(account._id, session),
     };
   }
 
