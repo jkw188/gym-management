@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
-import { normalizeEmail, normalizeFullName, normalizePhone } from '../../common/utils/normalization';
+import { normalizeAddress, normalizeBirthDate, normalizeEmail, normalizeFullName, normalizePhone, todayInVietnam } from '../../common/utils/normalization';
 import { AuthPrincipal } from '../auth/auth.types';
 import { duplicateIdentifier, rethrowDuplicate, versionConflict } from '../users/account-errors';
 import { AccountChanges, UsersRepository } from '../users/users.repository';
@@ -9,27 +9,8 @@ import { mapProfileResponse } from './profile.mapper';
 
 const EDITABLE_FIELDS = ['fullName', 'phone', 'email', 'birthDate', 'address'] as const;
 
-export function todayInVietnam(now = new Date()): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
-}
-
-export function normalizeBirthDate(value: string | null): string | null {
-  if (value === null) return null;
-  const invalid = () => invalidField('birthDate', 'Ngày sinh phải là ngày hợp lệ dạng YYYY-MM-DD');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) invalid();
-  const date = new Date(`${value}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) invalid();
-  if (value > todayInVietnam()) invalidField('birthDate', 'Ngày sinh không được sau ngày hiện tại');
-  return value;
-}
-
-export function normalizeAddress(value: string | null): string | null {
-  if (value === null) return null;
-  const address = value.trim();
-  if (!address) return null;
-  if (address.length > 255) invalidField('address', 'Địa chỉ tối đa 255 ký tự');
-  return address;
-}
+// todayInVietnam xuất lại từ đây vì test US-04 (profile.integration-spec.ts) đang import từ file này.
+export { todayInVietnam };
 
 @Injectable()
 export class ProfileService {

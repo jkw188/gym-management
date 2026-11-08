@@ -49,6 +49,19 @@ export class UsersRepository implements OnModuleInit {
   findRoleByCode(code: RoleCode) { return this.roles.findOne({ code }).exec(); }
   findRoleById(id: string) { return this.roles.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).exec(); }
 
+  // US-09-F05: account đã gắn hồ sơ PT thì không liên kết hội viên. Collection trainers do US-23 sở hữu (chưa có
+  // schema), nên đọc trực tiếp giống AccountSecurityService; chỉ lấy _id để biết có hay không.
+  // Truyền session khi cần đọc trong transaction (US-09 bước 3 liên kết hồ sơ).
+  async hasTrainerProfile(accountId: Types.ObjectId, session?: ClientSession): Promise<boolean> {
+    const profile = await this.accounts.db.collection('trainers').findOne({ account_id: accountId }, { projection: { _id: 1 }, maxTimeMS: 5000, session });
+    return profile !== null;
+  }
+
+  // US-09 bước 3: đọc role trong transaction để kiểm lại điều kiện sau khi đã giữ khóa.
+  findRoleByIdInSession(id: Types.ObjectId, session: ClientSession) {
+    return this.roles.findById(id).session(session).exec();
+  }
+
   async listRoles() {
     const roles = await this.roles.find({ code: { $in: ROLE_CODES } }).maxTimeMS(5000).exec();
     return roles.sort((left, right) => ROLE_CODES.indexOf(left.code) - ROLE_CODES.indexOf(right.code));
