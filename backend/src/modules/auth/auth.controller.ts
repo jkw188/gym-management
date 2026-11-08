@@ -18,6 +18,7 @@ import { LOGOUT_BODY_SCHEMA } from './logout.dto';
 import { RegisterDto, RegisterResponseDto } from './register.dto';
 import { RegistrationGuard } from './registration.guard';
 import { UsersService } from '../users/users.service';
+import { FixedPermission } from '../users/access.policy';
 
 export function refreshCookieOptions(nodeEnv: string, frontendOrigin: string, expiresAt?: Date): CookieOptions {
   const hostname = new URL(frontendOrigin).hostname;
@@ -87,7 +88,7 @@ export class AuthController {
     return this.respond(await this.auth.refresh(refreshCookie(req)), res);
   }
 
-  @Public() @UseGuards(AuthOriginGuard) @Post('logout') @HttpCode(204)
+  @Public() @FixedPermission('auth.logout') @UseGuards(AuthOriginGuard) @Post('logout') @HttpCode(204)
   @ApiBearerAuth() @ApiBody({ schema: LOGOUT_BODY_SCHEMA }) @ApiNoContentResponse()
   async logout(@Body() body: Record<string, unknown>, @Req() req: Request, @Res({ passthrough: true }) res: Response): Promise<void> {
     requireEmptyBody(body, 'Logout');
@@ -117,6 +118,6 @@ export class AuthController {
     return result;
   }
 
-  @Get('me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })
+  @Get('me') @FixedPermission('auth.me') @ApiBearerAuth() @ApiOkResponse({ type: PrincipalDto })
   me(@CurrentUser() user: AuthPrincipal) { return user; }
 }
