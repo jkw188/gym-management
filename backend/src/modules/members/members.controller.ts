@@ -1,0 +1,25 @@
+// Tầng API (US-09 bước 1): POST /api/members cho Staff/Admin tạo hồ sơ hội viên tại quầy.
+// Biết ai gọi qua JwtAuthGuard toàn cục; người tạo lấy từ phiên đăng nhập, không nhận từ client.
+import { Body, Controller, Post, Res } from '@nestjs/common';
+import { Response } from 'express';
+import { IdempotencyKey } from '../../common/decorators/idempotency-key.decorator';
+import { CurrentUser, Roles } from '../auth/auth.decorators';
+import { AuthPrincipal } from '../auth/auth.types';
+import { CreateMemberDto } from './members.dto';
+import { MembersService } from './members.service';
+
+@Controller('members')
+// US-09-TC02: không token/phiên thu hồi/tài khoản khóa → 401 (Guard); MEMBER/TRAINER → 403.
+@Roles('STAFF', 'ADMIN')
+export class MembersController {
+  constructor(private readonly members: MembersService) {}
+
+  // passthrough: tự đặt mã HTTP nhưng vẫn để Nest gửi body. Gửi lại cùng key trả đúng mã gốc 201 (US-09-TC06).
+  @Post()
+  async create(@CurrentUser() user: AuthPrincipal, @IdempotencyKey() key: string, @Body() dto: CreateMemberDto,
+    @Res({ passthrough: true }) response: Response) {
+    const result = await this.members.create(user.id, dto, key);
+    response.status(result.status);
+    return result.body;
+  }
+}
