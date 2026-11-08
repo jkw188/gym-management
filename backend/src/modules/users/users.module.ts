@@ -7,7 +7,7 @@ import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 import { SeedAdminService } from './seed-admin.service';
 import { UsersController } from './users.controller';
-import { MembersModule } from '../members/members.module';
+import { MembersDataModule } from '../members/members-data.module';
 import { AuthSessionSchema } from '../auth/schemas/auth-session.schema';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { SecurityStateSchema } from './schemas/security-state.schema';
@@ -22,8 +22,8 @@ import { AccessController } from './access.controller';
     { name: 'AuthSession', schema: AuthSessionSchema },
     { name: 'SecurityState', schema: SecurityStateSchema }, { name: 'SecurityEvent', schema: SecurityEventSchema },
     { name: 'Permission', schema: PermissionSchema }, { name: 'RolePermission', schema: RolePermissionSchema }]), TransactionModule,
-    // US-01: hỏi hồ sơ hội viên chưa liên kết theo phone qua MemberRegistrationReader của MembersModule.
-    MembersModule],
+    // US-01: hỏi hồ sơ hội viên chưa liên kết theo phone qua MemberRegistrationReader của MembersDataModule.
+    MembersDataModule],
   controllers: [UsersController, AccessController],
   providers: [UsersRepository, UsersService, PasswordService, SeedAdminService, AccountSecurityService, AccessCatalogService],
   exports: [UsersService, UsersRepository, PasswordService, SeedAdminService, AccountSecurityService],
