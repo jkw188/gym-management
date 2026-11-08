@@ -9,6 +9,24 @@ const isOutcomeUnknown = (error: ApiError) => error.status === undefined || erro
 const asApiError = (error: unknown, fallback: string) => (error instanceof ApiError ? error : new ApiError(fallback));
 
 const EMPTY_FORM = { fullName: '', phone: '', birthDate: '', address: '' };
+type FormField = keyof typeof EMPTY_FORM;
+type FieldErrors = Partial<Record<FormField, string>>;
+const FIELD_ORDER: FormField[] = ['fullName', 'phone', 'birthDate', 'address'];
+
+// Kiểm tra sơ bộ trước khi gửi để báo lỗi ngay dưới ô (US-09 mục 3 "hiển thị trường bắt buộc, validation").
+// Cùng quy tắc với trang Đăng ký (US-01); server vẫn kiểm tra lại và là nơi quyết định cuối cùng.
+function validateForm(form: typeof EMPTY_FORM): FieldErrors {
+  const errors: FieldErrors = {};
+  const nameLength = Array.from(form.fullName.trim().replace(/\s+/g, ' ')).length;
+  if (nameLength === 0) errors.fullName = 'Vui lòng nhập họ tên.';
+  else if (nameLength < 2 || nameLength > 120) errors.fullName = 'Họ tên phải từ 2 đến 120 ký tự.';
+  // Bỏ dấu cách/chấm/ngoặc/gạch rồi đổi 0… hoặc 84… thành +84… như EN01-D01.
+  const digits = form.phone.replace(/[\s.()\-]/g, '').replace(/^0/, '+84').replace(/^84/, '+84');
+  if (!form.phone.trim()) errors.phone = 'Vui lòng nhập số điện thoại.';
+  else if (!/^[+\d\s.()\-]+$/.test(form.phone) || !/^\+[1-9]\d{7,14}$/.test(digits)) errors.phone = 'Số điện thoại không hợp lệ.';
+  if (form.address.trim().length > 255) errors.address = 'Địa chỉ tối đa 255 ký tự.';
+  return errors;
+}
 
 export function MemberCreatePage() {
   // ---------- Bước 1: tạo hồ sơ ----------
@@ -16,6 +34,8 @@ export function MemberCreatePage() {
   const [member, setMember] = useState<Member | null>(null);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<ApiError | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
   // useRef để chặn bấm nhiều lần ngay cả trước khi React vẽ lại nút disabled (US-09-TC15).
   const sending = useRef(false);
   const createKey = useRef<string | null>(null);
@@ -32,17 +52,22 @@ export function MemberCreatePage() {
   const linkKey = useRef<string | null>(null);
 
   // Sửa dữ liệu là một ý định mới: lần gửi sau dùng key mới.
-  function changeField(field: keyof typeof EMPTY_FORM, value: string) {
+  function changeField(field: FormField, value: string) {
     createKey.current = null;
+    // Sửa ô nào thì bỏ lỗi của ô đó.
+    setFieldErrors(current => ({ ...current, [field]: undefined }));
     setForm(current => ({ ...current, [field]: value }));
   }
 
   async function createMember(event?: FormEvent) {
     event?.preventDefault();
     if (sending.current) return;
+    setCreateError(null);
+    const errors = validateForm(form);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) { focusFirstError(errors); return; }
     sending.current = true;
     setCreating(true);
-    setCreateError(null);
     // US-09-TC15: gửi lại sau mất response dùng LẠI key cũ để server trả đúng hồ sơ đã tạo, không tạo trùng.
     createKey.current ??= crypto.randomUUID();
     const input = {
@@ -59,12 +84,33 @@ export function MemberCreatePage() {
       const apiError = asApiError(error, 'Không tạo được hồ sơ hội viên.');
       // Server đã trả lời rõ (400, 409…) thì yêu cầu kết thúc, bỏ key; chưa rõ kết quả thì giữ key cho nút "Gửi lại".
       if (!isOutcomeUnknown(apiError)) createKey.current = null;
+      // Server trả lỗi theo field (400 details) thì cũng hiện ngay dưới ô tương ứng.
+      const serverErrors: FieldErrors = {};
+      for (const detail of apiError.details ?? []) {
+        if ((FIELD_ORDER as string[]).includes(detail.field)) serverErrors[detail.field as FormField] = detail.message;
+      }
+      setFieldErrors(serverErrors);
       setCreateError(apiError);
     } finally {
       sending.current = false;
       setCreating(false);
     }
   }
+
+  // Đưa con trỏ tới ô lỗi đầu tiên để nhân viên sửa ngay.
+  function focusFirstError(errors: FieldErrors) {
+    const first = FIELD_ORDER.find(field => errors[field]);
+    if (first) (formRef.current?.elements.namedItem(first) as HTMLInputElement | null)?.focus();
+  }
+
+  // Thuộc tính chung cho mỗi ô: đánh dấu ô lỗi và nối ô với dòng lỗi bên dưới (cho trình đọc màn hình).
+  const fieldProps = (field: FormField) => ({
+    id: `member-${field}`, name: field, value: form[field],
+    onChange: (event: { target: { value: string } }) => changeField(field, event.target.value),
+    'aria-invalid': !!fieldErrors[field], 'aria-describedby': fieldErrors[field] ? `member-${field}-error` : undefined,
+  });
+  const fieldError = (field: FormField) => fieldErrors[field] &&
+    <p id={`member-${field}-error`} className="field-error">{fieldErrors[field]}</p>;
 
   async function searchAccounts(event: FormEvent) {
     event.preventDefault();
@@ -122,15 +168,15 @@ export function MemberCreatePage() {
 
   return <section className="auth-card">
     <h2>Tạo hồ sơ hội viên</h2>
-    {!member && <form onSubmit={createMember} noValidate>
-      <label htmlFor="member-full-name">Họ tên</label>
-      <input id="member-full-name" value={form.fullName} onChange={event => changeField('fullName', event.target.value)} required />
+    {!member && <form ref={formRef} onSubmit={createMember} noValidate>
+      <label htmlFor="member-fullName">Họ tên</label>
+      <input {...fieldProps('fullName')} required />{fieldError('fullName')}
       <label htmlFor="member-phone">Số điện thoại</label>
-      <input id="member-phone" type="tel" value={form.phone} onChange={event => changeField('phone', event.target.value)} required />
-      <label htmlFor="member-birth-date">Ngày sinh</label>
-      <input id="member-birth-date" type="date" value={form.birthDate} onChange={event => changeField('birthDate', event.target.value)} />
+      <input {...fieldProps('phone')} type="tel" required />{fieldError('phone')}
+      <label htmlFor="member-birthDate">Ngày sinh</label>
+      <input {...fieldProps('birthDate')} type="date" />{fieldError('birthDate')}
       <label htmlFor="member-address">Địa chỉ</label>
-      <input id="member-address" value={form.address} onChange={event => changeField('address', event.target.value)} maxLength={255} />
+      <input {...fieldProps('address')} maxLength={255} />{fieldError('address')}
       <button type="submit" disabled={creating}>Tạo hồ sơ</button>
     </form>}
     {createError && <ErrorAlert error={createError} onRetry={isOutcomeUnknown(createError) ? () => void createMember() : undefined} />}
