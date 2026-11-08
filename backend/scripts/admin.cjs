@@ -12,6 +12,7 @@ const { SecurityEventSchema } = require('../dist/modules/users/schemas/security-
 const { PermissionSchema, RolePermissionSchema } = require('../dist/modules/users/schemas/permission.schema');
 const { AccessCatalogService } = require('../dist/modules/users/access-catalog.service');
 const { MemberRegistrationSchema } = require('../dist/modules/members/member-registration.reader');
+const { MemberLinkEventSchema } = require('../dist/modules/members/schemas/member-link-event.schema');
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
@@ -45,6 +46,7 @@ async function run() {
       await securityEvent.createIndexes();
       await securityState.updateOne({ _id: ACCOUNT_ADMINISTRATION }, { $setOnInsert: { revision: 0n } }, { upsert: true });
       const members = connection.model('MemberRegistration', MemberRegistrationSchema);
+      await connection.model('MemberLinkEvent', MemberLinkEventSchema).createIndexes();
       const session = connection.model('AuthSession', AuthSessionSchema);
       const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
       const passwordReset = connection.model('PasswordReset', PasswordResetSchema);

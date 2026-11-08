@@ -11,11 +11,37 @@ import { duplicateIdentifier, rethrowDuplicate, versionConflict } from './accoun
 import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { MemberRegistrationReader } from '../members/member-registration.reader';
 import { RegisterDto } from '../auth/register.dto';
+import { ClientSession } from 'mongodb';
+import { Types } from 'mongoose';
+import { ACCESS_CONTEXT, AuthPrincipal } from '../auth/auth.types';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly repository: UsersRepository, private readonly passwords: PasswordService,
     private readonly members: MemberRegistrationReader) {}
+
+  // Exact-phone lookup for the counter. Does not grant Staff access to the Admin account list.
+  async findMemberLinkAccount(filter: { _id: Types.ObjectId } | { phone: string }, session?: ClientSession) {
+    const account = await this.repository.findLinkAccount(filter, session);
+    if (!account) return null;
+    const role = await this.repository.findLinkRole(account.role_id, session);
+    return { id: account._id, fullName: account.full_name, phone: account.phone,
+      eligible: account.status === 'ACTIVE' && role?.code === 'MEMBER',
+      hasTrainer: await this.repository.hasTrainerProfile(account._id, session) };
+  }
+
+  async requireMemberOperator(actor: AuthPrincipal, session: ClientSession): Promise<void> {
+    const context = actor[ACCESS_CONTEXT];
+    const unauthenticated = () => new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
+    if (!context || context.expiresAt * 1000 <= Date.now()) throw unauthenticated();
+    const account = await this.repository.findLinkAccount({ _id: new Types.ObjectId(actor.id) }, session);
+    const currentSession = await this.repository.findLinkSession(new Types.ObjectId(context.sessionId), session);
+    if (!account || account.status !== 'ACTIVE' || Number(account.auth_version) !== context.authVersion ||
+      !currentSession || !currentSession.account_id.equals(account._id) || currentSession.revoked_at ||
+      currentSession.expires_at.getTime() <= Date.now() || Number(currentSession.auth_version) !== context.authVersion) throw unauthenticated();
+    const role = await this.repository.findLinkRole(account.role_id, session);
+    if (role?.code !== 'ADMIN' && role?.code !== 'STAFF') throw new ApplicationError(403, 'FORBIDDEN', 'Không có quyền truy cập');
+  }
 
   async register(input: RegisterDto): Promise<{ id: string; nextAction: 'LOGIN' }> {
     const fullName = normalizeFullName(input.fullName);

@@ -8,6 +8,7 @@ import { normalizeEmail, normalizeFullName, normalizePhone, validateObjectId } f
 import { Account } from './schemas/account.schema';
 import { Role, ROLE_CODES, RoleCode } from './schemas/role.schema';
 import { ListUsersDto } from './users.dto';
+import { AuthSession } from '../auth/schemas/auth-session.schema';
 
 export interface CreateAccountInput { roleId: string; fullName: string; phone: string; email?: string; passwordHash: string }
 export interface AccountChanges {
@@ -48,6 +49,20 @@ export class UsersRepository implements OnModuleInit {
   findCredentialsById(id: string) { return this.accounts.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).select('+password_hash').maxTimeMS(5000).exec(); }
   findRoleByCode(code: RoleCode) { return this.roles.findOne({ code }).exec(); }
   findRoleById(id: string) { return this.roles.findOne({ id: new Types.ObjectId(validateObjectId(id)) }).exec(); }
+
+  // US-09 internal reads use the transaction snapshot and the existing account schema.
+  findLinkAccount(filter: { _id: Types.ObjectId } | { phone: string }, session?: ClientSession) {
+    return this.accounts.findOne(filter).session(session ?? null).exec();
+  }
+  findLinkRole(id: Types.ObjectId, session?: ClientSession) {
+    return this.roles.findById(id).session(session ?? null).exec();
+  }
+  findLinkSession(id: Types.ObjectId, session: ClientSession) {
+    return this.accounts.db.db!.collection<AuthSession>('auth_sessions').findOne({ _id: id }, { session });
+  }
+  async hasTrainerProfile(accountId: Types.ObjectId, session?: ClientSession): Promise<boolean> {
+    return !!await this.accounts.db.collection('trainers').findOne({ account_id: accountId }, { session, projection: { _id: 1 } });
+  }
 
   async listRoles() {
     const roles = await this.roles.find({ code: { $in: ROLE_CODES } }).maxTimeMS(5000).exec();
