@@ -12,8 +12,6 @@ import { duplicateIdentifier, rethrowDuplicate, versionConflict } from './accoun
 import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { MemberRegistrationReader } from '../members/member-registration.reader';
 import { RegisterDto } from '../auth/register.dto';
-import { ClientSession } from 'mongodb';
-import { Types } from 'mongoose';
 import { ACCESS_CONTEXT, AuthPrincipal } from '../auth/auth.types';
 
 // US-09 bước 2: account có thể liên kết với hồ sơ hội viên (chỉ field cần cho quầy, không có email/role/hash).
@@ -108,7 +106,7 @@ export class UsersService {
   async findAccountForLink(accountId: string, session: ClientSession): Promise<AccountForLink | null> {
     const account = await this.repository.findAccountInSession(new Types.ObjectId(accountId), session);
     if (!account) return null;
-    const role = await this.repository.findRoleByIdInSession(account.role_id, session);
+    const role = await this.repository.findLinkRole(account.role_id, session);
     return {
       phone: account.phone,
       status: account.status,

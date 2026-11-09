@@ -29,6 +29,9 @@ export class MembersRepository implements OnModuleInit {
   findById(id: Types.ObjectId, session?: ClientSession) {
     return this.members.findById(id).session(session ?? null).maxTimeMS(5000).lean().exec();
   }
+  async hasUnlinkedPhone(phone: string): Promise<boolean> {
+    return !!await this.members.exists({ phone, account_id: null }).maxTimeMS(5000).exec();
+  }
   async isAccountLinked(accountId: Types.ObjectId, session?: ClientSession): Promise<boolean> {
     return !!await this.members.exists({ account_id: accountId }).session(session ?? null).exec();
   }
