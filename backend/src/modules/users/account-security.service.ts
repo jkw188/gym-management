@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { ACCESS_CONTEXT, AuthPrincipal } from '../auth/auth.types';
@@ -47,6 +47,27 @@ export class AccountSecurityService implements OnModuleInit {
     return this.change(actor, id, input.version, input.reason, { roleCode: input.roleCode }, requestId);
   }
 
+  // Dùng chung cho mọi lệnh cần khóa quản trị: đổi role/khóa account (US-07, US-08) và liên kết hồ sơ (US-09-F06).
+  // Phải gọi ĐẦU TIÊN trong transaction: ghi tăng security_state để mọi lệnh quản trị trên mọi instance chạy lần lượt,
+  // rồi kiểm lại người thực hiện (account ACTIVE, phiên chưa thu hồi/hết hạn, auth_version khớp token, role cho phép).
+  async lockAndVerifyActor(actor: AuthPrincipal, allowedRoles: RoleCode[], session: ClientSession) {
+    // A real common write serializes all status/role reductions across every application instance.
+    const lock = await this.state.updateOne({ _id: ACCOUNT_ADMINISTRATION }, { $inc: { revision: 1n } }, { session }).exec();
+    if (lock.matchedCount !== 1) throw new ApplicationError(503, 'SECURITY_STATE_NOT_READY', 'Chưa khởi tạo bảo vệ tài khoản. Cần chạy ensure-indexes');
+    const context = actor[ACCESS_CONTEXT];
+    if (!context || context.expiresAt * 1000 <= Date.now()) throw new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
+    const currentActor = await this.accounts.findById(actor.id).session(session).exec();
+    const currentSession = await this.sessions.findById(context.sessionId).session(session).exec();
+    if (!currentActor || currentActor.status !== 'ACTIVE' || Number(currentActor.auth_version) !== context.authVersion ||
+      !currentSession || !currentSession.account_id.equals(currentActor._id) || currentSession.revoked_at ||
+      currentSession.expires_at.getTime() <= Date.now() || Number(currentSession.auth_version) !== context.authVersion) {
+      throw new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
+    }
+    const actorRole = await this.roles.findById(currentActor.role_id).session(session).exec();
+    if (!actorRole || !allowedRoles.includes(actorRole.code)) throw new ApplicationError(403, 'FORBIDDEN', 'Không có quyền truy cập');
+    return currentActor;
+  }
+
   private async change(actor: AuthPrincipal, id: string, version: number, reason: string, change: Change, requestId: string): Promise<ChangeSecurityResponseDto> {
     if (!/^[a-f\d]{24}$/i.test(id)) throw new ApplicationError(400, 'INVALID_ID', 'ID tài khoản không hợp lệ');
     if (!Number.isInteger(version) || version < 0 || version > 2147483647) invalidField('version', 'Version không hợp lệ');
@@ -54,20 +75,7 @@ export class AccountSecurityService implements OnModuleInit {
     if ('status' in change ? !['ACTIVE', 'LOCKED'].includes(change.status) : !ROLE_CODES.includes(change.roleCode)) invalidField('fields', 'Trạng thái hoặc vai trò không hợp lệ');
     try {
       return await this.transactions.run(async session => {
-        // A real common write serializes all status/role reductions across every application instance.
-        const lock = await this.state.updateOne({ _id: ACCOUNT_ADMINISTRATION }, { $inc: { revision: 1n } }, { session }).exec();
-        if (lock.matchedCount !== 1) throw new ApplicationError(503, 'SECURITY_STATE_NOT_READY', 'Chưa khởi tạo bảo vệ tài khoản. Cần chạy ensure-indexes');
-        const context = actor[ACCESS_CONTEXT];
-        if (!context || context.expiresAt * 1000 <= Date.now()) throw new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
-        const currentActor = await this.accounts.findById(actor.id).session(session).exec();
-        const currentSession = await this.sessions.findById(context.sessionId).session(session).exec();
-        if (!currentActor || currentActor.status !== 'ACTIVE' || Number(currentActor.auth_version) !== context.authVersion ||
-          !currentSession || !currentSession.account_id.equals(currentActor._id) || currentSession.revoked_at ||
-          currentSession.expires_at.getTime() <= Date.now() || Number(currentSession.auth_version) !== context.authVersion) {
-          throw new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
-        }
-        const actorRole = await this.roles.findById(currentActor.role_id).session(session).exec();
-        if (actorRole?.code !== 'ADMIN') throw new ApplicationError(403, 'FORBIDDEN', 'Không có quyền truy cập');
+        const currentActor = await this.lockAndVerifyActor(actor, ['ADMIN'], session);
         const target = await this.accounts.findById(id).session(session).exec();
         if (!target) throw new ApplicationError(404, 'USER_NOT_FOUND', 'Không tìm thấy tài khoản');
         if (Number(target.version) !== version) throw versionConflict();

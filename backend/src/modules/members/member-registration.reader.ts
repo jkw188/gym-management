@@ -10,20 +10,10 @@ export interface MemberRegistrationRecord { phone: string; account_id?: Types.Ob
 export const MemberRegistrationSchema = MemberSchema;
 
 @Injectable()
-export class MemberRegistrationReader implements OnModuleInit {
-  constructor(@InjectModel('MemberRegistration') private readonly members: Model<MemberRegistrationRecord>,
-    private readonly config: ConfigService) {}
+export class MemberRegistrationReader {
+  constructor(private readonly members: MembersRepository) {}
 
-  async onModuleInit(): Promise<void> {
-    if (this.config.get('nodeEnv') !== 'production') await this.members.createIndexes();
-    const indexes = await this.members.collection.listIndexes().toArray();
-    if (!indexes.some(index => Object.keys(index.key)[0] === 'phone' && index.key.phone === 1 && !index.partialFilterExpression && !index.sparse)) {
-      throw new Error('DATABASE_INDEXES_REQUIRED: run npm run ensure-indexes');
-    }
-  }
-
-  async hasUnlinkedPhone(phone: string): Promise<boolean> {
-    // null khớp cả field thiếu và null; chỉ trả boolean, không xuất dữ liệu cá nhân.
-    return !!await this.members.exists({ phone, account_id: null }).maxTimeMS(5000).exec();
+  hasUnlinkedPhone(phone: string): Promise<boolean> {
+    return this.members.hasUnlinkedPhone(phone);
   }
 }
