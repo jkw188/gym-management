@@ -16,6 +16,7 @@ export interface Transaction {
   status: TransactionStatus;
   request_key: string;                // nội bộ (chống tạo trùng), không trả cho Member
   created_at: Date;
+  guard_revision: bigint;             // EN-02: khóa dữ liệu khi ghi (data-guards.service.ts), nội bộ, không trả cho Member
 }
 
 export const TransactionSchema = new Schema<Transaction>({
@@ -28,4 +29,6 @@ export const TransactionSchema = new Schema<Transaction>({
   status: { type: String, required: true, maxlength: 20, enum: ['PENDING', 'SETTLED', 'CANCELLED'] },
   request_key: { type: String, required: true, maxlength: 80 },
   created_at: { type: Date, required: true },
+  // EN-02 (financial-integrity.ts): Int64 ≥ 0, mặc định 0; cùng khuôn với members.service_revision.
+  guard_revision: { type: Schema.Types.BigInt, required: true, default: 0n, validate: (value: bigint) => value >= 0n },
 }, { collection: 'transactions', id: false, versionKey: false });
