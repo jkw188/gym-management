@@ -13,8 +13,8 @@ import { PasswordService } from '../src/common/security/password.service';
 import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
 // Hợp đồng test đặt ra cho Builder (US-17 bước 1, theo mục 2 của spec):
-//   Mọi route: role MEMBER; member lấy từ members.account_id = principal (US-09 chưa có → test ghi thẳng hồ sơ mẫu
-//   vào collection 'members' theo mục 4.2.7). US-14/22 chưa có → test ghi thẳng plans, transactions, service_sales,
+//   Mọi route: role MEMBER; member lấy từ members.account_id = principal (US-09 đã lên main; test vẫn ghi thẳng hồ sơ mẫu
+//   đúng khuôn schema US-09 cho gọn, không gọi API liên kết). US-14/22 chưa có → test ghi thẳng plans, transactions, service_sales,
 //   memberships, payments, invoices theo mục 4.2.9–4.2.12, 4.2.23, 4.2.24.
 //   Chủ sở hữu: service_sales.member_id; membership qua service_sale_id; invoice qua transaction_id; transaction qua member_id.
 //   GET /api/me/memberships         -> 200 {memberLinked, items, page, limit, total, totalPages, asOf}
@@ -108,8 +108,11 @@ describe('US-17 bước 1: API cá nhân /api/me/* của Member', () => {
   async function insertMember(accountId: ObjectId | null, phone: string) {
     memberSeq += 1;
     const id = new ObjectId();
+    const staffId = new ObjectId();
+    // Đúng khuôn hồ sơ US-09 trên main: member_code = 'HV-' + 24 ký tự hex, có service_revision, created_by, updated_by.
     const doc: Record<string, unknown> = {
-      _id: id, id, member_code: `HV-US17-${memberSeq}`, full_name: `Hội viên US17 ${memberSeq}`, phone, version: 0,
+      _id: id, id, member_code: `HV-${id.toHexString()}`, full_name: `Hội viên US17 ${memberSeq}`, phone, version: 0,
+      service_revision: 0n, created_by: staffId, updated_by: staffId,
     };
     if (accountId) doc.account_id = accountId;
     await db().collection('members').insertOne(doc);
