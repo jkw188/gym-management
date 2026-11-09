@@ -32,6 +32,16 @@ export class MembersRepository implements OnModuleInit {
   async hasUnlinkedPhone(phone: string): Promise<boolean> {
     return !!await this.members.exists({ phone, account_id: null }).maxTimeMS(5000).exec();
   }
+  updateProfile(id: Types.ObjectId, version: number, set: Partial<Pick<Member, 'full_name' | 'phone' | 'birth_date' | 'address'>>,
+    unset: Partial<Record<'birth_date' | 'address', 1>>, actorId: Types.ObjectId, session?: ClientSession) {
+    const changed = Object.keys(set).length > 0 || Object.keys(unset).length > 0;
+    // Even a no-op must atomically match the supplied version. Never save a stale document snapshot.
+    return this.members.findOneAndUpdate({ _id: id, version }, changed ? {
+      $set: { ...set, updated_by: actorId, updated_at: new Date() },
+      ...(Object.keys(unset).length ? { $unset: unset } : {}), $inc: { version: 1 },
+    } : { $set: { version } },
+    { session, returnDocument: 'after', timestamps: false, runValidators: true }).maxTimeMS(5000).lean().exec();
+  }
   async isAccountLinked(accountId: Types.ObjectId, session?: ClientSession): Promise<boolean> {
     return !!await this.members.exists({ account_id: accountId }).session(session ?? null).exec();
   }
