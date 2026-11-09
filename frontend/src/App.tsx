@@ -16,6 +16,7 @@ import { UsersPage } from './features/users/UsersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
+import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
 
@@ -40,7 +41,9 @@ export default function App() {
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/profile" element={<ProfilePage role="MEMBER" />} />
         <Route path="/member/security" element={<ChangePasswordPage />} />
         {/* US-47: inbox thông báo của member. */}
-        <Route path="/member/notifications" element={<NotificationsPage />} /></Route>
+        <Route path="/member/notifications" element={<NotificationsPage />} />
+        {/* US-17: gói tập, lịch sử mua và chứng từ của member (chỉ đọc). */}
+        <Route path="/member/memberships" element={<MyMembershipsPage />} /></Route>
       <Route element={<ProtectedRoute role="TRAINER" />}><Route path="/trainer/profile" element={<ProfilePage role="TRAINER" />} />
         <Route path="/trainer/security" element={<ChangePasswordPage />} />
         {/* US-24: lịch tuần và ca nháp của PT. */}
