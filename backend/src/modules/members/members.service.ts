@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { ClientSession } from 'mongodb';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { normalizeAddress, normalizeBirthDate, normalizeFullName, normalizePhone, validateObjectId } from '../../common/utils/normalization';
@@ -7,7 +8,8 @@ import { DataGuardsService } from '../../infrastructure/transaction/data-guards.
 import { AuthPrincipal } from '../auth/auth.types';
 import { IdempotencyService, transactionRequestKey } from '../operations/idempotency.service';
 import { UsersService } from '../users/users.service';
-import { CreateMemberDto, LinkMemberDto } from './members.dto';
+import { CreateMemberDto, LinkMemberDto, UpdateMemberDto } from './members.dto';
+import { Member } from './schemas/member.schema';
 import { toMemberResponse } from './members.mapper';
 import { MembersRepository } from './members.repository';
 
@@ -15,6 +17,51 @@ import { MembersRepository } from './members.repository';
 export class MembersService {
   constructor(private readonly repository: MembersRepository, private readonly users: UsersService,
     private readonly idempotency: IdempotencyService, private readonly guards: DataGuardsService) {}
+
+  async detail(memberId: string) {
+    const id = new Types.ObjectId(validateObjectId(memberId));
+    try {
+      const member = await this.repository.findById(id);
+      if (!member) throw new ApplicationError(404, 'MEMBER_NOT_FOUND', 'Không tìm thấy hồ sơ hội viên');
+      return { member: toMemberResponse(member), entitlementSummary: null, asOf: new Date().toISOString() };
+    } catch (error) { throw profileError(error); }
+  }
+
+  // A supplied transaction session belongs to the caller; its retry must rerun this entire method.
+  async update(actor: AuthPrincipal, memberId: string, input: UpdateMemberDto, session?: ClientSession) {
+    const id = new Types.ObjectId(validateObjectId(memberId));
+    if (!['fullName', 'phone', 'birthDate', 'address'].some(field => input[field as keyof UpdateMemberDto] !== undefined)) {
+      invalidField('fullName', 'Cần ít nhất một trường thông tin hồ sơ');
+    }
+    const values = {
+      ...(input.fullName !== undefined ? { full_name: normalizeFullName(input.fullName) } : {}),
+      ...(input.phone !== undefined ? { phone: normalizePhone(input.phone) } : {}),
+      ...(input.birthDate !== undefined ? { birth_date: normalizeBirthDate(input.birthDate) } : {}),
+      ...(input.address !== undefined ? { address: normalizeAddress(input.address) } : {}),
+    };
+    try {
+      const member = await this.repository.findById(id, session);
+      if (!member) throw new ApplicationError(404, 'MEMBER_NOT_FOUND', 'Không tìm thấy hồ sơ hội viên');
+      if (Number(member.version) !== input.version) throw conflict('VERSION_CONFLICT', 'Hồ sơ đã thay đổi. Hãy tải lại và đối chiếu trước khi lưu');
+      const set: Partial<Pick<Member, 'full_name' | 'phone' | 'birth_date' | 'address'>> = {};
+      const unset: Partial<Record<'birth_date' | 'address', 1>> = {};
+      for (const field of ['full_name', 'phone', 'birth_date', 'address'] as const) {
+        const value = values[field];
+        if (value === undefined) continue;
+        if (value === null) {
+          if ((field === 'birth_date' || field === 'address') && member[field] !== undefined) unset[field] = 1;
+        } else if (member[field] !== value) set[field] = value;
+      }
+      const updated = await this.repository.updateProfile(id, input.version, set, unset, new Types.ObjectId(actor.id), session);
+      if (!updated) throw conflict('VERSION_CONFLICT', 'Hồ sơ đã thay đổi. Hãy tải lại và đối chiếu trước khi lưu');
+      return { member: toMemberResponse(updated), changed: Object.keys(set).length > 0 || Object.keys(unset).length > 0 };
+    } catch (error) {
+      if (duplicateField(error, 'phone')) throw conflict('MEMBER_PHONE_EXISTS', 'Số điện thoại đã có hồ sơ hội viên');
+      // Preserve transient transaction labels so the caller can safely retry the complete transaction.
+      if (session) throw error;
+      throw profileError(error);
+    }
+  }
 
   async create(actor: AuthPrincipal, input: CreateMemberDto, clientKey: string) {
     const payload = { fullName: normalizeFullName(input.fullName), phone: normalizePhone(input.phone),
@@ -81,6 +128,10 @@ export class MembersService {
 }
 
 function conflict(code: string, message: string) { return new ApplicationError(409, code, message); }
+function profileError(error: unknown) {
+  return error instanceof ApplicationError ? error : new ApplicationError(503, 'SERVICE_UNAVAILABLE',
+    'Chưa xác định được kết quả. Hãy tải lại hồ sơ để đối chiếu trước khi sửa tiếp');
+}
 function duplicateField(error: unknown, field: string): boolean {
   return isDuplicateKey(error) && typeof error === 'object' && error !== null && 'keyPattern' in error &&
     !!(error.keyPattern as Record<string, unknown>)?.[field];

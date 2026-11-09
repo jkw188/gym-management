@@ -12,6 +12,15 @@ export class CreateMemberDto {
 export class LinkCandidatesQueryDto {
   @ApiProperty() @IsString() @MaxLength(32) phone!: string;
 }
+export class UpdateMemberDto {
+  @ApiProperty({ minimum: 0 }) @IsInt() @Min(0) version!: number;
+  @ApiPropertyOptional({ minLength: 2, maxLength: 120 }) @ValidateIf(present) @IsString() fullName?: string;
+  @ApiPropertyOptional({ maxLength: 32 }) @ValidateIf(present) @IsString() @MaxLength(32) phone?: string;
+  @ApiPropertyOptional({ nullable: true, example: '2000-01-31' })
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsString() birthDate?: string | null;
+  @ApiPropertyOptional({ nullable: true, maxLength: 255 })
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsString() address?: string | null;
+}
 export class LinkMemberDto {
   @ApiProperty() @Matches(/^[a-f\d]{24}$/i) accountId!: string;
   @ApiProperty({ minimum: 0 }) @IsInt() @Min(0) @Max(2147483646) version!: number;
@@ -33,6 +42,16 @@ export class MemberDto {
 export class LinkMemberResponseDto {
   @ApiProperty({ type: MemberDto }) member!: MemberDto;
   @ApiProperty({ example: true }) linked!: boolean;
+}
+export class UpdateMemberResponseDto {
+  @ApiProperty({ type: MemberDto }) member!: MemberDto;
+  @ApiProperty() changed!: boolean;
+}
+export class MemberDetailResponseDto {
+  @ApiProperty({ type: MemberDto }) member!: MemberDto;
+  @ApiProperty({ type: 'object', additionalProperties: false, nullable: true, description: 'Chưa khả dụng: phụ thuộc hợp đồng tổng hợp quyền lợi US-11.' })
+  entitlementSummary!: null;
+  @ApiProperty({ format: 'date-time' }) asOf!: string;
 }
 export class LinkCandidateDto {
   @ApiProperty() id!: string;
