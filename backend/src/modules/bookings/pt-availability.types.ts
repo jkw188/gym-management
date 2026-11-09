@@ -18,8 +18,8 @@ export interface PtTrainerPage {
   totalPages: number;
 }
 
-// Lý do một slot chưa đặt được (US-27-F01, F04). Mã MEMBERSHIP_NOT_ELIGIBLE, QUOTA_EXHAUSTED dùng chung với lỗi 409 của US-28.
-export type SlotReason = 'PROFILE_REQUIRED' | 'MEMBERSHIP_REQUIRED' | 'MEMBERSHIP_NOT_ELIGIBLE' | 'QUOTA_EXHAUSTED';
+// Lý do một slot chưa đặt được (US-27-F04). Bước 1 chỉ có MEMBERSHIP_REQUIRED; các lý do khác thêm khi có test TC05–TC08.
+export type SlotReason = 'MEMBERSHIP_REQUIRED';
 
 // Một slot 60 phút sinh từ ca. slotId không phải chỗ giữ (US-27-F02): xem slot không giữ chỗ.
 export interface PtSlot {
@@ -44,6 +44,13 @@ export interface AvailableTrainerRow {
   _id: Types.ObjectId;
   display_name: string;
   specialty?: string;
+}
+
+// Điều kiện một PT được coi là khả dụng; AvailabilityService quyết định giá trị, repository chỉ dùng để lọc.
+export interface TrainerAvailabilityRule {
+  trainerStatus: string;
+  accountStatus: string;
+  roleCode: string;
 }
 
 // Khoảng giờ đã bận lấy từ DB (lớp hoặc buổi PT).

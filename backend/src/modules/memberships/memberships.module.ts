@@ -31,7 +31,5 @@ import { ServiceSaleSchema } from './schemas/service-sale.schema';
   ],
   controllers: [MeMembershipsController],
   providers: [MeMembershipsService, MeMembershipsRepository],
-  // US-27-F04: xem giờ PT đọc gói/sale/giao dịch/số buổi BOOKED qua cùng repository này.
-  exports: [MeMembershipsRepository],
 })
 export class MembershipsModule {}

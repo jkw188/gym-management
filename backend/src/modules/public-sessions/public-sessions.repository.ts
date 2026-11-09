@@ -48,7 +48,7 @@ export class PublicSessionsRepository {
     return this.sessions.find(
       { trainer_id: trainerId, status: 'PUBLISHED', start_at: { $lt: to }, end_at: { $gt: from } },
       { _id: 0, start_at: 1, end_at: 1 },
-    ).lean<{ start_at: Date; end_at: Date }[]>().exec();
+    ).maxTimeMS(5000).lean<{ start_at: Date; end_at: Date }[]>().exec();
   }
 
   // US-26-F03: tên PT = accounts.full_name qua trainers.account_id. Chỉ lấy đúng field cần, không đọc phone/email.
