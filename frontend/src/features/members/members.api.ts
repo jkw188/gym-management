@@ -6,9 +6,10 @@ export interface Member {
 }
 export interface MemberInput { fullName: string; phone: string; birthDate?: string; address?: string }
 export interface LinkCandidate { id: string; fullName: string; phone: string; canLink: boolean }
+export type VerificationMethod = 'IN_PERSON_ACCOUNT' | 'IN_PERSON_DOCUMENT';
 export interface LinkInput {
   accountId: string; version: number;
-  verificationMethod: 'IN_PERSON_ACCOUNT' | 'IN_PERSON_DOCUMENT'; verificationNote: string;
+  verificationMethod: VerificationMethod; verificationNote: string;
 }
 export interface LinkResult { member: Member; linked: boolean }
 export type MemberOperation = 'MEMBER_CREATE' | 'MEMBER_LINK';
