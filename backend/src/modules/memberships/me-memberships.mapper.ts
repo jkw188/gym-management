@@ -4,12 +4,13 @@ import { fromVndDecimal } from '../../common/utils/vnd-money';
 import { Invoice } from '../payments/schemas/invoice.schema';
 import { Payment } from '../payments/schemas/payment.schema';
 import { Transaction } from '../payments/schemas/transaction.schema';
-import { MeInvoiceDto, MeMembershipDto, MeServiceSaleDto, MeTransactionDto } from './me-memberships.types';
+import { MeInvoiceDto, MeMembershipDto, MeMembershipState, MeServiceSaleDto, MeTransactionDto } from './me-memberships.types';
 import { Membership } from './schemas/membership.schema';
 import { ServiceSale } from './schemas/service-sale.schema';
 
-// US-17-F02: tên, quyền lợi, kỳ, quota lấy từ snapshot của sale, không đọc lại gói hiện tại.
-export function toMeMembership(membership: Membership, sale: ServiceSale): MeMembershipDto {
+// US-17-F02, US-17-TC08: tên, quyền lợi, kỳ, quota lấy từ snapshot của sale, không đọc lại gói hiện tại.
+// state (timeState, quota PT) do service tính sẵn.
+export function toMeMembership(membership: Membership, sale: ServiceSale, state: MeMembershipState): MeMembershipDto {
   return {
     id: membership._id.toHexString(),
     serviceSaleId: sale._id.toHexString(),
@@ -23,6 +24,10 @@ export function toMeMembership(membership: Membership, sale: ServiceSale): MeMem
     endDate: sale.end_date,
     sessionsQuota: Number(sale.sessions_snapshot),
     sessionsUsed: Number(membership.sessions_used),
+    ...(state.kind ? { kind: state.kind } : {}),
+    timeState: state.timeState,
+    sessionsReserved: state.sessionsReserved,
+    sessionsAvailable: state.sessionsAvailable,
   };
 }
 

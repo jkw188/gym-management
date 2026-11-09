@@ -3,6 +3,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
+import { PtBookingSchema } from '../bookings/schemas/pt-booking.schema';
 import { MembersDataModule } from '../members/members-data.module';
 import { InvoiceSchema } from '../payments/schemas/invoice.schema';
 import { PaymentSchema } from '../payments/schemas/payment.schema';
@@ -21,6 +22,8 @@ import { ServiceSaleSchema } from './schemas/service-sale.schema';
       { name: 'Transaction', schema: TransactionSchema },
       { name: 'Payment', schema: PaymentSchema },
       { name: 'Invoice', schema: InvoiceSchema },
+      // US-17 bước 2: đếm buổi PT BOOKED (US-28 chưa có nên khai báo tại đây, chỉ đọc).
+      { name: 'PtBooking', schema: PtBookingSchema },
     ]),
     MembersDataModule,
     // ServerClock (EN-02): ngày hôm nay theo giờ Việt Nam để lọc timeState.

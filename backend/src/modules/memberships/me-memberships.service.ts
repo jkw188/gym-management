@@ -1,4 +1,4 @@
-// Tầng nghiệp vụ (US-17 bước 1): Member xem gói, lần mua, giao dịch, chứng từ của CHÍNH mình.
+// Tầng nghiệp vụ (US-17 bước 1–2): Member xem gói, lần mua, giao dịch, chứng từ của CHÍNH mình; tính timeState và quota PT.
 // Chủ thể luôn lấy từ account đang đăng nhập qua MemberOwnerReader (US-17-F01); chỉ đọc, không ghi gì (US-17-F05).
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
@@ -10,8 +10,13 @@ import { MeMembershipsRepository, SaleFilter } from './me-memberships.repository
 import {
   MeInvoiceDto, MeListPage, MeListQuery, MeMembershipDto, MeMembershipsQuery, MeServiceSaleDto, MeTransactionDto, TimeState,
 } from './me-memberships.types';
+import { Membership } from './schemas/membership.schema';
+import { ServiceSale } from './schemas/service-sale.schema';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
+
+// Một kỳ gói cùng sale nguồn của nó (sale đã lọc theo member_id).
+interface MembershipWithSale { membership: Membership; sale: ServiceSale }
 
 // US-17-TC02: "của người khác" và "không tồn tại" trả CÙNG mã lỗi và thông điệp, để không lộ dữ liệu của ai đang có.
 const notFound = (what: string) => new ApplicationError(404, 'NOT_FOUND', `Không tìm thấy ${what}`);
@@ -35,12 +40,12 @@ export class MeMembershipsService {
     const total = await this.repository.countMemberships(saleIds, query.storedStatus);
     // Đọc sale của các gói trên trang để lấy snapshot; vẫn lọc theo member_id.
     const sales = await this.repository.findSalesByIds(memberId, memberships.map(item => item.service_sale_id));
-    const items: MeMembershipDto[] = [];
+    const pairs: MembershipWithSale[] = [];
     for (const membership of memberships) {
       const sale = sales.find(item => item._id.equals(membership.service_sale_id));
-      if (sale) items.push(toMeMembership(membership, sale));
+      if (sale) pairs.push({ membership, sale });
     }
-    return toPage(items, query, total);
+    return toPage(await this.toMembershipDtos(memberId, pairs), query, total);
   }
 
   // US-17-TC01, US-17-TC02: chi tiết kỳ gói; gói phải nối được tới sale của chính member.
@@ -53,7 +58,27 @@ export class MeMembershipsService {
     if (!membership) throw notFound('gói tập');
     const sale = await this.repository.findOwnSale(memberId, membership.service_sale_id);
     if (!sale) throw notFound('gói tập');
-    return toMeMembership(membership, sale);
+    const [dto] = await this.toMembershipDtos(memberId, [{ membership, sale }]);
+    return dto;
+  }
+
+  // US-17 bước 2: tính kind, timeState, quota PT cho các gói (đã xác nhận là của member) rồi đổi sang DTO.
+  // Chỉ 2 truy vấn cho cả trang: transaction (lấy kind) và đếm BOOKED, không truy vấn lặp từng gói.
+  private async toMembershipDtos(memberId: Types.ObjectId, pairs: MembershipWithSale[]): Promise<MeMembershipDto[]> {
+    const today = this.clock.today();
+    const transactions = await this.repository.findOwnTransactionsByIds(memberId, pairs.map(pair => pair.sale.transaction_id));
+    // US-17-F03: chỉ buổi BOOKED mới giữ chỗ (COMPLETED đã nằm trong sessions_used, CANCELLED trả lại buổi).
+    const booked = await this.repository.countBookingsByStatus(pairs.map(pair => pair.membership._id), 'BOOKED');
+    return pairs.map(({ membership, sale }) => {
+      const transaction = transactions.find(item => item._id.equals(sale.transaction_id));
+      const reserved = booked.get(membership._id.toHexString()) ?? 0;
+      return toMeMembership(membership, sale, {
+        kind: transaction?.kind,
+        timeState: timeStateOf(sale.start_date, sale.end_date, today),
+        sessionsReserved: reserved,
+        sessionsAvailable: availableSessions(Number(sale.sessions_snapshot), Number(membership.sessions_used), reserved),
+      });
+    });
   }
 
   // US-17-TC01, US-17-TC03: danh sách lần mua của member.
@@ -120,11 +145,27 @@ export class MeMembershipsService {
 //   CURRENT:   start_date <= hôm nay <= end_date
 //   SCHEDULED: start_date > hôm nay
 //   EXPIRED:   end_date < hôm nay
+// Bộ lọc (timeStateFilter) và nhãn từng gói (timeStateOf) đặt cạnh nhau để luôn dùng CÙNG một luật.
 function timeStateFilter(timeState: TimeState | undefined, today: string): SaleFilter {
   if (timeState === 'CURRENT') return { startDateOnOrBefore: today, endDateOnOrAfter: today };
   if (timeState === 'SCHEDULED') return { startDateAfter: today };
   if (timeState === 'EXPIRED') return { endDateBefore: today };
   return {};
+}
+
+// US-17-TC05: nhãn thời gian của một gói. Ngày dạng YYYY-MM-DD nên so sánh chuỗi đúng bằng so sánh ngày.
+// Chỉ tính để hiển thị, không ghi lại memberships.status (storedStatus không đổi ngầm).
+function timeStateOf(startDate: string, endDate: string, today: string): TimeState {
+  if (startDate > today) return 'SCHEDULED';
+  if (endDate < today) return 'EXPIRED';
+  return 'CURRENT';
+}
+
+// US-17-F03, US-17-TC07: số buổi PT còn đặt được = quota − đã dùng − đang giữ chỗ, không nhỏ hơn 0.
+// used đã gồm phần mang sang khi nâng cấp, nên chỉ dùng số của chính gói này, không cộng các gói cũ.
+// Gói GYM có quota 0 nên luôn ra 0; giao diện dựa vào kind để hiện "không áp dụng" thay vì "hết buổi".
+function availableSessions(quota: number, used: number, reserved: number): number {
+  return Math.max(quota - used - reserved, 0);
 }
 
 // ID sai định dạng là dữ liệu sai → 400; đúng định dạng mà không có/của người khác → 404.

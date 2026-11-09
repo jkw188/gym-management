@@ -1,8 +1,9 @@
-// Tầng dữ liệu (US-17 bước 1): nơi duy nhất ĐỌC service_sales, memberships, transactions, payments, invoices cho API cá nhân.
-// Spec US-17 mục 2: mọi truy vấn lọc chủ sở hữu (member_id) ngay trong DB, không tải hết rồi lọc ở nơi khác. Không có hàm ghi.
+// Tầng dữ liệu (US-17 bước 1–2): nơi duy nhất ĐỌC service_sales, memberships, transactions, payments, invoices, pt_bookings
+// cho API cá nhân. Spec US-17 mục 2: mọi truy vấn lọc chủ sở hữu (member_id) ngay trong DB, không tải hết rồi lọc. Không có hàm ghi.
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { QueryFilter, Model, Types } from 'mongoose';
+import { PtBooking, PtBookingStatus } from '../bookings/schemas/pt-booking.schema';
 import { Invoice } from '../payments/schemas/invoice.schema';
 import { Payment, PaymentStatus } from '../payments/schemas/payment.schema';
 import { Transaction, TransactionKind } from '../payments/schemas/transaction.schema';
@@ -30,7 +31,21 @@ export class MeMembershipsRepository {
     @InjectModel('Transaction') private readonly transactions: Model<Transaction>,
     @InjectModel('Payment') private readonly payments: Model<Payment>,
     @InjectModel('Invoice') private readonly invoices: Model<Invoice>,
+    @InjectModel('PtBooking') private readonly bookings: Model<PtBooking>,
   ) {}
+
+  // ----- pt_bookings: chỉ gọi với membership đã xác nhận là của member -----
+
+  // Đếm buổi PT theo từng gói, trạng thái do service quyết định. Trả Map<membershipId hex, số buổi>; gói không có buổi nào thì không có trong Map.
+  async countBookingsByStatus(membershipIds: Types.ObjectId[], status: PtBookingStatus): Promise<Map<string, number>> {
+    const rows = await this.bookings.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { membership_id: { $in: membershipIds }, status } },
+      { $group: { _id: '$membership_id', count: { $sum: 1 } } },
+    ]).option({ maxTimeMS: 5000 }).exec();
+    const counts = new Map<string, number>();
+    for (const row of rows) counts.set(row._id.toHexString(), row.count);
+    return counts;
+  }
 
   // ----- service_sales: luôn có điều kiện member_id -----
 

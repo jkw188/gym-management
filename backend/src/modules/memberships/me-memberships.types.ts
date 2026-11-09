@@ -19,6 +19,19 @@ export interface MeMembershipDto {
   endDate: string;
   sessionsQuota: number;
   sessionsUsed: number;
+  // Bước 2 (US-17-F02, F03): các giá trị service tính thêm, xem MeMembershipState.
+  kind?: TransactionKind;
+  timeState: TimeState;
+  sessionsReserved: number;
+  sessionsAvailable: number;
+}
+
+// Phần service tính cho một kỳ gói; mapper chỉ chép sang MeMembershipDto, không tự tính.
+export interface MeMembershipState {
+  kind?: TransactionKind;          // GYM/PT lấy từ transaction của sale; thiếu nếu dữ liệu lệch chủ
+  timeState: TimeState;
+  sessionsReserved: number;
+  sessionsAvailable: number;
 }
 
 // Một lần mua gói của Member; status lấy từ transaction của sale.
