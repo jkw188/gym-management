@@ -10,11 +10,14 @@ import { MemberLinkEventSchema } from './schemas/member-link-event.schema';
 import { MembersRepository } from './members.repository';
 import { MembersService } from './members.service';
 import { MembersController } from './members.controller';
+import { MembersQueryRepository } from './members-query.repository';
+import { MembersQueryService } from './members-query.service';
+import { ServerClock } from '../../common/utils/business-date';
 
 @Module({
   imports: [MongooseModule.forFeature([{ name: 'Member', schema: MemberSchema },
     { name: 'MemberLinkEvent', schema: MemberLinkEventSchema }]), UsersModule, OperationsModule, TransactionModule],
-  controllers: [MembersController], providers: [MembersRepository, MembersService],
+  controllers: [MembersController], providers: [MembersRepository, MembersService, MembersQueryRepository, MembersQueryService, ServerClock],
   exports: [MembersRepository],
 })
 export class MembersModule {}

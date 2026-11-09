@@ -1,16 +1,20 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiClient, ApiError } from '../../api/client';
 import { MemberDetailPage } from './MemberDetailPage';
-import { membersApi, type Member } from './members.api';
+import { membersApi, type Member, type MemberDetail } from './members.api';
 import { resolveReturnTo } from '../auth/auth.routes';
 
 const member: Member = { id: '123456789012345678901234', memberCode: 'HV-123456789012345678901234',
   fullName: 'Hội viên gốc', phone: '+84901234567', birthDate: '2000-02-29', address: 'Quận 1',
   accountId: '223456789012345678901234', version: 3, createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-01T00:00:00.000Z' };
-const detailOf = (value = member) => ({ member: value, entitlementSummary: null, asOf: value.updatedAt });
+const detailOf = (value = member): MemberDetail => ({ member: value, entitlementSummary: { GYM: ['NONE'], PT: ['NONE'] },
+  asOf: value.updatedAt, businessDate: '2026-11-01' });
+
+beforeEach(() => vi.spyOn(membersApi, 'memberships').mockResolvedValue({ items: [], page: 1, limit: 20, total: 0,
+  totalPages: 0, asOf: member.updatedAt, businessDate: '2026-11-01' }));
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 function mount() {

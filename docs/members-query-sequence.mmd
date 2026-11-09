@@ -1,0 +1,38 @@
+sequenceDiagram
+    actor Operator as Staff/Admin (UC-17)
+    participant UI as React /staff|admin/members
+    participant Guard as JWT + RolesGuard
+    participant API as MembersController
+    participant Query as MembersQueryService
+    participant Repo as MembersQueryRepository
+    participant DB as MongoDB
+
+    Operator->>UI: Tìm q, chọn kind và membershipState (US-11-F01/F02)
+    UI->>UI: Vô hiệu hóa phản hồi cũ, debounce 300ms, về trang 1
+    UI->>Guard: GET /api/members?q&kind&membershipState&page&limit
+    Guard->>API: Chỉ STAFF/ADMIN với phiên hợp lệ
+    API->>Query: DTO allowlist, enum, q tối đa 120, limit tối đa 100
+    Query->>Query: Lấy asOf một lần, businessDate Việt Nam cùng thời điểm
+    Query->>Repo: Tìm literal / chuẩn hóa phone đầy đủ
+    Repo->>DB: Aggregate members, sort created_at DESC rồi _id DESC
+    Repo->>DB: Lookup service_sales → transactions đúng member_id → memberships
+    Note over Repo,DB: Chỉ ACTIVE và SETTLED tính CURRENT/SCHEDULED/EXPIRED theo ngày VN, không N+1
+    Repo->>DB: Lọc trạng thái trong scope kind rồi facet items/count
+    DB-->>UI: Items với summary GYM/PT, pagination, asOf và businessDate
+
+    Operator->>UI: Mở hồ sơ
+    UI->>Guard: GET /api/members/:id
+    Guard->>Query: Kiểm quyền, ID sai 400
+    Query->>Repo: Projection MemberDto + summary, giữ version US-10
+    DB-->>UI: Hồ sơ hoặc 404 MEMBER_NOT_FOUND
+    UI->>Guard: GET /api/members/:id/memberships?page&limit
+    Query->>Repo: Join ID và owner, sort thời điểm transaction + membership _id
+    DB-->>UI: storedStatus riêng timeState, tên/ngày/quota snapshot từ sale
+    Operator->>UI: Chọn lịch sử giao dịch
+    UI->>Guard: GET /api/members/:id/transactions?page&limit
+    Query->>Repo: Match transaction.member_id, sort và phân trang trên server
+    Repo->>DB: Lookup ID payment SUCCEEDED khi SETTLED và invoice đã có
+    DB-->>UI: TransactionDto, số tiền chuỗi VND, ID chỉ khi dữ liệu tồn tại
+    Note over UI,DB: PENDING chưa cấp gói; không suy khoản thu từ status transaction
+    Note over Query,DB: GET không ghi, không khóa, không seed; mỗi response có thời điểm đọc riêng (F04/F05)
+    Note over UI,DB: Các trang không phải snapshot toàn lịch sử; tải lại khi cần đối chiếu, không cộng thành báo cáo

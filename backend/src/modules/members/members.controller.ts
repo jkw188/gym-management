@@ -9,6 +9,9 @@ import { CreateMemberDto, LinkCandidatesQueryDto, LinkCandidatesResponseDto, Lin
   MemberDetailResponseDto, UpdateMemberDto, UpdateMemberResponseDto } from './members.dto';
 import { MembersService } from './members.service';
 import { MemberProfileErrorFilter } from './member-profile-error.filter';
+import { MembersQueryService } from './members-query.service';
+import { MemberDetailQueryDto, MemberListResponseDto, MemberMembershipPageDto, MemberPaginationDto,
+  MembersQueryDto, MemberTransactionPageDto } from './members-query.dto';
 
 @ApiTags('members') @ApiBearerAuth() @Roles('STAFF', 'ADMIN')
 @ApiResponse({ status: 400, type: ErrorResponseDto }) @ApiResponse({ status: 401, type: ErrorResponseDto })
@@ -16,13 +19,22 @@ import { MemberProfileErrorFilter } from './member-profile-error.filter';
 @ApiResponse({ status: 409, type: ErrorResponseDto }) @ApiResponse({ status: 503, type: ErrorResponseDto })
 @Controller('members')
 export class MembersController {
-  constructor(private readonly members: MembersService) {}
+  constructor(private readonly members: MembersService, private readonly queries: MembersQueryService) {}
+
+  @Get() @ApiOkResponse({ type: MemberListResponseDto })
+  list(@Query() query: MembersQueryDto) { return this.queries.list(query); }
 
   @Get('link-candidates') @ApiOkResponse({ type: LinkCandidatesResponseDto })
   candidates(@Query() query: LinkCandidatesQueryDto) { return this.members.linkCandidates(query.phone); }
 
   @Get(':id') @UseFilters(MemberProfileErrorFilter) @ApiOkResponse({ type: MemberDetailResponseDto })
-  detail(@Param('id') id: string) { return this.members.detail(id); }
+  detail(@Param('id') id: string, @Query() _query: MemberDetailQueryDto) { return this.queries.detail(id); }
+
+  @Get(':id/memberships') @ApiOkResponse({ type: MemberMembershipPageDto })
+  memberships(@Param('id') id: string, @Query() query: MemberPaginationDto) { return this.queries.memberships(id, query); }
+
+  @Get(':id/transactions') @ApiOkResponse({ type: MemberTransactionPageDto })
+  transactions(@Param('id') id: string, @Query() query: MemberPaginationDto) { return this.queries.transactions(id, query); }
 
   @Patch(':id') @UseFilters(MemberProfileErrorFilter) @ApiOkResponse({ type: UpdateMemberResponseDto })
   update(@CurrentUser() actor: AuthPrincipal, @Param('id') id: string, @Body() input: UpdateMemberDto) {
