@@ -32,6 +32,11 @@ export class MembersRepository implements OnModuleInit {
   async hasUnlinkedPhone(phone: string): Promise<boolean> {
     return !!await this.members.exists({ phone, account_id: null }).maxTimeMS(5000).exec();
   }
+  // US-17-F01: tìm hồ sơ đã liên kết với account đang đăng nhập; chỉ lấy _id, không tìm theo phone.
+  async findIdByAccountId(accountId: Types.ObjectId): Promise<Types.ObjectId | null> {
+    const member = await this.members.findOne({ account_id: accountId }, { _id: 1 }).maxTimeMS(5000).lean().exec();
+    return member ? member._id : null;
+  }
   async isAccountLinked(accountId: Types.ObjectId, session?: ClientSession): Promise<boolean> {
     return !!await this.members.exists({ account_id: accountId }).session(session ?? null).exec();
   }
