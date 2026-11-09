@@ -18,15 +18,6 @@ export class MembersService {
   constructor(private readonly repository: MembersRepository, private readonly users: UsersService,
     private readonly idempotency: IdempotencyService, private readonly guards: DataGuardsService) {}
 
-  async detail(memberId: string) {
-    const id = new Types.ObjectId(validateObjectId(memberId));
-    try {
-      const member = await this.repository.findById(id);
-      if (!member) throw new ApplicationError(404, 'MEMBER_NOT_FOUND', 'Không tìm thấy hồ sơ hội viên');
-      return { member: toMemberResponse(member), entitlementSummary: null, asOf: new Date().toISOString() };
-    } catch (error) { throw profileError(error); }
-  }
-
   // A supplied transaction session belongs to the caller; its retry must rerun this entire method.
   async update(actor: AuthPrincipal, memberId: string, input: UpdateMemberDto, session?: ClientSession) {
     const id = new Types.ObjectId(validateObjectId(memberId));

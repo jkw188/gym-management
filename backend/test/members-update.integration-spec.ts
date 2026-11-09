@@ -104,7 +104,8 @@ describe('US-10: profile update with real MongoDB indexes, JWT and concurrent wr
     for (const field of ['_id', 'id', 'member_code', 'service_revision', 'created_by', 'created_at']) expect(after[field]).toEqual(before[field]);
     const detail = await get(member.id).expect(200);
     expect(detail.body.member).toEqual(result.body.member);
-    expect(detail.body.entitlementSummary).toBeNull(); expect(Number.isNaN(Date.parse(detail.body.asOf))).toBe(false);
+    expect(detail.body.entitlementSummary).toEqual({ GYM: ['NONE'], PT: ['NONE'] });
+    expect(Number.isNaN(Date.parse(detail.body.asOf))).toBe(false);
     expect(Object.keys(result.body.member).sort()).toEqual(['id', 'memberCode', 'fullName', 'phone', 'birthDate', 'address', 'version', 'createdAt', 'updatedAt'].sort());
   });
 

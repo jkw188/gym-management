@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
-import { membersApi, type Member } from './members.api';
+import { membersApi, type Member, type MemberDetail } from './members.api';
+import { MemberEntitlements, MemberReadTime } from './MemberEntitlements';
+import { MemberHistory } from './MemberHistory';
 
 const fields = ['fullName', 'phone', 'birthDate', 'address'] as const;
 type Field = typeof fields[number];
@@ -43,7 +45,9 @@ export function MemberDetailPage() {
 }
 
 function MemberProfileEditor({ id }: { id: string }) {
+  const { pathname } = useLocation();
   const [member, setMember] = useState<Member | null>(null);
+  const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [draft, setDraft] = useState<Draft>({ fullName: '', phone: '', birthDate: '', address: '' });
   const [editing, setEditing] = useState(false);
   const [pending, setPending] = useState(true);
@@ -62,7 +66,7 @@ function MemberProfileEditor({ id }: { id: string }) {
     alive.current = true;
     const controller = new AbortController();
     void membersApi.detail(id, controller.signal).then(result => {
-      if (!controller.signal.aborted) { setMember(result.member); setDraft(draftOf(result.member)); }
+      if (!controller.signal.aborted) { setMember(result.member); setDetail(result); setDraft(draftOf(result.member)); }
     }, cause => { if (!controller.signal.aborted) report(cause); }).finally(() => {
       if (!controller.signal.aborted) setPending(false);
     });
@@ -87,7 +91,7 @@ function MemberProfileEditor({ id }: { id: string }) {
     try {
       const result = await membersApi.detail(id);
       if (!alive.current) return;
-      setMember(result.member); setDraft(draftOf(result.member)); setEditing(edit);
+      setMember(result.member); setDetail(result); setDraft(draftOf(result.member)); setEditing(edit);
       setErrors({}); setBlocked(false); setStopped(false); setConfirmReload(false);
     } catch (cause) { if (alive.current) report(cause); }
     finally { busy.current = false; if (alive.current) setPending(false); }
@@ -131,6 +135,7 @@ function MemberProfileEditor({ id }: { id: string }) {
 
   return <section className="auth-card" aria-busy={pending}>
     <h2>Hồ sơ hội viên</h2>
+    <Link to={pathname.startsWith('/admin') ? '/admin/members' : '/staff/members'}>Về danh sách hội viên</Link>
     <p>Thông tin hội viên độc lập với thông tin tài khoản đăng nhập. Sửa hồ sơ không đổi tài khoản hoặc gói tập.</p>
     {pending && <p role="status">Đang xử lý…</p>}
     {error && <div role="alert"><p>{error.message}</p>{error.requestId && <small>Mã tra cứu: {error.requestId}</small>}</div>}
@@ -139,6 +144,7 @@ function MemberProfileEditor({ id }: { id: string }) {
     {!member && !pending && !stopped && <button type="button" onClick={() => void load(false)}>Tải lại hồ sơ</button>}
     {member && !stopped && <>
       <dl><dt>Mã hội viên</dt><dd>{member.memberCode}</dd><dt>Liên kết tài khoản (chỉ đọc)</dt><dd>{member.accountId ?? 'Chưa liên kết'}</dd></dl>
+      {detail && <><MemberEntitlements summary={detail.entitlementSummary} /><MemberReadTime time={detail} /></>}
       {!editing ? <><dl><dt>Họ tên</dt><dd>{member.fullName}</dd><dt>Số điện thoại</dt><dd>{member.phone}</dd>
         <dt>Ngày sinh</dt><dd>{member.birthDate ?? 'Chưa có'}</dd><dt>Địa chỉ</dt><dd>{member.address ?? 'Chưa có'}</dd></dl>
         <button type="button" disabled={pending} onClick={() => void load(true)}>Chỉnh sửa</button></> : <>
@@ -167,6 +173,8 @@ function MemberProfileEditor({ id }: { id: string }) {
         <button type="button" autoFocus disabled={pending} onClick={() => void load(false)}>Xác nhận tải lại</button>
         <button type="button" disabled={pending} onClick={closeReload}>Giữ bản nhập</button>
       </div>}
+      {!editing && <><button type="button" disabled={pending} onClick={() => void load(false)}>Làm mới hồ sơ và quyền lợi</button>
+        <MemberHistory id={id} /></>}
     </>}
   </section>;
 }

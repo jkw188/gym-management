@@ -1,12 +1,14 @@
 classDiagram
     class MembersController {
+        list(MembersQueryDto)
         detail(id)
+        memberships(id, pagination)
+        transactions(id, pagination)
         update(actor, id, UpdateMemberDto)
         create(actor, input, key)
         link(actor, id, input, key)
     }
     class MembersService {
-        detail(memberId)
         update(actor, memberId, input, session?)
     }
     class MembersRepository {
@@ -51,6 +53,16 @@ classDiagram
     }
     MembersController --> UpdateMemberDto : validates
     MembersController --> MembersService
+    MembersController --> MembersQueryService : US-11 read only
+    MembersQueryService --> MembersQueryRepository : aggregation and projection
+    MembersQueryService --> MemberDto : reuse US-09 mapper and version
+    MembersQueryService --> ServerClock : asOf and Vietnam businessDate
+    MembersQueryRepository --> Member : no writes or locks
+    MembersQueryRepository --> ServiceSale : member_id and transaction_id
+    MembersQueryRepository --> Membership : service_sale_id
+    MembersQueryRepository --> Transaction : verify member_id
+    Transaction --> Payment : existing SUCCEEDED only when SETTLED
+    Transaction --> Invoice : existing only
     MembersService --> MembersRepository
     MembersRepository --> Member : atomic CAS with version
     MembersService --> MemberDto : explicit allowlist mapper

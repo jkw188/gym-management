@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { VERIFICATION_METHODS, VerificationMethod } from './schemas/member-link-event.schema';
+import { EntitlementSummaryDto, MemberReadTimeDto } from './members-query.dto';
 
 const present = (_object: unknown, value: unknown) => value !== undefined;
 export class CreateMemberDto {
@@ -47,11 +48,9 @@ export class UpdateMemberResponseDto {
   @ApiProperty({ type: MemberDto }) member!: MemberDto;
   @ApiProperty() changed!: boolean;
 }
-export class MemberDetailResponseDto {
+export class MemberDetailResponseDto extends MemberReadTimeDto {
   @ApiProperty({ type: MemberDto }) member!: MemberDto;
-  @ApiProperty({ type: 'object', additionalProperties: false, nullable: true, description: 'Chưa khả dụng: phụ thuộc hợp đồng tổng hợp quyền lợi US-11.' })
-  entitlementSummary!: null;
-  @ApiProperty({ format: 'date-time' }) asOf!: string;
+  @ApiProperty({ type: EntitlementSummaryDto }) entitlementSummary!: EntitlementSummaryDto;
 }
 export class LinkCandidateDto {
   @ApiProperty() id!: string;
