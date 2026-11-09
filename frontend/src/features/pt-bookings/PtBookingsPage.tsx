@@ -61,6 +61,7 @@ export function PtBookingsPage() {
 
   // Số thứ tự lần tải mới nhất: kết quả cũ về muộn (bộ lọc/lựa chọn đã đổi) thì bỏ qua.
   const latestBookings = useRef(0);
+  const latestBase = useRef(0);
   const latestAvailability = useRef(0);
 
   const loadBookings = useCallback(async () => {
@@ -78,13 +79,16 @@ export function PtBookingsPage() {
 
   const loadBase = useCallback(async () => {
     if (!accountId) return;
+    const loadNumber = ++latestBase.current;
     setBaseError('');
     try {
       const [trainerPage, usablePlans] = await Promise.all([ptBookingsApi.listTrainers(), ptBookingsApi.listUsablePtMemberships()]);
+      // Kết quả của lần tải cũ (ví dụ của account trước) về muộn thì bỏ qua, không hiện gói/số buổi của người khác.
+      if (loadNumber !== latestBase.current) return;
       setTrainers(trainerPage.items);
       setPlans(usablePlans);
     } catch (error) {
-      setBaseError(errorMessage(error, 'Không tải được danh sách PT và gói tập.'));
+      if (loadNumber === latestBase.current) setBaseError(errorMessage(error, 'Không tải được danh sách PT và gói tập.'));
     }
   }, [accountId]);
 
@@ -115,8 +119,9 @@ export function PtBookingsPage() {
   useEffect(() => { void loadBase(); }, [loadBase]);
   useEffect(() => { void loadAvailability(); }, [loadAvailability]);
 
-  // Làm mới số buổi và giờ trống (sau khi đặt/hủy ở US-28/29 hoặc khi Member muốn xem số mới nhất).
-  async function refreshPanel() {
+  // Spec mục "Giao diện": sau đặt/hủy (US-28/29) tải lại lịch, số buổi (quota) và giờ trống; Member cũng bấm được để xem số mới nhất.
+  async function refreshAll() {
+    await loadBookings();
     await loadBase();
     await loadAvailability();
   }
@@ -205,7 +210,7 @@ export function PtBookingsPage() {
                 {!slot.bookable && slot.reason && <span> – {REASON_LABELS[slot.reason]}</span>}
               </li>)}</ul>}
           </div>}
-          <button type="button" onClick={() => void refreshPanel()}>Tải lại giờ trống và số buổi</button>
+          <button type="button" onClick={() => void refreshAll()}>Tải lại lịch, giờ trống và số buổi</button>
         </>}
     </section>
   </section>;
