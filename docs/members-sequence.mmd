@@ -1,0 +1,54 @@
+sequenceDiagram
+    actor Operator as Staff/Admin tại quầy
+    participant UI as React /staff|admin/members/new
+    participant API as JWT + RolesGuard + MembersController
+    participant Service as MembersService
+    participant Users as UsersService nội bộ
+    participant UoW as IdempotencyService + TransactionRunner
+    participant DB as MongoDB replica set
+
+    Operator->>UI: Nhập hồ sơ (UC-18, Q12, US-09-F01–F03)
+    UI->>API: POST /api/members + Idempotency-Key MEMBER_CREATE
+    API->>Service: DTO allowlist, actor từ JWT
+    Service->>UoW: DTO chuẩn hóa, key, actor
+    UoW->>DB: Đọc operation_requests trong transaction
+    alt Key đã commit và payload khớp
+        DB-->>UI: 201 MemberDto gốc
+    else Ý định mới
+        UoW->>DB: Ghi security_state account-administration
+        UoW->>Users: Kiểm lại actor ACTIVE, role, session
+        UoW->>DB: Insert members, account_id bỏ field, service_revision Int64=0
+        UoW->>DB: Insert operation_requests, commit majority
+        DB-->>UI: 201 MemberDto, mã HV-ObjectId
+    end
+    Note over UI,DB: Tạo hồ sơ không tạo account, membership hay thanh toán
+
+    Operator->>UI: Chọn bước liên kết riêng (US-09-F04–F06)
+    UI->>API: GET /api/members/link-candidates?phone=đầy đủ
+    API->>Users: Lookup exact phone; không mở danh sách Admin cho Staff
+    Users-->>UI: Tối đa một MEMBER ACTIVE, canLink; không credential
+    Operator->>Operator: Đối chiếu trực tiếp tài khoản/giấy tờ
+    Operator->>UI: Chủ động chọn account, phương pháp, ghi nhận và xác nhận
+    UI->>API: POST /api/members/:id/link + key MEMBER_LINK
+    API->>Service: accountId, version, verificationMethod, verificationNote
+    Service->>UoW: Payload chuẩn hóa + targetId
+    UoW->>DB: Transaction: kiểm operation_requests
+    UoW->>DB: Ghi account-administration trước, members.service_revision sau
+    Note over UoW,DB: US-07/08 dùng cùng khóa; sale/settlement EN-02 dùng cùng member guard
+    UoW->>Users: Kiểm lại actor/session và target MEMBER ACTIVE, không trainer
+    UoW->>DB: Kiểm member version, chưa link, account chưa được member khác dùng, phone khớp
+    alt Đủ điều kiện
+        UoW->>DB: CAS account_id, version+1, updated_by/updated_at
+        UoW->>DB: Insert member_link_events với verified_by/verified_at từ server
+        UoW->>DB: Insert operation_requests; commit tất cả
+        DB-->>UI: 200 member + linked=true
+    else Xung đột hoặc lỗi ghi
+        UoW->>DB: Abort toàn bộ transaction link
+        DB-->>UI: 400/401/403/404/409/503 theo EN01-D03
+        Note over UI,DB: Hồ sơ tạo trước vẫn hợp lệ, không tự xóa hoặc ép link
+    end
+    opt Mất phản hồi
+        UI->>API: GET /api/operations/MEMBER_CREATE|MEMBER_LINK/:key
+        API-->>UI: COMMITTED + body gốc hoặc OPERATION_UNKNOWN
+        Note over UI,API: Nếu chưa rõ, chỉ gửi lại cùng payload/key; giữ key trong bộ nhớ trang
+    end

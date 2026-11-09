@@ -52,6 +52,13 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .account-status-dialog textarea:focus-visible { outline: 3px solid #548bc5; outline-offset: 3px; }
 .account-status-confirm { display: flex; gap: 10px; align-items: flex-start; }
 .account-status-confirm input { width: auto; flex-shrink: 0; margin-top: 4px; }
+.member-create-page { overflow-wrap: anywhere; }
+.member-create-page fieldset { margin: 16px 0; padding: 16px; border: 1px solid #c7d2de; border-radius: 6px; }
+.member-create-page fieldset button { margin-top: 16px; }
+.member-create-page input[type="radio"], .member-create-page input[type="checkbox"] { width: auto; margin-right: 8px; }
+.member-create-page select, .member-create-page textarea { box-sizing: border-box; display: block; width: 100%; padding: 12px; font: inherit; border: 1px solid #8c9fb1; border-radius: 6px; }
+.member-create-page textarea { min-height: 100px; resize: vertical; }
+.member-create-page select:focus-visible, .member-create-page textarea:focus-visible { outline: 3px solid #548bc5; outline-offset: 3px; }
 @media (max-width: 600px) { main { margin: 24px auto; padding: 20px; } }
 
 /* US-47: inbox thông báo. Chuỗi dài không có dấu cách (URL, mã giao dịch) được ngắt dòng để không tràn khung/màn hình. */

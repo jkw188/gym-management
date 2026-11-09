@@ -37,6 +37,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "cookie-parser": "1.4",
+    "decimal.js": "10.6.0",
     "express": "^5.3.0",
     "mongodb": "~7.7.0",
     "mongoose": "^9.11.3",

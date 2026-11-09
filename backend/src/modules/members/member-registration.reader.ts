@@ -1,7 +1,12 @@
-// Tầng dữ liệu (US-01, cập nhật US-09 bước 1): hàm chỉ-đọc mà MembersModule cho module khác dùng khi khách
-// tự đăng ký tài khoản. Đọc qua MembersRepository; không mở quyền ghi collection members ra ngoài module.
 import { Injectable } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { MembersRepository } from './members.repository';
+import { MemberSchema } from './schemas/member.schema';
+
+// Chỉ mô tả các field cần đọc theo báo cáo mục 4.2.7; không cung cấp thao tác ghi hồ sơ.
+export interface MemberRegistrationRecord { phone: string; account_id?: Types.ObjectId | null }
+// US-01 keeps its read-only projection; US-09 owns the shared collection schema and constraints.
+export const MemberRegistrationSchema = MemberSchema;
 
 @Injectable()
 export class MemberRegistrationReader {

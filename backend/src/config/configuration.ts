@@ -26,6 +26,17 @@ export function readMongoConfiguration(env: NodeJS.ProcessEnv) {
   return result;
 }
 
+// Only public, stable receiving-account codes; never bank credentials.
+export function readReceivingAccounts(env: NodeJS.ProcessEnv): string[] {
+  if (!env.RECEIVING_ACCOUNTS?.trim()) return [];
+  try {
+    const codes: unknown = JSON.parse(env.RECEIVING_ACCOUNTS);
+    if (!Array.isArray(codes) || codes.some((code: unknown) => typeof code !== 'string' || !/^[A-Z0-9_-]{1,40}$/.test(code)) ||
+      new Set(codes).size !== codes.length) throw new Error();
+    return codes as string[];
+  } catch { throw new ConfigurationError('Invalid environment variables: RECEIVING_ACCOUNTS'); }
+}
+
 // Ghi TÊN biến sai vào invalid (không ghi giá trị); NODE_ENV=test bắt buộc dùng database test.
 function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: string[]) {
   const mongoUri = env.MONGODB_URI?.trim() ?? '';
@@ -37,6 +48,6 @@ function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: s
 }
 
 // Keep EN-01 validation reusable by infrastructure tools and validate Auth at application startup.
-export default () => ({ ...readConfiguration(process.env), ...readAuthConfiguration(process.env) });
+export default () => ({ ...readConfiguration(process.env), ...readAuthConfiguration(process.env), receivingAccounts: readReceivingAccounts(process.env) });
 
 import { readAuthConfiguration } from './auth.configuration';

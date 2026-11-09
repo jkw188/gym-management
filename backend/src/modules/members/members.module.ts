@@ -1,21 +1,20 @@
 // Cấu hình NestJS (US-09 bước 1–2): module hồ sơ hội viên, khai báo controller /api/members và service nghiệp vụ.
 // Dữ liệu members lấy từ MembersDataModule; tra account để liên kết qua UsersService (UsersModule).
 import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { OperationsModule } from '../operations/operations.module';
 import { UsersModule } from '../users/users.module';
-import { MembersDataModule } from './members-data.module';
-import { MembersController } from './members.controller';
+import { MemberSchema } from './schemas/member.schema';
+import { MemberLinkEventSchema } from './schemas/member-link-event.schema';
+import { MembersRepository } from './members.repository';
 import { MembersService } from './members.service';
+import { MembersController } from './members.controller';
 
 @Module({
-  imports: [
-    // OperationsModule cung cấp IdempotencyService (EN-02) để chống tạo lặp theo Idempotency-Key.
-    OperationsModule,
-    MembersDataModule,
-    // US-09 bước 2: UsersService tra account MEMBER theo đúng số phone.
-    UsersModule,
-  ],
-  controllers: [MembersController],
-  providers: [MembersService],
+  imports: [MongooseModule.forFeature([{ name: 'Member', schema: MemberSchema },
+    { name: 'MemberLinkEvent', schema: MemberLinkEventSchema }]), UsersModule, OperationsModule, TransactionModule],
+  controllers: [MembersController], providers: [MembersRepository, MembersService],
+  exports: [MembersRepository],
 })
 export class MembersModule {}
