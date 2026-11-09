@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
 import { Operation, OperationRequest } from './schemas/operation-request.schema';
+import { FINANCIAL_INDEXES, hasFinancialIndex } from '../../infrastructure/transaction/financial-integrity';
 
 export interface NewOperationRequest {
   actorId: Types.ObjectId; operation: Operation; clientKey: string; requestHash: string;
@@ -19,10 +20,9 @@ export class OperationRequestsRepository implements OnModuleInit {
   // Dev/test tự tạo index; production chỉ kiểm tra index đã có (giống các repository khác).
   async onModuleInit(): Promise<void> {
     if (this.config.get('nodeEnv') !== 'production') await this.requests.createIndexes();
-    const actual = await this.requests.collection.listIndexes().toArray();
-    for (const [key, options] of this.requests.schema.indexes()) {
-      const found = actual.some(index => JSON.stringify(index.key) === JSON.stringify(key) && Boolean(index.unique) === Boolean(options.unique));
-      if (!found) throw new Error('DATABASE_INDEXES_REQUIRED: run npm run ensure-indexes');
+    const expected = FINANCIAL_INDEXES.find(item => item.collection === 'operation_requests')!.index;
+    if (!await hasFinancialIndex(this.requests.db, 'operation_requests', expected)) {
+      throw new Error('DATABASE_INDEXES_REQUIRED: operation_requests must have a full unique index and no TTL; run npm run ensure-indexes');
     }
   }
 
@@ -34,6 +34,7 @@ export class OperationRequestsRepository implements OnModuleInit {
 
   // EN-02-D01: chỉ insert trong transaction của lệnh, nên lệnh lỗi rollback thì cũng không còn record.
   async insert(record: NewOperationRequest, session: ClientSession): Promise<void> {
+    if (!session.inTransaction()) throw new Error('OPERATION_REQUEST_TRANSACTION_REQUIRED');
     await this.requests.create([{
       actor_id: record.actorId, operation: record.operation, client_key: record.clientKey, request_hash: record.requestHash,
       result_ids: record.resultIds, response_status: record.responseStatus, response_body: record.responseBody,

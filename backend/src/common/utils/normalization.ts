@@ -37,3 +37,28 @@ export function validateObjectId(value: string): string {
   if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) invalidField('id', 'ID không hợp lệ');
   return value;
 }
+
+// Ngày hôm nay theo giờ Việt Nam, dạng YYYY-MM-DD.
+export function todayInVietnam(now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now);
+}
+
+// Ngày sinh YYYY-MM-DD phải là ngày có thật và không sau hôm nay (giờ Việt Nam). Dùng chung cho US-04 và US-09.
+export function normalizeBirthDate(value: string | null): string | null {
+  if (value === null) return null;
+  const invalid = () => invalidField('birthDate', 'Ngày sinh phải là ngày hợp lệ dạng YYYY-MM-DD');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) invalid();
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) invalid();
+  if (value > todayInVietnam()) invalidField('birthDate', 'Ngày sinh không được sau ngày hiện tại');
+  return value;
+}
+
+// Địa chỉ bỏ khoảng trắng hai đầu; rỗng coi như không có; tối đa 255 ký tự. Dùng chung cho US-04 và US-09.
+export function normalizeAddress(value: string | null): string | null {
+  if (value === null) return null;
+  const address = value.trim();
+  if (!address) return null;
+  if (address.length > 255) invalidField('address', 'Địa chỉ tối đa 255 ký tự');
+  return address;
+}

@@ -3,6 +3,7 @@
 React + TypeScript (Vite), NestJS 11 với Express và MongoDB/Mongoose, kiến trúc Modular Monolith.
 EN-01 bổ sung nền tảng dùng chung; US-02 triển khai đăng nhập theo bốn vai trò, JWT/Passport, refresh và khôi phục phiên. US-06 bổ sung danh sách, chi tiết, tạo và sửa thông tin tài khoản dành cho Admin; US-07/08 bổ sung khóa/mở khóa và đổi vai trò qua transaction bảo vệ Admin cuối cùng.
 US-01 bổ sung đăng ký tài khoản Member công khai tại `/register`.
+US-09 bổ sung tạo hồ sơ hội viên tại quầy và bước liên kết tài khoản sau đối chiếu trực tiếp, dành cho Staff/Admin tại `/staff/members/new` và `/admin/members/new`. Hồ sơ độc lập với account/gói; dùng idempotency EN-02 và transaction replica set. Hợp đồng UC-18/Q12, index, giới hạn US-11/settlement và cách retry: [docs/members-contract.md](docs/members-contract.md).
 
 ## Chuẩn bị môi trường sạch
 
@@ -55,9 +56,9 @@ Transaction nhiều document (EN-02, US-05) cần MongoDB chạy replica set; st
 npm run check-environment
 ```
 
-Lệnh chỉ đọc: in `ENVIRONMENT_READY` nếu đủ replica set và unique index `operation_requests (actor_id, operation, client_key)`; thiếu thì in `ENVIRONMENT_NOT_READY` kèm lý do và thoát mã 1, không tự tạo index.
+Lệnh kiểm topology và mọi index tài chính EN-02, rồi ghi thử/rollback; in `ENVIRONMENT_READY` khi đạt. Thiếu điều kiện thì in `ENVIRONMENT_NOT_READY` và thoát mã 1, không tự tạo index hoặc commit dữ liệu probe.
 
-TODO EN-02 bước 2: `guard_revision` cho `plans` và `transactions`, `service_revision` cho `members`, cùng migration đặt revision=0 cho document cũ, sẽ làm khi US-09/US-12/US-14 tạo các schema này.
+EN-02 cung cấp khóa ghi chung và migration Int64 cho `plans.guard_revision`, `members.service_revision`, `transactions.guard_revision` qua `ensure-indexes`; các module sở hữu nghiệp vụ phải khởi tạo revision=0 khi tạo document mới và dùng khóa trước khi kiểm tra dữ liệu.
 
 ## Frontend và health
 
@@ -234,7 +235,7 @@ US-06 có `backend/test/users.spec.ts`, `backend/test/users.integration-spec.ts`
 
 ## US-08 — Gán vai trò và thu hồi quyền (UC-29)
 
-Trong `backend`, chạy `npm run ensure-indexes`, sau đó `npm run seed:access` để upsert bốn role, chín permission S01 và mapping cố định. Lệnh seed chỉ cần cấu hình MongoDB; chạy lại giữ ID permission/mapping và không sửa account. Mapping dư bị báo lỗi để người vận hành rà soát, không tự xóa. API không seed hoặc sửa mapping; seed Admin vẫn dùng `npm run seed:admin` riêng.
+Trong `backend`, chạy `npm run ensure-indexes`, sau đó `npm run seed:access` để upsert bốn role, catalog quyền S01/S02 và mapping cố định. EN-02 bổ sung 12 quyền S02 vào 9 quyền S01. Lệnh seed chỉ cần cấu hình MongoDB; chạy lại giữ ID permission/mapping và không sửa account. Mapping dư bị báo lỗi để người vận hành rà soát, không tự xóa. API không seed hoặc sửa mapping; seed Admin vẫn dùng `npm run seed:admin` riêng.
 
 | Endpoint dành cho Admin ACTIVE | Hợp đồng |
 | --- | --- |
@@ -276,6 +277,45 @@ Frontend giữ `api`, `components`, `features`, `hooks`, `layouts`, `pages`, `ro
 - [NestJS OpenAPI](https://docs.nestjs.com/openapi/introduction)
 - [Mongoose Schema](https://mongoosejs.com/docs/api/schema.html)
 - [MongoDB NODE-7832](https://jira.mongodb.org/browse/NODE-7832): cấu hình Node OS runtime adapter tường minh để driver hoạt động trong Jest VM.
+
+## EN-02 — Hợp đồng nhất quán dữ liệu S02
+
+Đã có hạ tầng transaction/idempotency, khóa ghi chung, index/migration, tiền VND và ngày Việt Nam. **Chưa đánh dấu Done EN-02:** source hiện chưa triển khai US-09/12/14/22 (members/link, plans, sale/membership, thu/chứng từ); EN-02 không tự đặt chính sách gia hạn, nâng gói, hủy hoặc đánh số chứng từ. Test hạ tầng dựng các đơn vị công việc tối thiểu để kiểm chứng constraint, không thay cho nghiệm thu các luồng này. Ca làm việc US-24/25 đang tái sử dụng IdempotencyService; NotificationsService/outbox hiện có hỗ trợ session và phát sau commit.
+
+### Môi trường và migration (EN-02-F01, TC01–02)
+
+MongoDB dev/test phải là replica set hoặc mongos hỗ trợ transaction. Ví dụ dev riêng: chạy `mongod --replSet rs0 --dbpath <dev-directory> --bind_ip 127.0.0.1`, khởi tạo `rs.initiate()` qua mongosh và cấu hình `MONGODB_URI=mongodb://127.0.0.1:27017/?replicaSet=rs0`. Dùng DB/test-directory và cổng riêng cho test như phần EN-04. Standalone không được fallback thành các lệnh ghi rời; health/ready giữ hợp đồng ping EN-01.
+
+Trong cửa sổ bảo trì, sau backup và tạm dừng writer trên DB đích:
+
+```sh
+cd backend
+npm ci --no-audit --no-fund
+npm run ensure-indexes
+npm run seed:access
+npm run check-environment
+```
+
+`ensure-indexes` kiểm dữ liệu trùng theo mọi unique index EN-02 trước khi tạo index; trùng hoặc revision đã có sai kiểu/âm thì dừng, không xóa dữ liệu. Lệnh backfill **chỉ field còn thiếu** thành BSON Int64 `0`: plans.guard_revision, members.service_revision, transactions.guard_revision. Không đổi timestamp/version nghiệp vụ hoặc reset revision đã có. Tạo đủ index request_key, sale.transaction_id, membership.service_sale_id, invoice.transaction_id/invoice_no, payment.reference và payment.transaction_id partial `{status:"SUCCEEDED"}`, operation_requests bộ ba và notification.event_key. Không tự xóa index sai hoặc TTL; người vận hành phải rà soát chúng. Migration không thể bảo vệ khỏi writer cũ chưa tuân thủ khóa, nên phải dừng writer khi nâng cấp.
+
+`check-environment` kiểm topology và toàn bộ index (unique, collation simple, không sparse, partial đúng, operation_requests không TTL), rồi ghi thử và cố ý rollback trong session thật. Không commit record probe hoặc tự sửa môi trường. Thành công in `ENVIRONMENT_READY`; lỗi exit khác 0 và thông báo an toàn. Lệnh này cần quyền ghi/transaction, không chỉ quyền đọc.
+
+Migration cũng chuẩn hóa `operation_requests.client_key` cũ về chữ thường, giữ request_hash và kết quả; nếu phát hiện hai record cùng actor/operation và UUID chỉ khác hoa thường thì dừng để đối chiếu, không tự gộp/xóa kết quả.
+
+### Tích hợp repository/service (F02–04, D01–03, TC03–16)
+
+- Import `TransactionModule`; `TransactionRunner.run()` dùng snapshot/majority/primary, timeout driver 10 giây và luôn đóng session. Mọi repository dùng cùng connection/session; không mở transaction lồng, không `Promise.all` trong session và không socket/email/HTTP ngoài trong callback có thể chạy lại. Lỗi commit chưa rõ trả `503 OPERATION_OUTCOME_UNKNOWN`.
+- Trong mỗi callback, gọi `DataGuardsService.acquire(session, targets)` **một lần với đủ các đích**, trước khi đọc kiểm tra nghiệp vụ. Thứ tự: security_state/account-administration → plans → members → transactions; ID trong mỗi collection tăng dần. Mỗi khóa tăng revision Int64 thật; thiếu document/revision hoặc tràn Int64 thì từ chối. Link account phải dùng đúng khóa US-07/08, kiểm lại role/status cùng session; không tạo mutex khác. Lock không tự tăng business version.
+- `@IdempotencyKey()` bắt buộc UUID v4 và chuẩn hóa chữ thường; client giữ nguyên key cho cùng ý định. Service nhận actor từ principal đã qua Guard; `payload` phải là DTO đã chuẩn hóa, targetId là ID đã chuẩn hóa. Hash sắp xếp key object lồng nhau. `transactionRequestKey()` sinh SHA-256 hex64 của `actorId|operation|clientKey`, không lưu raw header vào transactions.request_key.
+- `IdempotencyService.execute()` ghi dữ liệu và operation_requests trong cùng commit. Work trả public response DTO theo allowlist của module sở hữu; chỉ JSON được lưu, credential field bị từ chối và result_ids chỉ dùng field `...Id`. Cùng key/hash trả status/body gốc; khác payload/target trả `409 IDEMPOTENCY_CONFLICT`. Duplicate bộ ba retry tối đa ba lần; không retry duplicate index nghiệp vụ khác. Không lưu IN_PROGRESS hoặc TTL tài chính.
+- `GET /api/operations/:operation/:key`: Bearer token, actor sở hữu và role hiện hành theo catalog; không nhận actorId từ query. Trả `200 {status:"COMMITTED",responseStatus,responseBody}` hoặc `404 OPERATION_UNKNOWN`. **404 có thể nghĩa là request gốc đang chạy**; client chỉ gửi lại cùng key, không tạo key mới để thử thu lại. 401/403 vẫn áp dụng khi replay/lookup.
+- `normalizeVnd`/`toVndDecimal`/`fromVndDecimal`/`addVnd`/`subtractVnd` dùng decimal.js 10.6.0 và Decimal128. API nhận chuỗi chữ số nguyên không âm ≤999999999999, không float/exponent/phần lẻ; kết quả canonical bỏ số 0 đầu. `assertPaymentAmount` bắt buộc >0 và đúng amountDue. Luồng miễn phí phải có căn cứ nghiệp vụ và không tạo payment giả.
+- `ServerClock` có thể override trong test, `today()` dùng Asia/Ho_Chi_Minh. `assertBusinessDate` và `addCalendarDays` kiểm lịch/cộng ngày, `membershipEndDate` trả startDate+durationDays−1. Timestamp vẫn UTC Date/ISO; không tin ngày hiện tại do client gửi.
+- `RECEIVING_ACCOUNTS` là JSON array mã công khai, ví dụ `["MAIN_VND"]`; trống/`[]` không cho TRANSFER, CASH độc lập. Service thu tiền tương lai phải gọi `ReceivingAccountPolicy.assertTransferAllowed(code)` trước ghi TRANSFER. Không điền credential ngân hàng. Config sai làm startup fail chỉ nêu tên biến.
+
+Catalog và `FixedPermission` dùng chung `access.policy.ts`: STAFF/ADMIN có members.read/create/update/link, serviceSales.read/create/cancel, transactions.read/confirmPayment, invoices.read; plans.manage và planPolicies.manage chỉ ADMIN. Endpoint nghiệp vụ tương lai phải dùng decorator tương ứng; việc seed catalog không tự tạo API hoặc cấp quyền qua client.
+
+Kiểm thử tập trung: `npm run build` rồi `npm test -- --runTestsByPath test/financial-values.spec.ts test/financial-integrity.integration-spec.ts test/environment-check.integration-spec.ts test/idempotency.integration-spec.ts test/transaction-runner.integration-spec.ts`. Dùng mongod 8.0.17 thật, gồm hai connection cùng DB và standalone riêng. TC05/09–12 ở financial-integrity là probe hạ tầng, còn phải chạy lại bằng API nghiệp vụ khi các US sẵn sàng. Xem [class](docs/transaction-class.mmd) và [sequence](docs/transaction-sequence.mmd); báo cáo mục 4.2 bổ sung revision, định dạng tiền/key và operation_requests.
 
 ## EN-04 — Quality gate và bằng chứng nghiệm thu
 

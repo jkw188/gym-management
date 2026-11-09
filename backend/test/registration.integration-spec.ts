@@ -144,6 +144,17 @@ describe('US-01 registration with real MongoDB indexes and US-02 login', () => {
     expect(await connection.collection('members').findOne({ _id: result.insertedId })).toEqual(before);
   });
 
+  it.each([
+    { phone: '+84901234567', account_id: new Types.ObjectId() },
+    { phone: '+84907654321' },
+  ])('TC08: linked profiles or unlinked profiles with another phone do not block registration (%j)', async member => {
+    const result = await connection.collection('members').insertOne(member);
+    const before = await connection.collection('members').findOne({ _id: result.insertedId });
+    await register().expect(201);
+    expect(await accounts.countDocuments()).toBe(1);
+    expect(await connection.collection('members').findOne({ _id: result.insertedId })).toEqual(before);
+  });
+
   it('TC09: desk creation after the offline check never links or overwrites either record', async () => {
     const passwords = app.get(PasswordService);
     const hash = passwords.hash.bind(passwords);

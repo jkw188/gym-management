@@ -1,21 +1,51 @@
 import { Injectable } from '@nestjs/common';
+import { ClientSession, Types } from 'mongoose';
 import { mapAccount, mapRole, mapUserResponse } from './account.mapper';
 import { RoleCode } from './schemas/role.schema';
 import { UsersRepository } from './users.repository';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { PasswordService } from '../../common/security/password.service';
 import { normalizeEmail, normalizeFullName, normalizePhone } from '../../common/utils/normalization';
-import { Account } from './schemas/account.schema';
+import { Account, AccountStatus } from './schemas/account.schema';
 import { CreateUserDto, ListUsersDto, UpdateUserDto } from './users.dto';
 import { duplicateIdentifier, rethrowDuplicate, versionConflict } from './account-errors';
 import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { MemberRegistrationReader } from '../members/member-registration.reader';
 import { RegisterDto } from '../auth/register.dto';
+import { ACCESS_CONTEXT, AuthPrincipal } from '../auth/auth.types';
+
+// US-09 bước 2: account có thể liên kết với hồ sơ hội viên (chỉ field cần cho quầy, không có email/role/hash).
+export interface MemberLinkCandidate { id: string; fullName: string; phone: string; hasTrainerProfile: boolean }
+// US-09 bước 3: thông tin account đích đọc trong transaction liên kết.
+export interface AccountForLink { phone: string; status: AccountStatus; roleCode?: RoleCode; hasTrainerProfile: boolean }
 
 @Injectable()
 export class UsersService {
   constructor(private readonly repository: UsersRepository, private readonly passwords: PasswordService,
     private readonly members: MemberRegistrationReader) {}
+
+  // Exact-phone lookup for the counter. Does not grant Staff access to the Admin account list.
+  async findMemberLinkAccount(filter: { _id: Types.ObjectId } | { phone: string }, session?: ClientSession) {
+    const account = await this.repository.findLinkAccount(filter, session);
+    if (!account) return null;
+    const role = await this.repository.findLinkRole(account.role_id, session);
+    return { id: account._id, fullName: account.full_name, phone: account.phone,
+      eligible: account.status === 'ACTIVE' && role?.code === 'MEMBER',
+      hasTrainer: await this.repository.hasTrainerProfile(account._id, session) };
+  }
+
+  async requireMemberOperator(actor: AuthPrincipal, session: ClientSession): Promise<void> {
+    const context = actor[ACCESS_CONTEXT];
+    const unauthenticated = () => new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
+    if (!context || context.expiresAt * 1000 <= Date.now()) throw unauthenticated();
+    const account = await this.repository.findLinkAccount({ _id: new Types.ObjectId(actor.id) }, session);
+    const currentSession = await this.repository.findLinkSession(new Types.ObjectId(context.sessionId), session);
+    if (!account || account.status !== 'ACTIVE' || Number(account.auth_version) !== context.authVersion ||
+      !currentSession || !currentSession.account_id.equals(account._id) || currentSession.revoked_at ||
+      currentSession.expires_at.getTime() <= Date.now() || Number(currentSession.auth_version) !== context.authVersion) throw unauthenticated();
+    const role = await this.repository.findLinkRole(account.role_id, session);
+    if (role?.code !== 'ADMIN' && role?.code !== 'STAFF') throw new ApplicationError(403, 'FORBIDDEN', 'Không có quyền truy cập');
+  }
 
   async register(input: RegisterDto): Promise<{ id: string; nextAction: 'LOGIN' }> {
     const fullName = normalizeFullName(input.fullName);
@@ -53,6 +83,36 @@ export class UsersService {
       if (!currentRole) throw this.roleNotConfigured();
       return mapUserResponse(account, currentRole);
     }), page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) };
+  }
+
+  // US-09 bước 2: tra account theo ĐÚNG số phone đã chuẩn hóa cho nhân viên liên kết hồ sơ hội viên.
+  // Chỉ trả account role MEMBER và status ACTIVE, tối đa một (phone unique); không mở danh sách account US-06.
+  async findMemberLinkCandidate(phone: string): Promise<MemberLinkCandidate | null> {
+    const account = await this.repository.findAccountByPhone(phone);
+    // US-09-TC09: account LOCKED hoặc role khác MEMBER coi như không có ứng viên.
+    if (!account || account.status !== 'ACTIVE') return null;
+    const role = await this.repository.findRoleById(account.role_id.toHexString());
+    if (role?.code !== 'MEMBER') return null;
+    return {
+      id: account._id.toHexString(),
+      fullName: account.full_name,
+      phone: account.phone,
+      hasTrainerProfile: await this.repository.hasTrainerProfile(account._id),
+    };
+  }
+
+  // US-09 bước 3: đọc lại account đích trong transaction (sau khi giữ khóa) để MembersService kiểm điều kiện liên kết.
+  // Trả null nếu không có account; chỉ trả field cần dùng, không có email/hash.
+  async findAccountForLink(accountId: string, session: ClientSession): Promise<AccountForLink | null> {
+    const account = await this.repository.findAccountInSession(new Types.ObjectId(accountId), session);
+    if (!account) return null;
+    const role = await this.repository.findLinkRole(account.role_id, session);
+    return {
+      phone: account.phone,
+      status: account.status,
+      roleCode: role?.code,
+      hasTrainerProfile: await this.repository.hasTrainerProfile(account._id, session),
+    };
   }
 
   async listRoles() {
