@@ -40,7 +40,8 @@ export const PtBookingSchema = new Schema<PtBooking>({
   created_at: { type: Date, required: true },
   completed_at: { type: Date },
   // Phần US-28 bổ sung; US-28 sẽ quyết định bắt buộc khi có luồng ghi.
-  version: { type: Number, min: 0 },
+  // version ≥ 0 và là số nguyên (bộ đếm số lần sửa), giống work_shifts và public_sessions.
+  version: { type: Number, min: 0, validate: Number.isInteger },
   trainer_name_snapshot: { type: String, maxlength: 120 },
   location_snapshot: { type: String, maxlength: 120 },
 }, { collection: 'pt_bookings', id: false, versionKey: false });
