@@ -8,7 +8,10 @@ import {
   type TransactionStatus,
 } from './memberships.api';
 
-interface PageData { memberLinked: boolean; memberships: MyMembership[]; sales: MyServiceSale[] }
+// membershipsTotal/salesTotal là total server trả về, để biết còn bản ghi chưa tải (US-17-TC10).
+interface PageData {
+  memberLinked: boolean; memberships: MyMembership[]; sales: MyServiceSale[]; membershipsTotal: number; salesTotal: number;
+}
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError && error.message ? error.message : fallback);
 
@@ -93,7 +96,10 @@ export function MyMembershipsPage() {
     try {
       const [memberships, sales] = await Promise.all([membershipsApi.listMemberships(), membershipsApi.listServiceSales()]);
       if (loadNumber !== latestLoad.current) return;
-      setData({ memberLinked: memberships.memberLinked, memberships: memberships.items, sales: sales.items });
+      setData({
+        memberLinked: memberships.memberLinked, memberships: memberships.items, sales: sales.items,
+        membershipsTotal: memberships.total, salesTotal: sales.total,
+      });
     } catch (error) {
       // US-17-TC11: lỗi mạng/server là lỗi, KHÔNG hiện như "chưa có gói" hay "chưa liên kết".
       if (loadNumber === latestLoad.current) setLoadError(errorMessage(error, 'Không tải được dữ liệu gói tập.'));
@@ -154,6 +160,9 @@ export function MyMembershipsPage() {
 
     {data && data.memberLinked && <>
       {memberships.length === 0 && <p>Bạn chưa có gói tập nào.</p>}
+      {/* US-17-TC10: chỉ tải trang đầu; còn bản ghi chưa tải thì nói rõ, không lặng lẽ bỏ. Số lấy từ server. */}
+      {data.membershipsTotal > memberships.length &&
+        <p role="note">Đang hiện {memberships.length} gói gần nhất trên tổng {data.membershipsTotal}.</p>}
       <MembershipGroup title="Gói hiện hành" id="memberships-current" items={memberships.filter(isCurrent)}
         inHistory={false} emptyText="Không có gói đang hiệu lực." />
       <MembershipGroup title="Gói chờ hiệu lực" id="memberships-scheduled" items={memberships.filter(isScheduled)}
@@ -173,6 +182,8 @@ export function MyMembershipsPage() {
 
       <section aria-labelledby="sales-history">
         <h3 id="sales-history">Lịch sử mua</h3>
+        {data.salesTotal > sales.length &&
+          <p role="note">Đang hiện {sales.length} lần mua gần nhất trên tổng {data.salesTotal}.</p>}
         {sales.length === 0 ? <p>Chưa có lần mua nào.</p> : sales.map(sale =>
           <article key={sale.id} aria-label={sale.planName}>
             <h4>{sale.planName}</h4>
