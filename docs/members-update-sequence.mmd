@@ -1,0 +1,46 @@
+sequenceDiagram
+    actor Operator as Staff/Admin
+    participant UI as React /staff|admin/members/:id
+    participant API as JWT + RolesGuard + MembersController
+    participant Service as MembersService
+    participant Repo as MembersRepository
+    participant DB as MongoDB members + unique phone
+
+    Operator->>UI: Xem hồ sơ, chọn Chỉnh sửa (UC-19, US-10)
+    UI->>API: GET /api/members/:id
+    API->>Service: detail(id), chỉ STAFF/ADMIN ACTIVE
+    Service->>Repo: findById
+    Repo->>DB: Đọc hồ sơ hiện hành
+    DB-->>UI: member/version, entitlementSummary=null (US-11 chưa khả dụng), asOf
+    Operator->>UI: Sửa fullName/phone/birthDate/address và Lưu
+    UI->>API: PATCH {version, các field hồ sơ}, một lần
+    API->>Service: DTO allowlist, actor từ JWT
+    Service->>Service: Chuẩn hóa, kiểm ít nhất một field
+    Service->>Repo: findById, cùng session nếu caller cung cấp
+    Repo->>DB: Đọc hồ sơ
+    alt Không tồn tại hoặc version cũ
+        Service-->>UI: 404 MEMBER_NOT_FOUND / 409 VERSION_CONFLICT
+    else Version hiện hành
+        Service->>Service: So sánh field sau chuẩn hóa, tạo set/unset
+        Service->>Repo: updateProfile(_id, version, set, unset, actor)
+        alt Có thay đổi
+            Repo->>DB: Atomic CAS, set/unset, version+1, updated_by/updated_at server
+        else No-op
+            Repo->>DB: Atomic match _id+version, giữ version/timestamp/actor
+        end
+        alt CAS không match
+            DB-->>UI: 409 VERSION_CONFLICT
+        else Phone trùng unique index
+            DB-->>UI: 409 MEMBER_PHONE_EXISTS
+        else Thành công
+            DB-->>UI: 200 member server, changed=true/false
+        end
+    end
+    Note over Repo,DB: Không ghi account_id/service_revision/accounts/gói/snapshot giao dịch
+    Note over Service,DB: Transaction caller retry toàn bộ callback khi write conflict, kiểm lại version gốc
+    opt Conflict hoặc mất response/503
+        UI-->>Operator: Giữ draft, khóa Lưu, chưa báo thành công
+        Operator->>UI: Xác nhận bỏ bản chưa lưu và tải lại
+        UI->>API: GET đối chiếu, không tự PATCH lại
+        API-->>UI: Hồ sơ/version hiện hành hoặc lỗi quyền/không còn dữ liệu
+    end

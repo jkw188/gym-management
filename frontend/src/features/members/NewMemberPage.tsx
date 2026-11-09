@@ -104,6 +104,7 @@ export function NewMemberPage() {
     </fieldset></form> : <>
       <dl><dt>Mã hội viên</dt><dd>{member.memberCode}</dd><dt>Họ tên</dt><dd>{member.fullName}</dd>
         <dt>Số điện thoại</dt><dd>{member.phone}</dd><dt>Tài khoản</dt><dd>{member.accountId ?? 'Chưa liên kết'}</dd></dl>
+      <a href={member.id}>Xem và chỉnh sửa hồ sơ</a>
       {!member.accountId && <section aria-label="Liên kết tài khoản"><h3>Liên kết tài khoản sau đối chiếu</h3>
         <form onSubmit={search}><fieldset disabled={frozen}><legend>Tìm tài khoản</legend>
           <label>Số điện thoại tài khoản<input required type="tel" value={searchPhone} onChange={e => { setSearchPhone(e.target.value); setCandidates(null); setSelectedId(''); setConfirmed(false); }} /></label>

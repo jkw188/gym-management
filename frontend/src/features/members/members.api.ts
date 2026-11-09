@@ -5,6 +5,8 @@ export interface Member {
   accountId?: string; version: number; createdAt: string; updatedAt: string;
 }
 export interface MemberInput { fullName: string; phone: string; birthDate?: string; address?: string }
+export interface MemberUpdateInput { version: number; fullName?: string; phone?: string; birthDate?: string | null; address?: string | null }
+export interface MemberDetail { member: Member; entitlementSummary: null; asOf: string }
 export interface LinkCandidate { id: string; fullName: string; phone: string; canLink: boolean }
 export type VerificationMethod = 'IN_PERSON_ACCOUNT' | 'IN_PERSON_DOCUMENT';
 export interface LinkInput {
@@ -18,6 +20,10 @@ const post = <T>(path: string, input: unknown, key: string) => apiClient.request
   method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify(input),
 });
 export const membersApi = {
+  detail: (id: string, signal?: AbortSignal) => apiClient.request<MemberDetail>(`/members/${encodeURIComponent(id)}`, { signal }),
+  update: (id: string, input: MemberUpdateInput) => apiClient.requestOnce<{ member: Member; changed: boolean }>(`/members/${encodeURIComponent(id)}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  }),
   create: (input: MemberInput, key: string) => post<Member>('/members', input, key),
   candidates: (phone: string) => apiClient.request<{ items: LinkCandidate[] }>(`/members/link-candidates?${new URLSearchParams({ phone })}`),
   link: (id: string, input: LinkInput, key: string) => post<LinkResult>(`/members/${encodeURIComponent(id)}/link`, input, key),
