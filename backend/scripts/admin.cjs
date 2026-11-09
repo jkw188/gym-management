@@ -24,6 +24,8 @@ const { NotificationCounterSchema } = require('../dist/modules/notifications/sch
 const { EnvironmentCheck } = require('../dist/infrastructure/environment/environment-check');
 const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction/financial-integrity');
 const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-query.indexes');
+const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
+const { PlanPolicySchema } = require('../dist/modules/plans/schemas/plan-policy.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -39,6 +41,8 @@ async function run() {
       // EN-02: preflight duplicates, install constraints, backfill missing BSON Int64 revisions.
       await ensureFinancialIntegrity(connection);
       await ensureMembersQueryIndexes(connection);
+      await connection.model('Plan', PlanSchema).createIndexes();
+      await connection.model('PlanPolicy', PlanPolicySchema).createIndexes();
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
       await Promise.all([connection.model('Permission', PermissionSchema).createIndexes(),
