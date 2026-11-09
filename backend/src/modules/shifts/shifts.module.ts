@@ -1,6 +1,6 @@
 // Cấu hình NestJS (US-24 bước 1–2, US-25 bước 1): module ca làm việc PT, khai báo model work_shifts, shift_events,
 // controller /api/me/work-shifts, service nghiệp vụ, repository, service thời gian và service chuyển trạng thái ca.
-// Export ShiftIntervalService để US-27 (slot) và US-28 (bảo vệ lịch) dùng lại cùng quy tắc.
+// Export ShiftIntervalService để US-27 (slot) và US-28 (bảo vệ lịch) dùng lại cùng quy tắc; export ShiftsRepository để US-27 đọc ca CONFIRMED.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { OperationsModule } from '../operations/operations.module';
@@ -23,6 +23,6 @@ import { WorkShiftSchema } from './schemas/work-shift.schema';
   ],
   controllers: [ShiftsController],
   providers: [ShiftIntervalService, ShiftTransitionService, ShiftsService, ShiftsRepository],
-  exports: [ShiftIntervalService],
+  exports: [ShiftIntervalService, ShiftsRepository],
 })
 export class ShiftsModule {}

@@ -43,6 +43,14 @@ export class PublicSessionsRepository {
     return this.sessions.findOne({ _id: id, status: 'PUBLISHED' }).lean().exec();
   }
 
+  // US-27-F03: giờ của các lớp PUBLISHED của một PT giao [from, to), để loại slot PT bận. Chỉ lấy start_at, end_at.
+  findPublishedTimesOfTrainer(trainerId: Types.ObjectId, from: Date, to: Date): Promise<{ start_at: Date; end_at: Date }[]> {
+    return this.sessions.find(
+      { trainer_id: trainerId, status: 'PUBLISHED', start_at: { $lt: to }, end_at: { $gt: from } },
+      { _id: 0, start_at: 1, end_at: 1 },
+    ).lean<{ start_at: Date; end_at: Date }[]>().exec();
+  }
+
   // US-26-F03: tên PT = accounts.full_name qua trainers.account_id. Chỉ lấy đúng field cần, không đọc phone/email.
   // US-26-TC11: không lọc theo status nên PT đã INACTIVE/LOCKED vẫn hiện tên ở lớp lịch sử.
   async findTrainerNames(trainerIds: Types.ObjectId[]): Promise<Map<string, string>> {
