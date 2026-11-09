@@ -8,7 +8,8 @@ import { MemberOwnerReader } from '../members/member-owner.reader';
 import { PublicSessionsRepository } from '../public-sessions/public-sessions.repository';
 import { ShiftIntervalService } from '../shifts/shift-interval.service';
 import { ShiftsRepository } from '../shifts/shifts.repository';
-import { DateRange, TimeInterval } from '../shifts/shifts.types';
+import { DateRange, ShiftStatus, TimeInterval } from '../shifts/shifts.types';
+import { SessionStatus } from '../public-sessions/public-sessions.types';
 import { PtAvailabilityQueryDto, PtTrainersQueryDto } from './pt-availability.dto';
 import { toPtSlot, toPtTrainerItem } from './pt-availability.mapper';
 import { PtAvailabilityRepository } from './pt-availability.repository';
@@ -19,6 +20,12 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
 // US-27-F01, US-27-TC02: PT khả dụng = hồ sơ ACTIVE + account ACTIVE + còn role TRAINER.
 const AVAILABLE_TRAINER: TrainerAvailabilityRule = { trainerStatus: 'ACTIVE', accountStatus: 'ACTIVE', roleCode: 'TRAINER' };
+
+// US-27-F02, US-27-TC02: chỉ ca đã công bố (CONFIRMED) mới sinh slot; SCHEDULED/CANCELLED thì không.
+const SLOT_SHIFT_STATUS: ShiftStatus = 'CONFIRMED';
+
+// US-27-F03, US-27-TC03: chỉ lớp đã công bố (PUBLISHED) mới chặn giờ PT; DRAFT/CANCELLED thì không.
+const BUSY_CLASS_STATUS: SessionStatus = 'PUBLISHED';
 
 // US-27-F03: BOOKED và COMPLETED đều là giờ đã dùng; CANCELLED không chặn (US-27-TC10).
 const BUSY_BOOKING_STATUSES: PtBookingStatus[] = ['BOOKED', 'COMPLETED'];
@@ -64,7 +71,7 @@ export class AvailabilityService {
     // Chủ thể lấy từ account đang đăng nhập (US-17 resolver); chưa link thì null, vẫn xem giờ tham khảo (US-27-F01).
     const memberId = await this.owners.findMemberIdOfAccount(accountId);
 
-    const shifts = await this.shifts.findConfirmedShifts(trainerId, range.from, range.to);
+    const shifts = await this.shifts.findShiftsByStatus(trainerId, SLOT_SHIFT_STATUS, range.from, range.to);
     const busyTimes = await this.findBusyTimes(trainerId, memberId, range);
 
     const slots: PtSlot[] = [];
@@ -85,7 +92,7 @@ export class AvailabilityService {
 
   // Gom mọi khoảng bận: lớp PUBLISHED và buổi BOOKED/COMPLETED của PT (F03), buổi của chính Member trên mọi PT (F04).
   private async findBusyTimes(trainerId: Types.ObjectId, memberId: Types.ObjectId | null, range: DateRange): Promise<TimeInterval[]> {
-    const classTimes = await this.classes.findPublishedTimesOfTrainer(trainerId, range.from, range.to);
+    const classTimes = await this.classes.findClassTimesByStatus(trainerId, BUSY_CLASS_STATUS, range.from, range.to);
     const trainerBookings = await this.repository.findBusyTimesOfTrainer(trainerId, BUSY_BOOKING_STATUSES, range.from, range.to);
     const memberBookings = memberId
       ? await this.repository.findBusyTimesOfMember(memberId, BUSY_BOOKING_STATUSES, range.from, range.to)

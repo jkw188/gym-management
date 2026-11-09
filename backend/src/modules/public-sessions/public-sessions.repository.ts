@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { PublicSession } from './schemas/public-session.schema';
-import { SubjectCode } from './public-sessions.types';
+import { SessionStatus, SubjectCode } from './public-sessions.types';
 
 // Bộ lọc đã kiểm tra ở service: khoảng UTC [from, to) và các filter tùy chọn.
 export interface PublishedSessionFilter {
@@ -43,10 +43,10 @@ export class PublicSessionsRepository {
     return this.sessions.findOne({ _id: id, status: 'PUBLISHED' }).lean().exec();
   }
 
-  // US-27-F03: giờ của các lớp PUBLISHED của một PT giao [from, to), để loại slot PT bận. Chỉ lấy start_at, end_at.
-  findPublishedTimesOfTrainer(trainerId: Types.ObjectId, from: Date, to: Date): Promise<{ start_at: Date; end_at: Date }[]> {
+  // US-27-F03: giờ các lớp của một PT có trạng thái do service truyền vào, giao [from, to). Chỉ lấy start_at, end_at.
+  findClassTimesByStatus(trainerId: Types.ObjectId, status: SessionStatus, from: Date, to: Date): Promise<{ start_at: Date; end_at: Date }[]> {
     return this.sessions.find(
-      { trainer_id: trainerId, status: 'PUBLISHED', start_at: { $lt: to }, end_at: { $gt: from } },
+      { trainer_id: trainerId, status, start_at: { $lt: to }, end_at: { $gt: from } },
       { _id: 0, start_at: 1, end_at: 1 },
     ).maxTimeMS(5000).lean<{ start_at: Date; end_at: Date }[]>().exec();
   }

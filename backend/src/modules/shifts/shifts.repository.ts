@@ -70,10 +70,10 @@ export class ShiftsRepository {
     return this.connection.db!.collection<TrainerProfile>('trainers').findOne({ account_id: accountId }, { session });
   }
 
-  // US-27-F02: ca CONFIRMED của một PT bắt đầu trong [from, to), sắp giờ bắt đầu rồi _id.
+  // US-27-F02: ca của một PT có trạng thái do service truyền vào, bắt đầu trong [from, to), sắp giờ bắt đầu rồi _id.
   // Ca không qua nửa đêm Việt Nam (US-24) nên luôn nằm gọn trong một ngày.
-  findConfirmedShifts(trainerId: Types.ObjectId, from: Date, to: Date): Promise<WorkShift[]> {
-    return this.shifts.find({ trainer_id: trainerId, status: 'CONFIRMED', start_at: { $gte: from, $lt: to } })
+  findShiftsByStatus(trainerId: Types.ObjectId, status: ShiftStatus, from: Date, to: Date): Promise<WorkShift[]> {
+    return this.shifts.find({ trainer_id: trainerId, status, start_at: { $gte: from, $lt: to } })
       .sort({ start_at: 1, _id: 1 }).maxTimeMS(5000).lean().exec();
   }
 
