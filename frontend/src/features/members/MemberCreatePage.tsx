@@ -119,7 +119,7 @@ export function MemberCreatePage() {
     // Tìm lại thì bỏ lựa chọn cũ: nhân viên phải chọn lại, không giữ ngầm tài khoản trước.
     chooseAccount(null);
     try {
-      setCandidates((await membersApi.findLinkCandidates(accountPhone)).items);
+      setCandidates((await membersApi.candidates(accountPhone)).items);
     } catch (error) {
       setSearchError(asApiError(error, 'Không tìm được tài khoản.'));
     }
