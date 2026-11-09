@@ -1,4 +1,5 @@
-// Cấu hình NestJS (US-27 bước 1): module lịch PT – khai báo API Member xem PT/slot, AvailabilityService và repository chỉ đọc.
+// Cấu hình NestJS (US-27 bước 1–2): module lịch PT – khai báo API Member xem PT/slot (AvailabilityService)
+// và lịch PT riêng (MePtBookingsService), cùng các repository chỉ đọc.
 // Đọc ca qua ShiftsModule, lớp qua PublicSessionsModule, chủ thể qua MembersDataModule.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -7,6 +8,9 @@ import { MembersDataModule } from '../members/members-data.module';
 import { PublicSessionsModule } from '../public-sessions/public-sessions.module';
 import { ShiftsModule } from '../shifts/shifts.module';
 import { AvailabilityService } from './availability.service';
+import { MePtBookingsController } from './me-pt-bookings.controller';
+import { MePtBookingsRepository } from './me-pt-bookings.repository';
+import { MePtBookingsService } from './me-pt-bookings.service';
 import { PtAvailabilityController } from './pt-availability.controller';
 import { PtAvailabilityRepository } from './pt-availability.repository';
 import { PtBookingSchema } from './schemas/pt-booking.schema';
@@ -24,7 +28,7 @@ import { PtBookingSchema } from './schemas/pt-booking.schema';
     // ServerClock: giờ server.
     TransactionModule,
   ],
-  controllers: [PtAvailabilityController],
-  providers: [AvailabilityService, PtAvailabilityRepository],
+  controllers: [PtAvailabilityController, MePtBookingsController],
+  providers: [AvailabilityService, PtAvailabilityRepository, MePtBookingsService, MePtBookingsRepository],
 })
 export class BookingsModule {}

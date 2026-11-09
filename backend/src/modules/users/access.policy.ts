@@ -32,6 +32,7 @@ export const ACCESS_POLICY = {
   // US-27: Member xem danh mục PT khả dụng và giờ trống của PT (chỉ xem, không giữ chỗ).
   'ptTrainers.readAvailable': { name: 'Xem danh mục PT khả dụng', roles: ['MEMBER'] },
   'ptAvailability.read': { name: 'Xem giờ trống của PT', roles: ['MEMBER'] },
+  'ptBookings.readOwn': { name: 'Xem lịch PT của mình', roles: ['MEMBER'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
