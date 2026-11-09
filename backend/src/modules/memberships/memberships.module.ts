@@ -2,6 +2,7 @@
 // Đăng ký model service_sales, memberships, transactions, payments, invoices; tra chủ thể qua MembersDataModule.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { MembersDataModule } from '../members/members-data.module';
 import { InvoiceSchema } from '../payments/schemas/invoice.schema';
 import { PaymentSchema } from '../payments/schemas/payment.schema';
@@ -22,6 +23,8 @@ import { ServiceSaleSchema } from './schemas/service-sale.schema';
       { name: 'Invoice', schema: InvoiceSchema },
     ]),
     MembersDataModule,
+    // ServerClock (EN-02): ngày hôm nay theo giờ Việt Nam để lọc timeState.
+    TransactionModule,
   ],
   controllers: [MeMembershipsController],
   providers: [MeMembershipsService, MeMembershipsRepository],

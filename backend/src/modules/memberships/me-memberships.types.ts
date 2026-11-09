@@ -83,3 +83,17 @@ export interface MeListQuery {
   page: number;
   limit: number;
 }
+
+// Gói tập chỉ có loại GYM hoặc PT (RETAIL là bán lẻ, không cấp gói).
+export const MEMBERSHIP_KINDS = ['GYM', 'PT'] as const;
+export type MembershipKind = (typeof MEMBERSHIP_KINDS)[number];
+
+// US-17-F02: CURRENT đang trong kỳ, SCHEDULED chưa tới ngày bắt đầu, EXPIRED đã qua ngày cuối (theo ngày VN).
+export const TIME_STATES = ['CURRENT', 'SCHEDULED', 'EXPIRED'] as const;
+export type TimeState = (typeof TIME_STATES)[number];
+
+export interface MeMembershipsQuery extends MeListQuery {
+  kind?: MembershipKind;
+  storedStatus?: MembershipStatus;
+  timeState?: TimeState;
+}

@@ -2,12 +2,25 @@
 // Spec US-17 mục 2: mọi truy vấn lọc chủ sở hữu (member_id) ngay trong DB, không tải hết rồi lọc ở nơi khác. Không có hàm ghi.
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { QueryFilter, Model, Types } from 'mongoose';
 import { Invoice } from '../payments/schemas/invoice.schema';
-import { Payment } from '../payments/schemas/payment.schema';
-import { Transaction } from '../payments/schemas/transaction.schema';
-import { Membership } from './schemas/membership.schema';
+import { Payment, PaymentStatus } from '../payments/schemas/payment.schema';
+import { Transaction, TransactionKind } from '../payments/schemas/transaction.schema';
+import { Membership, MembershipStatus } from './schemas/membership.schema';
 import { ServiceSale } from './schemas/service-sale.schema';
+
+// Điều kiện lọc sale, không chứa luật nghiệp vụ: service quyết định giá trị (ví dụ đổi timeState thành ngày).
+export interface SaleFilter {
+  transactionIds?: Types.ObjectId[];
+  startDateAfter?: string;        // start_date > giá trị
+  startDateOnOrBefore?: string;   // start_date <= giá trị
+  endDateBefore?: string;         // end_date < giá trị
+  endDateOnOrAfter?: string;      // end_date >= giá trị
+}
+
+function membershipCondition(saleIds: Types.ObjectId[], status: MembershipStatus | undefined): QueryFilter<Membership> {
+  return status ? { service_sale_id: { $in: saleIds }, status } : { service_sale_id: { $in: saleIds } };
+}
 
 @Injectable()
 export class MeMembershipsRepository {
@@ -22,8 +35,20 @@ export class MeMembershipsRepository {
   // ----- service_sales: luôn có điều kiện member_id -----
 
   // Mã các sale của member; dùng để lọc memberships (membership không có member_id, chủ sở hữu đi qua sale).
-  async findSaleIdsOfMember(memberId: Types.ObjectId): Promise<Types.ObjectId[]> {
-    const sales = await this.sales.find({ member_id: memberId }, { _id: 1 }).maxTimeMS(5000).lean<{ _id: Types.ObjectId }[]>().exec();
+  // filter do service tạo; repository chỉ đổi thành điều kiện MongoDB, lọc ngay trong DB.
+  async findSaleIdsOfMember(memberId: Types.ObjectId, filter: SaleFilter = {}): Promise<Types.ObjectId[]> {
+    const condition: QueryFilter<ServiceSale> = { member_id: memberId };
+    if (filter.transactionIds) condition.transaction_id = { $in: filter.transactionIds };
+    // start_date, end_date là chuỗi YYYY-MM-DD nên so sánh chuỗi đúng bằng so sánh ngày.
+    const startDate: Record<string, string> = {};
+    if (filter.startDateAfter) startDate.$gt = filter.startDateAfter;
+    if (filter.startDateOnOrBefore) startDate.$lte = filter.startDateOnOrBefore;
+    if (Object.keys(startDate).length > 0) condition.start_date = startDate;
+    const endDate: Record<string, string> = {};
+    if (filter.endDateBefore) endDate.$lt = filter.endDateBefore;
+    if (filter.endDateOnOrAfter) endDate.$gte = filter.endDateOnOrAfter;
+    if (Object.keys(endDate).length > 0) condition.end_date = endDate;
+    const sales = await this.sales.find(condition, { _id: 1 }).maxTimeMS(5000).lean<{ _id: Types.ObjectId }[]>().exec();
     return sales.map(sale => sale._id);
   }
 
@@ -51,13 +76,14 @@ export class MeMembershipsRepository {
 
   // ----- memberships: chỉ tìm trong danh sách sale đã lọc theo member -----
 
-  findMembershipsPage(saleIds: Types.ObjectId[], skip: number, limit: number): Promise<Membership[]> {
-    return this.memberships.find({ service_sale_id: { $in: saleIds } }).sort({ _id: -1 }).skip(skip).limit(limit)
+  // status không truyền thì lấy mọi trạng thái.
+  findMembershipsPage(saleIds: Types.ObjectId[], status: MembershipStatus | undefined, skip: number, limit: number): Promise<Membership[]> {
+    return this.memberships.find(membershipCondition(saleIds, status)).sort({ _id: -1 }).skip(skip).limit(limit)
       .maxTimeMS(5000).lean<Membership[]>().exec();
   }
 
-  countMemberships(saleIds: Types.ObjectId[]): Promise<number> {
-    return this.memberships.countDocuments({ service_sale_id: { $in: saleIds } }).maxTimeMS(5000).exec();
+  countMemberships(saleIds: Types.ObjectId[], status: MembershipStatus | undefined): Promise<number> {
+    return this.memberships.countDocuments(membershipCondition(saleIds, status)).maxTimeMS(5000).exec();
   }
 
   findMembershipById(id: Types.ObjectId): Promise<Membership | null> {
@@ -74,15 +100,22 @@ export class MeMembershipsRepository {
     return this.transactions.findOne({ _id: id, member_id: memberId }).maxTimeMS(5000).lean<Transaction>().exec();
   }
 
+  // Mã các giao dịch của member theo loại (GYM/PT); dùng để lọc sale theo kind.
+  async findOwnTransactionIdsByKind(memberId: Types.ObjectId, kind: TransactionKind): Promise<Types.ObjectId[]> {
+    const rows = await this.transactions.find({ member_id: memberId, kind }, { _id: 1 }).maxTimeMS(5000)
+      .lean<{ _id: Types.ObjectId }[]>().exec();
+    return rows.map(row => row._id);
+  }
+
   findOwnTransactionsByIds(memberId: Types.ObjectId, ids: Types.ObjectId[]): Promise<Transaction[]> {
     return this.transactions.find({ _id: { $in: ids }, member_id: memberId }).maxTimeMS(5000).lean<Transaction[]>().exec();
   }
 
   // ----- payments, invoices: chỉ gọi sau khi transaction đã được xác nhận là của member -----
 
-  // Chỉ khoản thu thành công mới là "đã thu" (US-17-F04).
-  findSucceededPayment(transactionId: Types.ObjectId): Promise<Payment | null> {
-    return this.payments.findOne({ transaction_id: transactionId, status: 'SUCCEEDED' }).maxTimeMS(5000).lean<Payment>().exec();
+  // Trạng thái khoản thu cần lấy do service quyết định.
+  findPaymentByStatus(transactionId: Types.ObjectId, status: PaymentStatus): Promise<Payment | null> {
+    return this.payments.findOne({ transaction_id: transactionId, status }).maxTimeMS(5000).lean<Payment>().exec();
   }
 
   findInvoiceByTransaction(transactionId: Types.ObjectId): Promise<Invoice | null> {

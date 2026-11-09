@@ -3,11 +3,12 @@
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
+import { ServerClock } from '../../common/utils/business-date';
 import { MemberOwnerReader } from '../members/member-owner.reader';
 import { toMeInvoice, toMeMembership, toMeServiceSale, toMeTransaction } from './me-memberships.mapper';
-import { MeMembershipsRepository } from './me-memberships.repository';
+import { MeMembershipsRepository, SaleFilter } from './me-memberships.repository';
 import {
-  MeInvoiceDto, MeListPage, MeListQuery, MeMembershipDto, MeServiceSaleDto, MeTransactionDto,
+  MeInvoiceDto, MeListPage, MeListQuery, MeMembershipDto, MeMembershipsQuery, MeServiceSaleDto, MeTransactionDto, TimeState,
 } from './me-memberships.types';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -17,16 +18,21 @@ const notFound = (what: string) => new ApplicationError(404, 'NOT_FOUND', `Khôn
 
 @Injectable()
 export class MeMembershipsService {
-  constructor(private readonly owners: MemberOwnerReader, private readonly repository: MeMembershipsRepository) {}
+  constructor(private readonly owners: MemberOwnerReader, private readonly repository: MeMembershipsRepository,
+    private readonly clock: ServerClock) {}
 
   // US-17-TC01, US-17-TC03: danh sách kỳ gói của member; chưa link thì memberLinked=false, items rỗng.
-  async listMemberships(accountId: string, query: MeListQuery): Promise<MeListPage<MeMembershipDto>> {
+  // Spec mục 2: lọc kind/storedStatus/timeState ngay trong DB, không tải hết rồi lọc.
+  async listMemberships(accountId: string, query: MeMembershipsQuery): Promise<MeListPage<MeMembershipDto>> {
     const memberId = await this.owners.findMemberIdOfAccount(accountId);
     if (!memberId) return emptyPage(query);
-    const saleIds = await this.repository.findSaleIdsOfMember(memberId);
+    const filter = timeStateFilter(query.timeState, this.clock.today());
+    // Loại gói (GYM/PT) lấy từ transaction của sale, chốt lúc bán (sale không có snapshot loại gói).
+    if (query.kind) filter.transactionIds = await this.repository.findOwnTransactionIdsByKind(memberId, query.kind);
+    const saleIds = await this.repository.findSaleIdsOfMember(memberId, filter);
     const skip = (query.page - 1) * query.limit;
-    const memberships = await this.repository.findMembershipsPage(saleIds, skip, query.limit);
-    const total = await this.repository.countMemberships(saleIds);
+    const memberships = await this.repository.findMembershipsPage(saleIds, query.storedStatus, skip, query.limit);
+    const total = await this.repository.countMemberships(saleIds, query.storedStatus);
     // Đọc sale của các gói trên trang để lấy snapshot; vẫn lọc theo member_id.
     const sales = await this.repository.findSalesByIds(memberId, memberships.map(item => item.service_sale_id));
     const items: MeMembershipDto[] = [];
@@ -88,7 +94,8 @@ export class MeMembershipsService {
     if (!memberId) throw notFound('giao dịch');
     const transaction = await this.repository.findOwnTransaction(memberId, id);
     if (!transaction) throw notFound('giao dịch');
-    const payment = await this.repository.findSucceededPayment(transaction._id);
+    // US-17-F04: chỉ khoản thu SUCCEEDED mới là "đã thu"; PENDING/FAILED không hiển thị như tiền đã trả.
+    const payment = await this.repository.findPaymentByStatus(transaction._id, 'SUCCEEDED');
     const invoice = await this.repository.findInvoiceByTransaction(transaction._id);
     // Kỳ gói chỉ lấy qua sale cùng chủ với giao dịch.
     const sale = await this.repository.findOwnSaleByTransaction(memberId, transaction._id);
@@ -107,6 +114,17 @@ export class MeMembershipsService {
     if (!transaction) throw notFound('chứng từ');
     return toMeInvoice(invoice);
   }
+}
+
+// US-17-F02, US-17-TC05: đổi timeState thành điều kiện ngày theo hôm nay ở Việt Nam (ngày cuối vẫn còn dùng được).
+//   CURRENT:   start_date <= hôm nay <= end_date
+//   SCHEDULED: start_date > hôm nay
+//   EXPIRED:   end_date < hôm nay
+function timeStateFilter(timeState: TimeState | undefined, today: string): SaleFilter {
+  if (timeState === 'CURRENT') return { startDateOnOrBefore: today, endDateOnOrAfter: today };
+  if (timeState === 'SCHEDULED') return { startDateAfter: today };
+  if (timeState === 'EXPIRED') return { endDateBefore: today };
+  return {};
 }
 
 // ID sai định dạng là dữ liệu sai → 400; đúng định dạng mà không có/của người khác → 404.

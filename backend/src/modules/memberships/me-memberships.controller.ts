@@ -4,7 +4,7 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/auth.decorators';
 import { AuthPrincipal } from '../auth/auth.types';
 import { FixedPermission } from '../users/access.policy';
-import { MeListQueryDto } from './me-memberships.dto';
+import { MeListQueryDto, MeMembershipsQueryDto } from './me-memberships.dto';
 import { MeMembershipsService } from './me-memberships.service';
 
 // US-17-TC04: không token/LOCKED/revoked/auth_version đổi → 401 (Guard); TRAINER/STAFF/ADMIN → 403.
@@ -15,7 +15,7 @@ export class MeMembershipsController {
   // US-17-TC01, US-17-TC02, US-17-TC03
   @Get('memberships')
   @FixedPermission('memberships.readOwn')
-  listMemberships(@CurrentUser() user: AuthPrincipal, @Query() query: MeListQueryDto) {
+  listMemberships(@CurrentUser() user: AuthPrincipal, @Query() query: MeMembershipsQueryDto) {
     return this.service.listMemberships(user.id, query);
   }
 
