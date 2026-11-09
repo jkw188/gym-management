@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsInt, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { VERIFICATION_METHODS, VerificationMethod } from './schemas/member-link-event.schema';
+import { EntitlementSummaryDto, MemberReadTimeDto } from './members-query.dto';
 
 const present = (_object: unknown, value: unknown) => value !== undefined;
 export class CreateMemberDto {
@@ -11,6 +12,15 @@ export class CreateMemberDto {
 }
 export class LinkCandidatesQueryDto {
   @ApiProperty() @IsString() @MaxLength(32) phone!: string;
+}
+export class UpdateMemberDto {
+  @ApiProperty({ minimum: 0 }) @IsInt() @Min(0) version!: number;
+  @ApiPropertyOptional({ minLength: 2, maxLength: 120 }) @ValidateIf(present) @IsString() fullName?: string;
+  @ApiPropertyOptional({ maxLength: 32 }) @ValidateIf(present) @IsString() @MaxLength(32) phone?: string;
+  @ApiPropertyOptional({ nullable: true, example: '2000-01-31' })
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsString() birthDate?: string | null;
+  @ApiPropertyOptional({ nullable: true, maxLength: 255 })
+  @ValidateIf((_object, value) => value !== undefined && value !== null) @IsString() address?: string | null;
 }
 export class LinkMemberDto {
   @ApiProperty() @Matches(/^[a-f\d]{24}$/i) accountId!: string;
@@ -33,6 +43,14 @@ export class MemberDto {
 export class LinkMemberResponseDto {
   @ApiProperty({ type: MemberDto }) member!: MemberDto;
   @ApiProperty({ example: true }) linked!: boolean;
+}
+export class UpdateMemberResponseDto {
+  @ApiProperty({ type: MemberDto }) member!: MemberDto;
+  @ApiProperty() changed!: boolean;
+}
+export class MemberDetailResponseDto extends MemberReadTimeDto {
+  @ApiProperty({ type: MemberDto }) member!: MemberDto;
+  @ApiProperty({ type: EntitlementSummaryDto }) entitlementSummary!: EntitlementSummaryDto;
 }
 export class LinkCandidateDto {
   @ApiProperty() id!: string;

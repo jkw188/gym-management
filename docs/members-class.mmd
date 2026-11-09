@@ -1,0 +1,69 @@
+classDiagram
+    class MembersController {
+        list(MembersQueryDto)
+        detail(id)
+        memberships(id, pagination)
+        transactions(id, pagination)
+        update(actor, id, UpdateMemberDto)
+        create(actor, input, key)
+        link(actor, id, input, key)
+    }
+    class MembersService {
+        update(actor, memberId, input, session?)
+    }
+    class MembersRepository {
+        findById(id, session?)
+        updateProfile(id, version, set, unset, actorId, session?)
+        link(id, version, accountId, actorId, now, session)
+    }
+    class UpdateMemberDto {
+        integer version
+        string fullName
+        string phone
+        string_or_null birthDate
+        string_or_null address
+    }
+    class Member {
+        ObjectId _id
+        ObjectId id
+        string member_code
+        ObjectId account_id
+        string full_name
+        string phone
+        string birth_date
+        string address
+        Int32 version
+        Int64 service_revision
+        ObjectId created_by
+        ObjectId updated_by
+        Date created_at
+        Date updated_at
+    }
+    class MemberDto {
+        string id
+        string memberCode
+        string fullName
+        string phone
+        string birthDate
+        string address
+        string accountId
+        integer version
+        string createdAt
+        string updatedAt
+    }
+    MembersController --> UpdateMemberDto : validates
+    MembersController --> MembersService
+    MembersController --> MembersQueryService : US-11 read only
+    MembersQueryService --> MembersQueryRepository : aggregation and projection
+    MembersQueryService --> MemberDto : reuse US-09 mapper and version
+    MembersQueryService --> ServerClock : asOf and Vietnam businessDate
+    MembersQueryRepository --> Member : no writes or locks
+    MembersQueryRepository --> ServiceSale : member_id and transaction_id
+    MembersQueryRepository --> Membership : service_sale_id
+    MembersQueryRepository --> Transaction : verify member_id
+    Transaction --> Payment : existing SUCCEEDED only when SETTLED
+    Transaction --> Invoice : existing only
+    MembersService --> MembersRepository
+    MembersRepository --> Member : atomic CAS with version
+    MembersService --> MemberDto : explicit allowlist mapper
+    note for Member "US-09 owns schema and unique phone/account indexes. US-10 does not write account_id or service_revision."

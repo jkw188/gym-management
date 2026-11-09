@@ -10,9 +10,11 @@ export function resolveReturnTo(value: unknown, role: RoleCode): string {
   try {
     const parsed = new URL(value, 'https://gym.invalid');
     const allowed = [home, ...(role === 'ADMIN' ? ['/admin/users'] : []),
-      ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/members/new`] : []),
+      ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/members`, `${home}/members/new`] : []),
       ...(role === 'MEMBER' || role === 'TRAINER' ? [`${home}/profile`, `${home}/security`] : [])];
-    if (parsed.origin !== 'https://gym.invalid' || !allowed.includes(parsed.pathname)) return home;
+    const memberDetail = (role === 'ADMIN' || role === 'STAFF') &&
+      new RegExp(`^${home}/members/[a-f\\d]{24}$`, 'i').test(parsed.pathname);
+    if (parsed.origin !== 'https://gym.invalid' || (!allowed.includes(parsed.pathname) && !memberDetail)) return home;
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch { return home; }
 }
