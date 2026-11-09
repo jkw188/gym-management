@@ -14,6 +14,18 @@ export const ACCESS_POLICY = {
   'profile.updateOwn': { name: 'Sửa hồ sơ của mình', roles: ['TRAINER', 'MEMBER'] },
   'auth.me': { name: 'Xem phiên đăng nhập của mình', roles: ['ADMIN', 'STAFF', 'TRAINER', 'MEMBER'] },
   'auth.logout': { name: 'Đăng xuất phiên của mình', roles: ['ADMIN', 'STAFF', 'TRAINER', 'MEMBER'] },
+  'members.read': { name: 'Xem hội viên', roles: ['ADMIN', 'STAFF'] },
+  'members.create': { name: 'Tạo hội viên', roles: ['ADMIN', 'STAFF'] },
+  'members.update': { name: 'Sửa hội viên', roles: ['ADMIN', 'STAFF'] },
+  'members.link': { name: 'Liên kết tài khoản hội viên', roles: ['ADMIN', 'STAFF'] },
+  'serviceSales.read': { name: 'Xem lần bán dịch vụ', roles: ['ADMIN', 'STAFF'] },
+  'serviceSales.create': { name: 'Đăng ký bán dịch vụ', roles: ['ADMIN', 'STAFF'] },
+  'serviceSales.cancel': { name: 'Hủy lần bán dịch vụ', roles: ['ADMIN', 'STAFF'] },
+  'transactions.read': { name: 'Xem giao dịch', roles: ['ADMIN', 'STAFF'] },
+  'transactions.confirmPayment': { name: 'Xác nhận thu tiền', roles: ['ADMIN', 'STAFF'] },
+  'invoices.read': { name: 'Xem chứng từ', roles: ['ADMIN', 'STAFF'] },
+  'plans.manage': { name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
+  'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
 
 export type PermissionCode = keyof typeof ACCESS_POLICY;

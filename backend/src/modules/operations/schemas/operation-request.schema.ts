@@ -25,7 +25,7 @@ export const OperationRequestSchema = new Schema<OperationRequest>({
   actor_id: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
   operation: { type: String, required: true, enum: OPERATIONS },
   // UUID v4 do client tạo trong header Idempotency-Key.
-  client_key: { type: String, required: true, match: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i },
+  client_key: { type: String, required: true, lowercase: true, match: /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i },
   // SHA-256 (64 ký tự hex) của DTO đã chuẩn hóa cộng targetId.
   request_hash: { type: String, required: true, match: /^[a-f0-9]{64}$/ },
   result_ids: { type: Schema.Types.Mixed, required: true, default: {} },

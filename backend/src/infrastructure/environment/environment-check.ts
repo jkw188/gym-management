@@ -1,14 +1,9 @@
-// Tầng hạ tầng (EN-02 bước 2): kiểm tra MongoDB có đủ điều kiện cho giao dịch trước khi nghiệm thu.
-// Chỉ đọc: thiếu điều kiện thì báo lỗi, KHÔNG tự tạo index hay ghi dữ liệu để "chữa".
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
-import { MongoServerError } from 'mongodb';
-import { Connection } from 'mongoose';
+import { Connection, Types } from 'mongoose';
+import { randomUUID } from 'node:crypto';
+import { FINANCIAL_INDEXES, hasFinancialIndex } from '../transaction/financial-integrity';
 
-// Unique index bắt buộc của operation_requests (EN-02-D01).
-const REQUIRED_OPERATION_KEY = { actor_id: 1, operation: 1, client_key: 1 };
-
-// MongoDB chỉ có transaction khi chạy replica set (có setName) hoặc qua mongos (msg = 'isdbgrid').
 export async function supportsTransactions(connection: Connection): Promise<boolean> {
   const hello = await connection.db!.admin().command({ hello: 1 });
   return typeof hello.setName === 'string' || hello.msg === 'isdbgrid';
@@ -18,29 +13,37 @@ export async function supportsTransactions(connection: Connection): Promise<bool
 export class EnvironmentCheck {
   constructor(@InjectConnection() private readonly connection: Connection) {}
 
-  // Ném lỗi nếu môi trường chưa đủ điều kiện; đủ thì kết thúc bình thường.
+  // Never repairs indexes/data. The sole probe write is deliberately aborted after preflight passes.
   async assertReady(): Promise<void> {
-    // EN-02-TC02: standalone không có transaction thì không đủ điều kiện.
     if (!(await supportsTransactions(this.connection))) {
-      throw new Error('ENVIRONMENT_NOT_READY: MongoDB phải chạy replica set để dùng transaction');
+      throw new Error('ENVIRONMENT_NOT_READY: MongoDB phải hỗ trợ transaction (replica set hoặc mongos)');
     }
-    // EN-02-TC02: thiếu unique index (actor_id, operation, client_key) thì không đủ điều kiện.
-    if (!(await this.hasOperationRequestIndex())) {
-      throw new Error('ENVIRONMENT_NOT_READY: thiếu unique index operation_requests, chạy npm run ensure-indexes');
+    for (const { collection, index } of FINANCIAL_INDEXES) {
+      if (!(await hasFinancialIndex(this.connection, collection, index))) {
+        throw new Error(`ENVIRONMENT_NOT_READY: thiếu index hợp lệ ${collection}/${index.name}; chạy npm run ensure-indexes`);
+      }
     }
+    await this.probeRollback();
   }
 
-  private async hasOperationRequestIndex(): Promise<boolean> {
-    let indexes;
+  private async probeRollback(): Promise<void> {
+    const session = await this.connection.startSession();
+    const id = new Types.ObjectId();
+    const rollback = new Error('EN02_ROLLBACK_PROBE');
+    const collection = this.connection.collection('operation_requests');
     try {
-      indexes = await this.connection.collection('operation_requests').listIndexes().toArray();
+      await session.withTransaction(async () => {
+        await collection.insertOne({ _id: id, actor_id: new Types.ObjectId(), operation: 'MEMBER_CREATE',
+          client_key: randomUUID(), request_hash: '0'.repeat(64), result_ids: {}, response_status: 200,
+          response_body: {}, committed_at: new Date() }, { session });
+        if (!await collection.findOne({ _id: id }, { session })) throw new Error('ENVIRONMENT_ROLLBACK_PROBE_FAILED');
+        throw rollback;
+      }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' }, readPreference: 'primary', timeoutMS: 10000 });
     } catch (error) {
-      // Mã 26 (NamespaceNotFound): collection chưa tồn tại thì chắc chắn chưa có index. Lỗi khác (mất kết nối...) ném nguyên.
-      if (error instanceof MongoServerError && error.code === 26) return false;
-      throw error;
+      if (error !== rollback) throw new Error('ENVIRONMENT_NOT_READY: transaction ghi/rollback không hoạt động');
+    } finally {
+      await session.endSession();
     }
-    // Phải đúng ba trường theo đúng thứ tự và phải unique.
-    return indexes.some(index =>
-      JSON.stringify(index.key) === JSON.stringify(REQUIRED_OPERATION_KEY) && index.unique === true);
+    if (await collection.findOne({ _id: id })) throw new Error('ENVIRONMENT_NOT_READY: rollback để lại dữ liệu');
   }
 }

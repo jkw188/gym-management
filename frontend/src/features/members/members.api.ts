@@ -1,50 +1,25 @@
-// Tầng giao diện – gọi API (US-09 bước 3): tạo hồ sơ hội viên, tra account và liên kết qua ApiClient (tự gắn Bearer token).
-// Lệnh ghi gửi header Idempotency-Key (EN-02); người thực hiện do server lấy từ phiên đăng nhập.
 import { apiClient } from '../../api/client';
 
 export interface Member {
-  id: string;
-  memberCode: string;
-  fullName: string;
-  phone: string;
-  birthDate?: string;
-  address?: string;
-  accountId?: string;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
+  id: string; memberCode: string; fullName: string; phone: string; birthDate?: string; address?: string;
+  accountId?: string; version: number; createdAt: string; updatedAt: string;
 }
-
-export interface LinkCandidate {
-  id: string;
-  fullName: string;
-  phone: string;
-  canLink: boolean;
-}
-
-export type VerificationMethod = 'IN_PERSON_ACCOUNT' | 'IN_PERSON_DOCUMENT';
-
 export interface MemberInput { fullName: string; phone: string; birthDate?: string; address?: string }
-
-export interface LinkInput { accountId: string; version: number; verificationMethod: VerificationMethod; verificationNote: string }
-
+export interface LinkCandidate { id: string; fullName: string; phone: string; canLink: boolean }
+export type VerificationMethod = 'IN_PERSON_ACCOUNT' | 'IN_PERSON_DOCUMENT';
+export interface LinkInput {
+  accountId: string; version: number;
+  verificationMethod: VerificationMethod; verificationNote: string;
+}
+export interface LinkResult { member: Member; linked: boolean }
+export type MemberOperation = 'MEMBER_CREATE' | 'MEMBER_LINK';
+export interface MemberOperationResult { status: 'COMMITTED'; responseStatus: number; responseBody: Member | LinkResult }
+const post = <T>(path: string, input: unknown, key: string) => apiClient.request<T>(path, {
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify(input),
+});
 export const membersApi = {
-  create(input: MemberInput, idempotencyKey: string) {
-    return apiClient.request<Member>('/members', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify(input),
-    });
-  },
-  // Chỉ tìm theo số điện thoại đầy đủ; server chuẩn hóa và so khớp chính xác.
-  findLinkCandidates(phone: string) {
-    return apiClient.request<{ items: LinkCandidate[] }>(`/members/link-candidates?${new URLSearchParams({ phone }).toString()}`);
-  },
-  link(memberId: string, input: LinkInput, idempotencyKey: string) {
-    return apiClient.request<{ member: Member; linked: true }>(`/members/${encodeURIComponent(memberId)}/link`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
-      body: JSON.stringify(input),
-    });
-  },
+  create: (input: MemberInput, key: string) => post<Member>('/members', input, key),
+  candidates: (phone: string) => apiClient.request<{ items: LinkCandidate[] }>(`/members/link-candidates?${new URLSearchParams({ phone })}`),
+  link: (id: string, input: LinkInput, key: string) => post<LinkResult>(`/members/${encodeURIComponent(id)}/link`, input, key),
+  lookup: (operation: MemberOperation, key: string) => apiClient.request<MemberOperationResult>(`/operations/${operation}/${encodeURIComponent(key)}`),
 };

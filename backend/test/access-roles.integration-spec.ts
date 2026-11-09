@@ -136,7 +136,7 @@ describe('US-08 TC01–16: real DB, RBAC/session, two applications sharing the U
       if (permission === 'auth.logout') expect(Reflect.getMetadata(PUBLIC_ROUTE, handler as object)).toBe(true);
       else expect(Reflect.getMetadata(REQUIRED_ROLES, handler as object)).toEqual(ACCESS_POLICY[permission].roles);
     }
-    expect(await permissions.countDocuments()).toBe(9);
+    expect(await permissions.countDocuments()).toBe(Object.keys(ACCESS_POLICY).length);
     expect(await mappings.countDocuments()).toBe(Object.values(ACCESS_POLICY).reduce((count, rule) => count + rule.roles.length, 0));
     for (const name of ['register', 'login', 'refresh']) {
       const handler = Object.getOwnPropertyDescriptor(AuthController.prototype, name)!.value as object;
