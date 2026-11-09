@@ -273,7 +273,8 @@ describe('US-17 bước 3: trang /member/memberships', () => {
       ...empty(), memberships: [membership('m1', 'GYM 1 tháng')], sales: [sale('s1', 'GYM 1 tháng')],
     };
     renderPage();
-    await screen.findByRole('article', { name: 'GYM 1 tháng' });
+    // Gói và lần mua trùng tên nên có 2 article "GYM 1 tháng"; chỉ chờ article trong vùng "Gói hiện hành".
+    await within(await screen.findByRole('region', { name: 'Gói hiện hành' })).findByRole('article', { name: 'GYM 1 tháng' });
 
     expect(requestSpy).toHaveBeenCalled();
     for (const [path, init] of requestSpy.mock.calls as Array<[string, RequestInit | undefined]>) {
