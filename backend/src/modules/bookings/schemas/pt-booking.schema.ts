@@ -2,6 +2,7 @@
 // US-17 chỉ ĐỌC để đếm buổi BOOKED (sessionsReserved); US-27 đọc để loại giờ bận và xem lịch riêng; luồng đặt/hủy/xác nhận buổi thuộc US-28.
 // US-28 bước 1: thêm index theo ca và request_key unique; lệnh ensure-indexes tạo các index này trước khi mở writer.
 // US-28 bước 2: member_id bắt buộc, bất biến; version bắt buộc (booking cũ được backfill trong ensure-indexes).
+// US-28 bước 3: thêm created_by, updated_at cho booking do Member đặt qua API.
 import { Schema, Types } from 'mongoose';
 
 export type PtBookingStatus = 'BOOKED' | 'COMPLETED' | 'CANCELLED';
@@ -24,6 +25,9 @@ export interface PtBooking {
   version: number;
   trainer_name_snapshot?: string;
   location_snapshot?: string;
+  // US-28 bước 3: account tạo booking và lần sửa cuối (spec mục 3 "pt_bookings bổ sung"); booking cũ trước US-28 không có.
+  created_by?: Types.ObjectId;
+  updated_at?: Date;
 }
 
 // Mọi trạng thái của buổi PT; lịch riêng của Member gồm cả ba (US-27-F05).
@@ -47,6 +51,8 @@ export const PtBookingSchema = new Schema<PtBooking>({
   version: { type: Number, required: true, min: 0, validate: Number.isInteger },
   trainer_name_snapshot: { type: String, maxlength: 120 },
   location_snapshot: { type: String, maxlength: 120 },
+  created_by: { type: Schema.Types.ObjectId, ref: 'Account' },
+  updated_at: { type: Date },
 }, { collection: 'pt_bookings', id: false, versionKey: false });
 
 // US-17-F03: đếm buổi BOOKED theo từng gói ngay trong DB.
