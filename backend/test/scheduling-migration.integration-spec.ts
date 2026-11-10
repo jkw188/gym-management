@@ -15,7 +15,7 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { getConnectionToken } from '@nestjs/mongoose';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { Decimal128, Long, ObjectId } from 'mongodb';
@@ -70,16 +70,14 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
   const guard = () => db().collection<{ _id: string; revision: Long }>('schedule_guards').findOne({ _id: 'global' }, { promoteLongs: false });
 
   // Chạy lệnh thật; trả { ok, output } thay vì ném lỗi để test kiểm cả trường hợp thất bại.
-  function ensureIndexes(): { ok: boolean; output: string } {
-    try {
-      const output = execFileSync(process.execPath, ['scripts/admin.cjs', 'ensure-indexes'], {
-        cwd: path.resolve(__dirname, '..'), env: process.env, encoding: 'utf8', timeout: 60000, windowsHide: true, stdio: 'pipe',
-      });
-      return { ok: true, output };
-    } catch (error) {
-      const failed = error as { stdout?: string; stderr?: string };
-      return { ok: false, output: `${failed.stdout ?? ''}${failed.stderr ?? ''}` };
-    }
+  // Phải chạy BẤT ĐỒNG BỘ (execFile): Jest đang giữ tiến trình mongod của MongoMemoryReplSet; nếu dùng execFileSync,
+  // Jest đứng chờ nên không đọc log của mongod, đường ống log đầy làm mongod dừng và lệnh CLI treo mãi.
+  function ensureIndexes(): Promise<{ ok: boolean; output: string }> {
+    return new Promise(resolve => {
+      execFile(process.execPath, ['scripts/admin.cjs', 'ensure-indexes'], {
+        cwd: path.resolve(__dirname, '..'), env: process.env, encoding: 'utf8', timeout: 60000, windowsHide: true,
+      }, (error, stdout, stderr) => resolve({ ok: !error, output: `${stdout}${stderr}` }));
+    });
   }
 
   // ---------- Dữ liệu mẫu (khuôn báo cáo mục 4.2 như các test US-17/US-27) ----------
@@ -119,7 +117,7 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
 
   describe('US-28-G01: guard global và index trước khi mở writer', () => {
     it('US-28-G01: DB sạch → tạo schedule_guards global revision Int64 = 0', async () => {
-      const result = ensureIndexes();
+      const result = await ensureIndexes();
       expect(result.ok).toBe(true);
       expect(result.output).toContain('INDEXES_ENSURED');
       const doc = await guard();
@@ -128,15 +126,15 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
     });
 
     it('US-28-G01: chạy lại nhiều lần không reset revision đang có', async () => {
-      expect(ensureIndexes().ok).toBe(true);
+      expect((await ensureIndexes()).ok).toBe(true);
       await db().collection<{ _id: string; revision: Long }>('schedule_guards').updateOne({ _id: 'global' }, { $inc: { revision: Long.fromNumber(7) } });
-      expect(ensureIndexes().ok).toBe(true);
+      expect((await ensureIndexes()).ok).toBe(true);
       expect((await guard())?.revision.toString()).toBe('7');
       expect(await db().collection('schedule_guards').countDocuments()).toBe(1);
     });
 
     it('US-28-G01: tạo đủ 5 index pt_bookings theo spec, request_key unique', async () => {
-      expect(ensureIndexes().ok).toBe(true);
+      expect((await ensureIndexes()).ok).toBe(true);
       const indexes = await bookings().listIndexes().toArray();
       const keys = indexes.map(index => index.key);
       expect(keys).toEqual(expect.arrayContaining([
@@ -155,7 +153,7 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       const legacy = await insertBooking(membershipId, trainerId, '08:00', '09:00');
       const versioned = await insertBooking(membershipId, trainerId, '10:00', '11:00', { version: 3 });
 
-      expect(ensureIndexes().ok).toBe(true);
+      expect((await ensureIndexes()).ok).toBe(true);
 
       expect(Number((await bookings().findOne({ _id: legacy }))?.version)).toBe(0);
       expect(Number((await bookings().findOne({ _id: versioned }))?.version)).toBe(3);
@@ -170,7 +168,7 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       await insertBooking(membershipId, trainerId, '08:30', '09:30');
       const before = await snapshot();
 
-      const result = ensureIndexes();
+      const result = await ensureIndexes();
 
       expect(result.ok).toBe(false);
       expect(result.output).toContain('SCHEDULE_DATA_INVALID');
@@ -184,7 +182,7 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       await insertBooking(membershipId, trainerId, '08:00', '09:00', { status: 'COMPLETED' });
       await insertBooking(membershipId, trainerId, '08:59', '09:59');
 
-      const result = ensureIndexes();
+      const result = await ensureIndexes();
       expect(result.ok).toBe(false);
       expect(result.output).toContain('SCHEDULE_DATA_INVALID');
     });
@@ -198,7 +196,7 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       await insertBooking(membershipId, trainerA, '08:00', '09:00', { status: 'CANCELLED' });
       await insertBooking(membershipId, trainerB, '08:00', '09:00');
 
-      const result = ensureIndexes();
+      const result = await ensureIndexes();
       expect(result.ok).toBe(true);
       expect((await guard())?.revision.toString()).toBe('0');
     });
@@ -209,7 +207,7 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       await insertBooking(membershipId, new ObjectId(), '10:00', '11:00');
       const before = await snapshot();
 
-      const result = ensureIndexes();
+      const result = await ensureIndexes();
 
       expect(result.ok).toBe(false);
       expect(result.output).toContain('SCHEDULE_DATA_INVALID');
@@ -222,7 +220,7 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       await insertBooking(membershipId, new ObjectId(), '08:00', '09:00');
       await insertBooking(membershipId, new ObjectId(), '10:00', '11:00', { status: 'CANCELLED' });
 
-      expect(ensureIndexes().ok).toBe(true);
+      expect((await ensureIndexes()).ok).toBe(true);
     });
 
     it('US-28-G01: sửa tay dữ liệu vi phạm rồi chạy lại → lệnh thành công và tạo guard', async () => {
@@ -230,12 +228,12 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       const trainerId = new ObjectId();
       await insertBooking(membershipId, trainerId, '08:00', '09:00');
       const second = await insertBooking(membershipId, trainerId, '08:30', '09:30');
-      expect(ensureIndexes().ok).toBe(false);
+      expect((await ensureIndexes()).ok).toBe(false);
 
       // Người vận hành đối chiếu và hủy buổi sai (sửa tay, ngoài hệ thống).
       await bookings().updateOne({ _id: second }, { $set: { status: 'CANCELLED' } });
 
-      expect(ensureIndexes().ok).toBe(true);
+      expect((await ensureIndexes()).ok).toBe(true);
       expect((await guard())?.revision.toString()).toBe('0');
     });
   });
