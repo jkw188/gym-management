@@ -69,7 +69,8 @@ describe('US-28 bước 1: khóa ghi lịch schedule_guards (S04-G01)', () => {
   const db = () => connection.db!;
   const scheduleGuards = () => db().collection<{ _id: string; revision: Long }>('schedule_guards');
   const insertGuard = (revision = Long.ZERO) => scheduleGuards().insertOne({ _id: 'global', revision });
-  const guardDoc = () => scheduleGuards().findOne({ _id: 'global' });
+  // Đọc với promoteLongs: false để Int64 giữ nguyên kiểu Long (mặc định driver đổi Int64 nhỏ thành number), giống financial-integrity.
+  const guardDoc = () => scheduleGuards().findOne({ _id: 'global' }, { promoteLongs: false });
 
   // Chạy một callback trong transaction thật (một session).
   async function inTransaction(work: (session: import('mongodb').ClientSession) => Promise<void>) {

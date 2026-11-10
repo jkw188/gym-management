@@ -66,7 +66,8 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
 
   const db = () => connection.db!;
   const bookings = () => db().collection('pt_bookings');
-  const guard = () => db().collection<{ _id: string; revision: Long }>('schedule_guards').findOne({ _id: 'global' });
+  // Đọc với promoteLongs: false để Int64 giữ nguyên kiểu Long (mặc định driver đổi Int64 nhỏ thành number), giống financial-integrity.
+  const guard = () => db().collection<{ _id: string; revision: Long }>('schedule_guards').findOne({ _id: 'global' }, { promoteLongs: false });
 
   // Chạy lệnh thật; trả { ok, output } thay vì ném lỗi để test kiểm cả trường hợp thất bại.
   function ensureIndexes(): { ok: boolean; output: string } {

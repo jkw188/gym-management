@@ -104,7 +104,9 @@ describe('US-07: real replica set, two independent Nest apps/connections, JWT an
     const related = ['trainers', 'memberships', 'pt_bookings', 'orders'];
     for (const name of related) await connection.collection(name).insertOne({ account_id: target.id, status: 'KEEP', test: 'US07',
       // EN-02 now installs a real unique membership->sale constraint in the CLI migration test.
-      ...(name === 'memberships' ? { service_sale_id: new Types.ObjectId() } : {}) });
+      ...(name === 'memberships' ? { service_sale_id: new Types.ObjectId() } : {}),
+      // US-28 bước 1: pt_bookings.request_key bắt buộc và unique (spec US-28 mục 3) nên mỗi booking mẫu cần key riêng.
+      ...(name === 'pt_bookings' ? { request_key: randomBytes(32).toString('hex') } : {}) });
     const snapshots = await Promise.all(related.map(name => connection.collection(name).find({ test: 'US07' }).toArray()));
     const first = await patch(target, { status: 'LOCKED', version: 0, reason: `  ${reason}  ` }).expect(200);
     expect(first.body).toMatchObject({ changed: true, reauthenticationRequired: false, user: { status: 'LOCKED', version: 1 } });
