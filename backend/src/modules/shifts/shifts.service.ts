@@ -1,9 +1,10 @@
 // Tầng nghiệp vụ (US-24 bước 2, US-25 bước 2): PT tạo, sửa, xem, công bố và hủy ca của chính mình.
-// Mỗi lệnh ghi chạy trong MỘT transaction: guard S04-G01 → tìm PT → kiểm luật → ghi ca → audit → operation_requests (EN-02).
+// Mỗi lệnh ghi chạy trong MỘT transaction: khóa lịch S04-G01 (DataGuardsService) → tìm PT → kiểm luật → ghi ca → audit → operation_requests (EN-02).
 import { Injectable } from '@nestjs/common';
 import { ClientSession } from 'mongodb';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
+import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { IdempotencyService, WorkResult } from '../operations/idempotency.service';
 import { Operation } from '../operations/schemas/operation-request.schema';
 import { ShiftSnapshot } from './schemas/shift-event.schema';
@@ -24,6 +25,8 @@ export class ShiftsService {
     private readonly interval: ShiftIntervalService,
     private readonly transition: ShiftTransitionService,
     private readonly idempotency: IdempotencyService,
+    // US-28-G02: writer ca lấy cùng khóa lịch schedule_guards với đặt lịch PT (S04-G01), không tự upsert guard riêng.
+    private readonly guards: DataGuardsService,
   ) {}
 
   // POST /api/me/work-shifts: tạo ca SCHEDULED version 0 thuộc PT của principal (US-24-TC01).
@@ -39,7 +42,7 @@ export class ShiftsService {
         // nên gửi lại cùng key sau giờ bắt đầu vẫn nhận 201 gốc (US-24-TC10, EN-02). Lấy giờ server ở mỗi lần chạy.
         this.interval.assertFutureStart(draft.startAt, new Date());
         // US-24-F05: tăng guard TRƯỚC khi kiểm chồng ca (US-24-TC09).
-        await this.repository.bumpScheduleGuard(session);
+        await this.guards.acquire(session, { schedule: true });
         const trainer = await this.requireActiveTrainer(actorId, session);
         // US-24-TC05: chồng ca còn hiệu lực của chính PT → 409. Lớp PUBLISHED không chặn (US-24-TC08).
         if (await this.repository.hasOverlap(trainer._id, draft, null, session)) throw overlap();
@@ -69,7 +72,7 @@ export class ShiftsService {
       async (session): Promise<WorkResult> => {
         // Giống create: kiểm giờ mới TRONG callback để gửi lại cùng key vẫn nhận 200 gốc (EN-02).
         this.interval.assertFutureStart(draft.startAt, new Date());
-        await this.repository.bumpScheduleGuard(session);
+        await this.guards.acquire(session, { schedule: true });
         const trainer = await this.requireActiveTrainer(actorId, session);
         // US-24-TC02: ca của PT khác hoặc không tồn tại → 404, không lộ ca đó có hay không.
         const current = await this.repository.findOwnShift(id, trainer._id, session);
@@ -111,7 +114,7 @@ export class ShiftsService {
       { actorId: accountId, operation: 'SHIFT_CONFIRM', clientKey, payload: { version: dto.version }, targetId: shiftId },
       async (session): Promise<WorkResult> => {
         // US-25-F04: tăng guard TRƯỚC khi kiểm trạng thái và chồng ca.
-        await this.repository.bumpScheduleGuard(session);
+        await this.guards.acquire(session, { schedule: true });
         // US-25-TC02: recheck hồ sơ PT ở mỗi lệnh, không dùng dữ liệu form cũ.
         const trainer = await this.requireActiveTrainer(actorId, session);
         // US-25-TC02: ca của PT khác hoặc không tồn tại → 404.
@@ -151,7 +154,7 @@ export class ShiftsService {
       { actorId: accountId, operation: 'SHIFT_CANCEL', clientKey, payload: { version: dto.version, reason }, targetId: shiftId },
       async (session): Promise<WorkResult> => {
         // US-25-F04: guard trước khi kiểm trạng thái và đếm BOOKED, để booking song song phải chờ (US-25-TC09).
-        await this.repository.bumpScheduleGuard(session);
+        await this.guards.acquire(session, { schedule: true });
         const trainer = await this.requireActiveTrainer(actorId, session);
         const current = await this.repository.findOwnShift(id, trainer._id, session);
         if (!current) throw notFound();
