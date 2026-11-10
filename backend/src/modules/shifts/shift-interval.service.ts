@@ -104,7 +104,8 @@ export class ShiftIntervalService {
   }
 
   // Đổi chuỗi ISO có timezone thành Date. US-24-TC03: thiếu offset, ngày không có thật, có giây/mili giây → 400.
-  private parseInstant(value: unknown, field: string): Date {
+  // Public để US-28 (đặt slot PT) dùng lại cùng luật ngày/giờ có thật (US-28-TC03).
+  parseInstant(value: unknown, field: string): Date {
     if (typeof value !== 'string') invalidField(field, 'Thời điểm phải là chuỗi ISO 8601 có múi giờ');
     const match = ISO_WITH_OFFSET.exec(value);
     if (!match) invalidField(field, 'Thời điểm phải có Z hoặc offset, ví dụ 2026-12-01T08:00:00+07:00');

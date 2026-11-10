@@ -6,7 +6,7 @@ import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { MongoMemoryReplSet, MongoMemoryServer } from 'mongodb-memory-server';
 import { Connection, Model, Types } from 'mongoose';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import path from 'node:path';
 import request from 'supertest';
 import { ClientSession, MongoServerError } from 'mongodb';
@@ -104,7 +104,9 @@ describe('US-07: real replica set, two independent Nest apps/connections, JWT an
     const related = ['trainers', 'memberships', 'pt_bookings', 'orders'];
     for (const name of related) await connection.collection(name).insertOne({ account_id: target.id, status: 'KEEP', test: 'US07',
       // EN-02 now installs a real unique membership->sale constraint in the CLI migration test.
-      ...(name === 'memberships' ? { service_sale_id: new Types.ObjectId() } : {}) });
+      ...(name === 'memberships' ? { service_sale_id: new Types.ObjectId() } : {}),
+      // US-28 bước 1: pt_bookings.request_key bắt buộc và unique (spec US-28 mục 3) nên mỗi booking mẫu cần key riêng.
+      ...(name === 'pt_bookings' ? { request_key: randomBytes(32).toString('hex') } : {}) });
     const snapshots = await Promise.all(related.map(name => connection.collection(name).find({ test: 'US07' }).toArray()));
     const first = await patch(target, { status: 'LOCKED', version: 0, reason: `  ${reason}  ` }).expect(200);
     expect(first.body).toMatchObject({ changed: true, reauthenticationRequired: false, user: { status: 'LOCKED', version: 1 } });
@@ -321,13 +323,16 @@ describe('US-07: real replica set, two independent Nest apps/connections, JWT an
 
   it('ensure-indexes initializes Int64 security_state idempotently and preserves revision and audit indexes', async () => {
     await state.deleteMany({});
-    const command = () => execFileSync(process.execPath, ['scripts/admin.cjs', 'ensure-indexes'], {
+    // US-28 bước 2: migration lịch coi booking không có membership là mồ côi và dừng lệnh; dọn booking "rác" do TC01–03 để lại.
+    await connection.collection('pt_bookings').deleteMany({ test: 'US07' });
+    // Chạy BẤT ĐỒNG BỘ để Jest vẫn đọc log của mongod (execFileSync làm đầy pipe log, lệnh có thể treo; xem US-28 scheduling-migration).
+    const command = () => new Promise<string>((resolve, reject) => execFile(process.execPath, ['scripts/admin.cjs', 'ensure-indexes'], {
       cwd: path.resolve(__dirname, '..'), env: process.env, encoding: 'utf8', timeout: 30000, windowsHide: true,
-    });
-    expect(command()).toContain('INDEXES_ENSURED');
+    }, (error, stdout, stderr) => (error ? reject(new Error(`${stdout}${stderr}`)) : resolve(stdout))));
+    expect(await command()).toContain('INDEXES_ENSURED');
     expect(await revision()).toBe(0n);
     await state.updateOne({ _id: ACCOUNT_ADMINISTRATION }, { $inc: { revision: 7n } });
-    expect(command()).toContain('INDEXES_ENSURED');
+    expect(await command()).toContain('INDEXES_ENSURED');
     expect(await revision()).toBe(7n);
     const indexes = await events.collection.listIndexes().toArray();
     expect(indexes.map(index => index.key)).toEqual(expect.arrayContaining([{ target_id: 1, created_at: -1, _id: -1 }, { actor_id: 1, created_at: -1 }]));

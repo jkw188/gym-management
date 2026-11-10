@@ -1,8 +1,8 @@
-// Tầng dữ liệu (US-24 bước 2, US-25 bước 2): nơi duy nhất đọc/ghi work_shifts, shift_events, schedule_guards
-// và đọc hồ sơ PT (trainers), lịch đặt PT (pt_bookings) phục vụ ca. Lệnh trong transaction nhận session rõ ràng.
+// Tầng dữ liệu (US-24 bước 2, US-25 bước 2): nơi duy nhất đọc/ghi work_shifts, shift_events
+// và đọc hồ sơ PT (trainers), lịch đặt PT (pt_bookings) phục vụ ca. Khóa lịch schedule_guards do DataGuardsService lấy (US-28-G02).
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Long } from 'mongodb';
+import { ClientSession } from 'mongodb';
 import { Connection, Model, Types } from 'mongoose';
 import { ShiftEvent, ShiftSnapshot } from './schemas/shift-event.schema';
 import { WorkShift } from './schemas/work-shift.schema';
@@ -52,18 +52,6 @@ export class ShiftsRepository {
     @InjectModel('ShiftEvent') private readonly events: Model<ShiftEvent>,
     @InjectConnection() private readonly connection: Connection,
   ) {}
-
-  // S04-G01 (hợp đồng của US-28): ghi tăng thật schedule_guards {_id:"global"} TRƯỚC khi kiểm xung đột.
-  // Hai transaction cùng ghi một document thì transaction sau bị WriteConflict và driver chạy lại nó
-  // sau khi transaction trước commit, nên lần chạy lại thấy ca vừa tạo (US-24-TC09, không write skew).
-  async bumpScheduleGuard(session: ClientSession): Promise<void> {
-    await this.connection.db!.collection<{ _id: string; revision: Long }>('schedule_guards').updateOne(
-      { _id: 'global' },
-      { $inc: { revision: Long.fromNumber(1) } },
-      // upsert: chưa có guard thì tạo với revision = 1.
-      { upsert: true, session },
-    );
-  }
 
   // Lookup owner từ account_id của principal (US-24-F01).
   findTrainerByAccount(accountId: Types.ObjectId, session?: ClientSession): Promise<TrainerProfile | null> {

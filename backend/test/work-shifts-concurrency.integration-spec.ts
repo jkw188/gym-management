@@ -8,7 +8,7 @@ import { ChildProcess, execSync, spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import path from 'node:path';
-import { ObjectId } from 'mongodb';
+import { Long, ObjectId } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Connection } from 'mongoose';
 import request from 'supertest';
@@ -106,6 +106,8 @@ describe('US-24 bước 4: ca nháp trên hai app instance cùng DB (EN-05 bản
     for (const collection of await connection.db!.collections()) {
       if (collection.collectionName !== 'roles') await collection.deleteMany({});
     }
+    // US-28-G02: writer ca (US-24/25) lấy khóa lịch schedule_guards; môi trường thật do lệnh ensure-indexes tạo sẵn.
+    await connection.db!.collection<{ _id: string; revision: Long }>('schedule_guards').insertOne({ _id: 'global', revision: Long.ZERO });
   });
 
   afterEach(() => jest.restoreAllMocks());

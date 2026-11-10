@@ -1,11 +1,12 @@
-// Tầng giao diện – trang (US-27 bước 3): trang /member/pt-bookings – lịch PT riêng của Member và bước chọn PT/ngày/gói
-// để xem slot trống. Chỉ đọc; quota, asOf, bookable lấy nguyên từ server, React không tự tính (US-27-TC12).
+// Tầng giao diện – trang (US-27 bước 3, US-28 bước 4): trang /member/pt-bookings – lịch PT riêng của Member, chọn PT/ngày/gói
+// để xem slot trống và đặt slot sau bảng xác nhận. Quota, asOf, bookable lấy nguyên từ server, React không tự tính (US-27-TC12).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import type { MyMembership } from '../memberships/memberships.api';
 import { useAccountId } from '../notifications/inbox-signals';
 import {
-  ptBookingsApi, type BookingFilter, type MyPtBooking, type PtAvailability, type PtBookingStatus, type PtTrainer, type SlotReason,
+  ptBookingsApi, type BookingFilter, type CreateBookingInput, type MyPtBooking, type PtAvailability, type PtBookingStatus, type PtSlot,
+  type PtTrainer, type SlotReason,
 } from './pt-bookings.api';
 
 const STATUS_LABELS: Record<PtBookingStatus, string> = { BOOKED: 'Đã đặt', COMPLETED: 'Đã hoàn thành', CANCELLED: 'Đã hủy' };
@@ -18,6 +19,16 @@ const REASON_LABELS: Record<SlotReason, string> = {
 };
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError && error.message ? error.message : fallback);
+
+// US-28-TC05–TC07: lý do server từ chối (409); không nêu ai đang chiếm lịch.
+const CONFLICT_LABELS: Record<string, string> = {
+  SLOT_UNAVAILABLE: 'Giờ này vừa có người đặt hoặc PT bận',
+  MEMBER_TIME_CONFLICT: 'Bạn đã có buổi tập khác trùng giờ này',
+  QUOTA_EXHAUSTED: 'Gói đã hết số buổi có thể đặt',
+  SHIFT_UNAVAILABLE: 'Ca của PT không còn nhận đặt lịch',
+  TRAINER_UNAVAILABLE: 'PT hiện không nhận lịch',
+  MEMBERSHIP_NOT_ELIGIBLE: 'Gói không dùng được cho buổi này',
+};
 
 // US-27-TC11: mọi thời điểm hiển thị theo giờ Việt Nam, kể cả khi máy người dùng ở múi giờ khác.
 const vnDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -58,6 +69,17 @@ export function PtBookingsPage() {
   const [membershipId, setMembershipId] = useState('');
   const [availability, setAvailability] = useState<PtAvailability | null>(null);
   const [availabilityError, setAvailabilityError] = useState('');
+
+  // US-28: slot đang xác nhận, trạng thái gửi, thông báo kết quả.
+  const [confirmSlot, setConfirmSlot] = useState<PtSlot | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [bookSuccess, setBookSuccess] = useState('');
+  const [bookError, setBookError] = useState('');
+  // US-28-TC10: chặn bấm kép ngay lập tức (state của React chỉ cập nhật ở lần render sau).
+  const submittingNow = useRef(false);
+  // US-28-TC10: Idempotency-Key gắn với đúng dữ liệu gửi (payload). Mất phản hồi/503 rồi bấm lại cùng slot → dùng LẠI key cũ;
+  // đặt xong, bị 409 hoặc chọn slot khác là ý định mới → key mới.
+  const pendingKey = useRef<{ payload: string; key: string } | null>(null);
 
   // Số thứ tự lần tải mới nhất: kết quả cũ về muộn (bộ lọc/lựa chọn đã đổi) thì bỏ qua.
   const latestBookings = useRef(0);
@@ -118,12 +140,59 @@ export function PtBookingsPage() {
   useEffect(() => { void loadBookings(); }, [loadBookings]);
   useEffect(() => { void loadBase(); }, [loadBase]);
   useEffect(() => { void loadAvailability(); }, [loadAvailability]);
+  // US-28: đổi PT, ngày hoặc gói thì slot đang xác nhận không còn đúng lựa chọn → đóng bảng xác nhận.
+  useEffect(() => { setConfirmSlot(null); }, [trainerId, day, membershipId]);
 
   // Spec mục "Giao diện": sau đặt/hủy (US-28/29) tải lại lịch, số buổi (quota) và giờ trống; Member cũng bấm được để xem số mới nhất.
   async function refreshAll() {
     await loadBookings();
     await loadBase();
     await loadAvailability();
+  }
+
+  // US-28-TC01: bấm slot chỉ mở bảng xác nhận, chưa gửi gì.
+  function openConfirm(slot: PtSlot) {
+    setBookSuccess('');
+    setBookError('');
+    setConfirmSlot(slot);
+  }
+
+  // US-28-TC01, TC05, TC10: gửi đặt lịch cho slot đang xác nhận.
+  async function submitBooking() {
+    if (!confirmSlot || submittingNow.current) return;
+    submittingNow.current = true;
+    setSubmitting(true);
+    setBookSuccess('');
+    setBookError('');
+
+    // startAt lấy nguyên từ slot server trả; không gửi endAt/memberId/location.
+    const input: CreateBookingInput = { membershipId, trainerId, shiftId: confirmSlot.shiftId, startAt: confirmSlot.startAt };
+    const payload = JSON.stringify(input);
+    if (pendingKey.current?.payload !== payload) pendingKey.current = { payload, key: crypto.randomUUID() };
+
+    try {
+      await ptBookingsApi.createBooking(input, pendingKey.current.key);
+      // Thành công: ý định đã xong nên bỏ key; quota/giờ trống hiện theo số server mới sau khi tải lại.
+      pendingKey.current = null;
+      setConfirmSlot(null);
+      setBookSuccess(`Đã đặt lịch ${formatRange(input.startAt, confirmSlot.endAt)} ngày ${formatDate(input.startAt)}.`);
+      await refreshAll();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        // US-28-TC05: xung đột → đóng xác nhận, tải lại giờ và quota, yêu cầu chọn lại; không tự đổi PT hay slot.
+        pendingKey.current = null;
+        setConfirmSlot(null);
+        const reason = (error.code && CONFLICT_LABELS[error.code]) || 'Không đặt được giờ này';
+        setBookError(`${reason}. Giờ trống và số buổi đã được tải lại, vui lòng chọn lại.`);
+        await refreshAll();
+      } else {
+        // US-28-TC10: mất phản hồi hoặc 503 → chưa biết kết quả: giữ bảng xác nhận và key, KHÔNG tự gửi lại.
+        setBookError(`${errorMessage(error, 'Không gửi được yêu cầu đặt lịch.')} Bấm "Xác nhận đặt" để thử lại.`);
+      }
+    } finally {
+      submittingNow.current = false;
+      setSubmitting(false);
+    }
   }
 
   // Đổi bộ lọc thì quay về trang 1.
@@ -134,6 +203,7 @@ export function PtBookingsPage() {
   // US-27-TC07: chưa liên kết hồ sơ là trạng thái bình thường, không phải lỗi.
   const notLinked = bookings?.memberLinked === false || plans?.memberLinked === false;
   const selectedPlan = plans?.items.find(item => item.id === membershipId);
+  const selectedTrainer = trainers.find(trainer => trainer.id === trainerId);
 
   return <section className="auth-card pt-bookings">
     <h2>Lịch PT của tôi</h2>
@@ -176,12 +246,14 @@ export function PtBookingsPage() {
       {baseError
         ? <div role="alert"><p>{baseError}</p><button type="button" onClick={() => void loadBase()}>Thử lại</button></div>
         : <>
-          <label>Chọn PT <select value={trainerId} onChange={event => setTrainerId(event.target.value)}>
+          {/* US-28-TC10: đang gửi đặt lịch thì khóa PT/ngày/gói và các slot, để bảng xác nhận và key giữ đúng dữ liệu đã gửi;
+              lỗi mạng/503 thì Member vẫn bấm lại "Xác nhận đặt" với đúng key cũ. */}
+          <label>Chọn PT <select value={trainerId} disabled={submitting} onChange={event => setTrainerId(event.target.value)}>
             <option value="">-- Chọn PT --</option>
             {trainers.map(trainer => <option key={trainer.id} value={trainer.id}>{trainer.displayName}</option>)}
           </select></label>
-          <label>Ngày <input type="date" value={day} onChange={event => setDay(event.target.value)} /></label>
-          <label>Gói PT <select value={membershipId} onChange={event => setMembershipId(event.target.value)}>
+          <label>Ngày <input type="date" value={day} disabled={submitting} onChange={event => setDay(event.target.value)} /></label>
+          <label>Gói PT <select value={membershipId} disabled={submitting} onChange={event => setMembershipId(event.target.value)}>
             <option value="">-- Chưa chọn gói --</option>
             {plans?.items.map(plan => <option key={plan.id} value={plan.id}>{plan.planName}</option>)}
           </select></label>
@@ -204,12 +276,31 @@ export function PtBookingsPage() {
             <p>Giờ trống (cập nhật lúc {formatAsOf(availability.asOf)}). Xem giờ không giữ chỗ.</p>
             {availability.slots.length === 0 ? <p>PT không có giờ trống trong ngày này.</p>
               : <ul>{availability.slots.map(slot => <li key={slot.startAt}>
-                {/* US-27-TC12: slot bookable=false bị khóa và có chữ giải thích. Bước 3 chưa đặt nên nút chưa làm gì. */}
-                <button type="button" disabled={!slot.bookable}>{formatRange(slot.startAt, slot.endAt)}</button>
+                {/* US-27-TC12: slot bookable=false bị khóa và có chữ giải thích. US-28: bấm slot mở bảng xác nhận. */}
+                <button type="button" disabled={!slot.bookable || submitting} onClick={() => openConfirm(slot)}>{formatRange(slot.startAt, slot.endAt)}</button>
                 {' '}{slot.location}
                 {!slot.bookable && slot.reason && <span> – {REASON_LABELS[slot.reason]}</span>}
               </li>)}</ul>}
           </div>}
+
+          {/* US-28-TC01: xác nhận PT, ngày, giờ VN, địa điểm, gói và số buổi còn (số server, không trừ trước khi server commit). */}
+          {confirmSlot && <section aria-labelledby="pt-confirm-booking">
+            <h4 id="pt-confirm-booking">Xác nhận đặt lịch</h4>
+            <ul>
+              <li>PT: {selectedTrainer?.displayName}</li>
+              <li>Ngày: {formatDate(confirmSlot.startAt)}</li>
+              <li>Giờ: {formatRange(confirmSlot.startAt, confirmSlot.endAt)}</li>
+              <li>Địa điểm: {confirmSlot.location}</li>
+              <li>Gói: {selectedPlan?.planName}</li>
+              <li>Còn đặt được: {selectedPlan?.sessionsAvailable} buổi</li>
+            </ul>
+            {/* US-28-TC10: đang gửi thì khóa nút để không gửi kép. */}
+            <button type="button" disabled={submitting} onClick={() => void submitBooking()}>Xác nhận đặt</button>
+            {' '}<button type="button" disabled={submitting} onClick={() => setConfirmSlot(null)}>Đóng</button>
+          </section>}
+          {bookSuccess && <p role="status">{bookSuccess}</p>}
+          {bookError && <p role="alert">{bookError}</p>}
+
           <button type="button" onClick={() => void refreshAll()}>Tải lại lịch, giờ trống và số buổi</button>
         </>}
     </section>

@@ -1,5 +1,5 @@
-// Tầng giao diện – gọi API (US-27 bước 3): Member đọc lịch PT riêng, danh mục PT, slot trống và gói PT qua ApiClient.
-// CHỈ có lệnh GET (bước 3 chưa đặt/hủy); không gửi memberId/accountId vì server lấy chủ thể từ phiên đăng nhập.
+// Tầng giao diện – gọi API (US-27 bước 3, US-28 bước 4): Member đọc lịch PT riêng, danh mục PT, slot trống, gói PT và đặt slot PT qua ApiClient.
+// Không gửi memberId/accountId vì server lấy chủ thể từ phiên đăng nhập; lệnh đặt gửi header Idempotency-Key (EN-02).
 import { apiClient } from '../../api/client';
 import type { MyListPage, MyMembership } from '../memberships/memberships.api';
 
@@ -59,6 +59,29 @@ export interface BookingFilter {
   page: number;
 }
 
+// US-28: dữ liệu Member gửi khi đặt một slot (startAt lấy nguyên từ slot server trả).
+export interface CreateBookingInput {
+  membershipId: string;
+  trainerId: string;
+  shiftId: string;
+  startAt: string;
+}
+
+// 201 của POST /api/me/pt-bookings (US-28 spec mục 3).
+export interface CreatedBooking {
+  id: string;
+  memberId: string;
+  membershipId: string;
+  trainerId: string;
+  shiftId: string;
+  startAt: string;
+  endAt: string;
+  location: string;
+  status: 'BOOKED';
+  version: number;
+  notificationState: 'STORED' | 'NO_LINKED_ACCOUNT';
+}
+
 export const BOOKINGS_PAGE_SIZE = 20;
 
 export const ptBookingsApi = {
@@ -90,5 +113,15 @@ export const ptBookingsApi = {
     const current = await apiClient.request<MyListPage<MyMembership>>(query('CURRENT'));
     const scheduled = await apiClient.request<MyListPage<MyMembership>>(query('SCHEDULED'));
     return { memberLinked: current.memberLinked, asOf: current.asOf, items: [...current.items, ...scheduled.items] };
+  },
+
+  // POST /api/me/pt-bookings (US-28): body CHỈ 4 field; không gửi endAt/memberId/location vì server tự tính và lấy từ ca.
+  // idempotencyKey do trang giữ: gửi lại đúng key khi mất phản hồi để server trả kết quả gốc, không đặt hai lần (US-28-TC10).
+  createBooking(input: CreateBookingInput, idempotencyKey: string) {
+    return apiClient.request<CreatedBooking>('/me/pt-bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(input),
+    });
   },
 };

@@ -33,6 +33,8 @@ export const ACCESS_POLICY = {
   'ptTrainers.readAvailable': { name: 'Xem danh mục PT khả dụng', roles: ['MEMBER'] },
   'ptAvailability.read': { name: 'Xem giờ trống của PT', roles: ['MEMBER'] },
   'ptBookings.readOwn': { name: 'Xem lịch PT của mình', roles: ['MEMBER'] },
+  // US-28: Member đặt slot PT bằng gói của chính mình.
+  'ptBookings.createOwn': { name: 'Đặt lịch PT', roles: ['MEMBER'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
