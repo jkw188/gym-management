@@ -194,7 +194,9 @@ describe('US-28 bước 1: migration lịch qua ensure-indexes', () => {
       await insertBooking(membershipId, trainerA, '08:00', '09:00');
       await insertBooking(membershipId, trainerA, '09:00', '10:00');
       await insertBooking(membershipId, trainerA, '08:00', '09:00', { status: 'CANCELLED' });
-      await insertBooking(membershipId, trainerB, '08:00', '09:00');
+      // Buổi của PT B thuộc Member KHÁC: từ bước 2, cùng một Member trùng giờ trên hai PT là vi phạm (US-28-F04).
+      const other = await insertPtMembership(10, 0);
+      await insertBooking(other.membershipId, trainerB, '08:00', '09:00');
 
       const result = await ensureIndexes();
       expect(result.ok).toBe(true);
