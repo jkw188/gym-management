@@ -22,8 +22,7 @@ export class PtAvailabilityQueryDto {
   @ApiPropertyOptional({ example: '2026-12-07' })
   @IsOptional() @Matches(DATE_ONLY, { message: 'toDate phải có dạng YYYY-MM-DD' }) toDate?: string;
 
-  // US-27-F04: gói của chính Member dùng để đánh giá bookable. Nhận theo hợp đồng API để không bị 400,
-  // nhưng bước 1 chưa dùng tới (mọi slot là giờ tham khảo); làm khi có test TC05–TC08.
+  // US-27-F04: gói của chính Member dùng để đánh giá bookable; không gửi thì chỉ xem giờ tham khảo.
   @ApiPropertyOptional({ example: '6650f0c2a1b2c3d4e5f60718' })
   @IsOptional() @IsMongoId({ message: 'membershipId không hợp lệ' }) membershipId?: string;
 }

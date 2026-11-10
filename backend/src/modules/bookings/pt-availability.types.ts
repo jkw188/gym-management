@@ -18,8 +18,8 @@ export interface PtTrainerPage {
   totalPages: number;
 }
 
-// Lý do một slot chưa đặt được (US-27-F04). Bước 1 chỉ có MEMBERSHIP_REQUIRED; các lý do khác thêm khi có test TC05–TC08.
-export type SlotReason = 'MEMBERSHIP_REQUIRED';
+// Lý do một slot chưa đặt được (US-27-F04). MEMBERSHIP_NOT_ELIGIBLE, QUOTA_EXHAUSTED dùng chung mã lỗi 409 của US-28.
+export type SlotReason = 'MEMBERSHIP_REQUIRED' | 'MEMBERSHIP_NOT_ELIGIBLE' | 'QUOTA_EXHAUSTED';
 
 // Một slot 60 phút sinh từ ca. slotId không phải chỗ giữ (US-27-F02): xem slot không giữ chỗ.
 export interface PtSlot {
