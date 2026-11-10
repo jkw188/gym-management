@@ -7,6 +7,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { MembersDataModule } from '../members/members-data.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { OperationsModule } from '../operations/operations.module';
 import { MembershipsModule } from '../memberships/memberships.module';
 import { PublicSessionsModule } from '../public-sessions/public-sessions.module';
@@ -36,6 +37,8 @@ import { PtBookingSchema } from './schemas/pt-booking.schema';
     MembersDataModule,
     // IdempotencyService (EN-02): chống đặt lặp theo Idempotency-Key (US-28-TC10).
     OperationsModule,
+    // NotificationsService (EN-03): lưu thông báo BOOKING_CREATED cùng transaction đặt lịch (US-28 bước 4).
+    NotificationsModule,
     // ServerClock: giờ server; DataGuardsService: khóa lịch và khóa member (US-28-G01, G03).
     TransactionModule,
   ],

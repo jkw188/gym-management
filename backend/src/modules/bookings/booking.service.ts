@@ -1,6 +1,6 @@
-// Tầng nghiệp vụ (US-28 bước 3): Member đặt một slot PT và được BOOKED ngay, trong MỘT transaction.
+// Tầng nghiệp vụ (US-28 bước 3–4): Member đặt một slot PT và được BOOKED ngay, trong MỘT transaction.
 // Trình tự G04: khóa lịch schedule_guards → tìm member, khóa members.service_revision → đọc lại gói/quota/PT/ca/xung đột
-// → insert booking → operation_requests (IdempotencyService). Toàn bộ luật F01–F04 nằm ở file này.
+// → insert booking → thông báo EN-03 → operation_requests (IdempotencyService). Toàn bộ luật F01–F04 nằm ở file này.
 import { Injectable } from '@nestjs/common';
 import { ClientSession } from 'mongodb';
 import { Types } from 'mongoose';
@@ -12,9 +12,11 @@ import { insidePeriod, TimeInterval, vietnamPeriod } from '../scheduling/interva
 import { checkSlot } from '../scheduling/slot.policy';
 import { ShiftIntervalService } from '../shifts/shift-interval.service';
 import { ShiftsRepository } from '../shifts/shifts.repository';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreatePtBookingDto } from './booking.dto';
-import { toCreatedPtBooking } from './booking.mapper';
+import { toBookingCreatedMessage, toCreatedPtBooking } from './booking.mapper';
 import { BookingRepository } from './booking.repository';
+import { TrainerForBooking } from './booking.types';
 import { PtBookingStatus } from './schemas/pt-booking.schema';
 
 // US-28-F04: buổi BOOKED và COMPLETED đều chiếm giờ của PT và của Member; CANCELLED không chặn (US-28-TC05).
@@ -37,6 +39,8 @@ export class BookingService {
     private readonly interval: ShiftIntervalService,
     private readonly guards: DataGuardsService,
     private readonly idempotency: IdempotencyService,
+    // EN-03: lưu thông báo + người nhận + outbox cùng transaction (US-28 bước 4).
+    private readonly notifications: NotificationsService,
     private readonly clock: ServerClock,
   ) {}
 
@@ -72,7 +76,7 @@ export class BookingService {
 
         // Bước 4 G04: đọc lại mọi thứ trong cùng session.
         const { quota, used, period } = await this.loadEligibleMembership(memberId, membershipId, session);
-        const trainerName = await this.requireAvailableTrainer(trainerId, session);
+        const trainer = await this.requireAvailableTrainer(trainerId, session);
 
         // US-28-TC03: ca phải thuộc đúng PT gửi lên (server xác minh quan hệ), không thì coi như ca không dùng được.
         const shift = await this.shifts.findOwnShift(shiftId, trainerId, session);
@@ -106,12 +110,26 @@ export class BookingService {
         // Bước 5 G04, US-28-TC01: BOOKED ngay, version 0, không tăng sessions_used, không tạo payment/invoice.
         const booking = await this.repository.insertBooking({
           memberId, membershipId, trainerId, shiftId, startAt, endAt: slot.endAt,
-          trainerName, location: shift.location,
+          trainerName: trainer.full_name, location: shift.location,
           // Spec mục 3: request_key = SHA-256 của actor|operation|key theo EN-02, không lưu key thô.
           requestKey: transactionRequestKey(accountId, 'PT_BOOKING_CREATE', clientKey),
           createdBy: new Types.ObjectId(accountId), now,
         }, session);
-        const body = toCreatedPtBooking(booking, 'NOT_CREATED');
+
+        // Bước 5 G04 (EN-03), US-28-TC01: lưu thông báo BOOKING_CREATED:<bookingId> trong CÙNG session, sau booking và
+        // trước operation_requests. Lỗi insert notification/recipient/outbox → rollback cả booking (US-28-TC12).
+        // Người nhận chụp lúc commit: account Member đang liên kết (chính người đặt) và account PT; EN-03 tự bỏ account trùng.
+        // Socket chạy sau commit qua outbox worker, không phát trong transaction (US-28-TC13).
+        const message = toBookingCreatedMessage(booking);
+        const event = await this.notifications.persistBusinessEvent(session, {
+          eventKey: `BOOKING_CREATED:${booking._id.toHexString()}`,
+          title: message.title,
+          body: message.body,
+          memberId: memberId.toHexString(),
+          createdBy: accountId,
+        }, [accountId, trainer.account_id.toHexString()]);
+
+        const body = toCreatedPtBooking(booking, event.notificationState);
         // { ...body }: chép sang object thường để TypeScript chấp nhận kiểu Record<string, unknown> của WorkResult.
         return { status: 201, body: { ...body }, resultIds: { bookingId: booking._id } };
       },
@@ -140,12 +158,13 @@ export class BookingService {
     };
   }
 
-  // US-28-F02, US-28-TC03: PT ACTIVE, account ACTIVE và còn role TRAINER; trả tên PT để lưu snapshot.
-  private async requireAvailableTrainer(trainerId: Types.ObjectId, session: ClientSession): Promise<string> {
+  // US-28-F02, US-28-TC03: PT ACTIVE, account ACTIVE và còn role TRAINER.
+  // Trả hồ sơ PT: tên để lưu snapshot, account_id để làm người nhận thông báo.
+  private async requireAvailableTrainer(trainerId: Types.ObjectId, session: ClientSession): Promise<TrainerForBooking> {
     const trainer = await this.repository.findTrainer(trainerId, session);
     if (!trainer || trainer.status !== 'ACTIVE' || trainer.account_status !== 'ACTIVE' || trainer.role_code !== 'TRAINER') {
       throw conflict('TRAINER_UNAVAILABLE', 'PT hiện không nhận lịch');
     }
-    return trainer.full_name;
+    return trainer;
   }
 }

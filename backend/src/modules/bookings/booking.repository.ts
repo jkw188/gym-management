@@ -56,7 +56,7 @@ export class BookingRepository {
       { $unwind: '$account' },
       { $lookup: { from: 'roles', localField: 'account.role_id', foreignField: '_id', as: 'role' } },
       { $unwind: { path: '$role', preserveNullAndEmptyArrays: true } },
-      { $project: { _id: 1, status: 1, account_status: '$account.status', role_code: '$role.code', full_name: '$account.full_name' } },
+      { $project: { _id: 1, account_id: 1, status: 1, account_status: '$account.status', role_code: '$role.code', full_name: '$account.full_name' } },
     ], { session }).toArray();
     return row ?? null;
   }
