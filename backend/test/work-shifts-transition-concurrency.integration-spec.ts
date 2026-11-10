@@ -109,6 +109,8 @@ describe('US-25 bước 4: công bố/hủy ca trên hai app instance cùng DB (
     for (const collection of await connection.db!.collections()) {
       if (collection.collectionName !== 'roles') await collection.deleteMany({});
     }
+    // US-28-G02: writer ca (US-24/25) lấy khóa lịch schedule_guards; môi trường thật do lệnh ensure-indexes tạo sẵn.
+    await connection.db!.collection<{ _id: string; revision: Long }>('schedule_guards').insertOne({ _id: 'global', revision: Long.ZERO });
   });
 
   afterEach(() => jest.restoreAllMocks());
