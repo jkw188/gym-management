@@ -1,45 +1,96 @@
-// Tầng dữ liệu – migration vận hành (US-28 bước 1): chạy trong lệnh ensure-indexes, TRƯỚC khi mở writer lịch.
-// Kiểm dữ liệu lịch cũ, tạo index pt_bookings, đặt version=0 cho booking cũ, rồi mới tạo khóa schedule_guards global.
-import { Long } from 'mongodb';
+// Tầng dữ liệu – migration vận hành (US-28 bước 1–2): chạy trong lệnh ensure-indexes, TRƯỚC khi mở writer lịch.
+// Kiểm HẾT dữ liệu lịch cũ trước, có vi phạm thì dừng và không sửa gì; hợp lệ thì tạo index, backfill booking cũ, cuối cùng tạo guard.
+import { Long, ObjectId } from 'mongodb';
 import { Connection } from 'mongoose';
 import { PtBookingSchema } from '../bookings/schemas/pt-booking.schema';
 import { SCHEDULE_GUARD_ID } from '../../infrastructure/transaction/data-guards.service';
 
-// Booking còn chiếm giờ của PT (CANCELLED thì không).
+// Booking còn chiếm giờ (CANCELLED thì không).
 const ACTIVE_STATUSES = ['BOOKED', 'COMPLETED'];
 
+// Một booking kèm dữ liệu tra cứu được qua $lookup (xem loadBookings).
+interface BookingRow {
+  _id: ObjectId;
+  trainer_id: ObjectId;
+  status: string;
+  start_at: Date;
+  end_at: Date;
+  member_id?: ObjectId;
+  trainer_name_snapshot?: string;
+  location_snapshot?: string;
+  derived_member_id?: ObjectId; // member suy ra qua membership → sale
+  trainer_name?: string; // accounts.full_name của PT, dùng làm snapshot
+  shift_location?: string; // work_shifts.location, dùng làm snapshot
+}
+
 export async function ensureSchedulingIntegrity(connection: Connection): Promise<void> {
+  const bookings = await loadBookings(connection);
+
   // 1. Kiểm trước, chưa sửa gì: có vi phạm thì dừng ngay, dữ liệu và guard giữ nguyên.
-  await assertNoTrainerOverlap(connection);
+  assertOwnersResolvable(bookings);
+  const active = bookings.filter(booking => ACTIVE_STATUSES.includes(booking.status));
+  assertNoOverlap(active, booking => String(booking.trainer_id), 'trainer_overlap');
+  // US-28-F04: một Member không có hai buổi trùng giờ trên mọi PT/gói (dùng member suy ra, booking cũ chưa có member_id).
+  assertNoOverlap(active, booking => String(booking.derived_member_id), 'member_overlap');
   await assertQuotaNotExceeded(connection);
 
   // 2. Index theo spec mục 3 (khai báo trong PtBookingSchema để chỉ có một nơi định nghĩa).
   await connection.model('PtBooking', PtBookingSchema).createIndexes();
 
-  // 3. Booking tạo trước US-28 chưa có version → đặt 0; booking đã có version giữ nguyên.
+  // 3. US-28-G03: backfill member_id và snapshot còn thiếu của booking cũ.
+  await backfillBookings(connection, bookings);
+
+  // 4. Booking tạo trước US-28 chưa có version → đặt 0; booking đã có version giữ nguyên.
   await connection.collection('pt_bookings').updateMany({ version: { $exists: false } }, { $set: { version: 0 } });
 
-  // 4. US-28-G01: tạo guard sau cùng, chỉ khi chưa có ($setOnInsert) → chạy lại không đổi revision đang có.
+  // 5. US-28-G01: tạo guard sau cùng, chỉ khi chưa có ($setOnInsert) → chạy lại không đổi revision đang có.
   await connection.db!.collection<{ _id: string; revision: Long }>('schedule_guards').updateOne(
     { _id: SCHEDULE_GUARD_ID }, { $setOnInsert: { revision: Long.ZERO } }, { upsert: true });
 }
 
-// Hai booking BOOKED/COMPLETED cùng PT không được giao nhau.
-// Sắp xếp theo PT rồi giờ bắt đầu: với mỗi PT chỉ cần nhớ giờ kết thúc muộn nhất đã gặp;
+// Đọc mọi booking một lần, kèm member suy ra (membership → sale), tên PT (trainer → account) và địa điểm ca.
+async function loadBookings(connection: Connection): Promise<BookingRow[]> {
+  return connection.collection('pt_bookings').aggregate<BookingRow>([
+    { $lookup: { from: 'memberships', localField: 'membership_id', foreignField: '_id', as: 'membership' } },
+    { $lookup: { from: 'service_sales', localField: 'membership.service_sale_id', foreignField: '_id', as: 'sale' } },
+    { $lookup: { from: 'trainers', localField: 'trainer_id', foreignField: '_id', as: 'trainer' } },
+    { $lookup: { from: 'accounts', localField: 'trainer.account_id', foreignField: '_id', as: 'account' } },
+    { $lookup: { from: 'work_shifts', localField: 'shift_id', foreignField: '_id', as: 'shift' } },
+    { $project: {
+      trainer_id: 1, status: 1, start_at: 1, end_at: 1, member_id: 1, trainer_name_snapshot: 1, location_snapshot: 1,
+      derived_member_id: { $first: '$sale.member_id' },
+      trainer_name: { $first: '$account.full_name' },
+      shift_location: { $first: '$shift.location' },
+    } },
+  ]).toArray();
+}
+
+// US-28-G03: mỗi booking phải tìm được chủ qua membership → sale; booking đã có member_id phải khớp chủ đó.
+function assertOwnersResolvable(bookings: BookingRow[]): void {
+  for (const booking of bookings) {
+    // Mồ côi (không có membership hoặc membership không có sale) → không đoán member.
+    if (!booking.derived_member_id) throw scheduleDataInvalid('orphan_booking', String(booking._id));
+    // Đã có member_id nhưng khác chủ của gói → không ghi đè, để người vận hành đối chiếu.
+    if (booking.member_id && !booking.member_id.equals(booking.derived_member_id)) {
+      throw scheduleDataInvalid('member_mismatch', String(booking._id));
+    }
+  }
+}
+
+// Hai booking cùng nhóm (cùng PT, hoặc cùng Member) không được giao nhau.
+// Sắp xếp theo nhóm rồi giờ bắt đầu: trong mỗi nhóm chỉ cần nhớ giờ kết thúc muộn nhất đã gặp;
 // booking tiếp theo bắt đầu TRƯỚC giờ đó là giao nhau (bắt đầu đúng bằng là tiếp giáp, hợp lệ).
-async function assertNoTrainerOverlap(connection: Connection): Promise<void> {
-  const cursor = connection.collection('pt_bookings')
-    .find({ status: { $in: ACTIVE_STATUSES } }, { projection: { trainer_id: 1, start_at: 1, end_at: 1 } })
-    .sort({ trainer_id: 1, start_at: 1 });
-  let currentTrainer = '';
+function assertNoOverlap(bookings: BookingRow[], groupOf: (booking: BookingRow) => string, kind: string): void {
+  const sorted = [...bookings].sort((a, b) =>
+    groupOf(a).localeCompare(groupOf(b)) || a.start_at.getTime() - b.start_at.getTime());
+  let currentGroup = '';
   let latestEnd = 0;
-  for await (const booking of cursor) {
-    const trainer = String(booking.trainer_id);
-    if (trainer !== currentTrainer) {
-      currentTrainer = trainer;
+  for (const booking of sorted) {
+    if (groupOf(booking) !== currentGroup) {
+      currentGroup = groupOf(booking);
       latestEnd = 0;
     }
-    if (booking.start_at.getTime() < latestEnd) throw scheduleDataInvalid('trainer_overlap', String(booking._id));
+    if (booking.start_at.getTime() < latestEnd) throw scheduleDataInvalid(kind, String(booking._id));
     latestEnd = Math.max(latestEnd, booking.end_at.getTime());
   }
 }
@@ -63,6 +114,18 @@ async function assertQuotaNotExceeded(connection: Connection): Promise<void> {
     const used = Number(membership.used ?? 0);
     const reserved = reservedByMembership.get(String(membership._id)) ?? 0;
     if (used + reserved > Number(membership.quota)) throw scheduleDataInvalid('quota_exceeded', String(membership._id));
+  }
+}
+
+// US-28-G03: chỉ ghi field CÒN THIẾU. Snapshot đã có giữ nguyên (lịch sử); không tìm thấy nguồn thì để trống.
+async function backfillBookings(connection: Connection, bookings: BookingRow[]): Promise<void> {
+  for (const booking of bookings) {
+    const missing: Record<string, unknown> = {};
+    if (!booking.member_id) missing.member_id = booking.derived_member_id;
+    if (booking.trainer_name_snapshot === undefined && booking.trainer_name) missing.trainer_name_snapshot = booking.trainer_name;
+    if (booking.location_snapshot === undefined && booking.shift_location) missing.location_snapshot = booking.shift_location;
+    if (Object.keys(missing).length === 0) continue; // đã đủ → chạy lại lệnh không đổi gì
+    await connection.collection('pt_bookings').updateOne({ _id: booking._id }, { $set: missing });
   }
 }
 

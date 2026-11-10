@@ -1,6 +1,7 @@
 // Tầng dữ liệu (US-17 bước 2): cấu trúc collection pt_bookings theo báo cáo mục 4.2.13 – một buổi PT hội viên đặt.
 // US-17 chỉ ĐỌC để đếm buổi BOOKED (sessionsReserved); US-27 đọc để loại giờ bận và xem lịch riêng; luồng đặt/hủy/xác nhận buổi thuộc US-28.
 // US-28 bước 1: thêm index theo ca và request_key unique; lệnh ensure-indexes tạo các index này trước khi mở writer.
+// US-28 bước 2: member_id bắt buộc, bất biến; version bắt buộc (booking cũ được backfill trong ensure-indexes).
 import { Schema, Types } from 'mongoose';
 
 export type PtBookingStatus = 'BOOKED' | 'COMPLETED' | 'CANCELLED';
@@ -9,8 +10,8 @@ export interface PtBooking {
   _id: Types.ObjectId;
   id: Types.ObjectId;
   membership_id: Types.ObjectId;
-  // US-28 bổ sung: chủ buổi xuyên mọi membership. US-27 dùng để loại giờ bận của chính Member.
-  member_id?: Types.ObjectId;
+  // US-28 bổ sung: chủ buổi xuyên mọi membership (bắt buộc từ bước 2). US-27 dùng để loại giờ bận của chính Member.
+  member_id: Types.ObjectId;
   trainer_id: Types.ObjectId;
   shift_id: Types.ObjectId;
   start_at: Date;
@@ -20,7 +21,7 @@ export interface PtBooking {
   created_at: Date;
   completed_at?: Date;
   // US-28 bổ sung (US-27-F05 đọc): version và snapshot tên PT, địa điểm lúc đặt để lịch sử không đổi theo dữ liệu mới.
-  version?: number;
+  version: number;
   trainer_name_snapshot?: string;
   location_snapshot?: string;
 }
@@ -31,7 +32,8 @@ export const PT_BOOKING_STATUSES: PtBookingStatus[] = ['BOOKED', 'COMPLETED', 'C
 export const PtBookingSchema = new Schema<PtBooking>({
   id: { type: Schema.Types.ObjectId, required: true },
   membership_id: { type: Schema.Types.ObjectId, ref: 'Membership', required: true },
-  member_id: { type: Schema.Types.ObjectId, ref: 'Member' },
+  // US-28-G03: bắt buộc và bất biến (immutable) – nâng cấp gói chỉ đổi membership_id/version, không đổi chủ buổi.
+  member_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true, immutable: true },
   trainer_id: { type: Schema.Types.ObjectId, required: true },
   shift_id: { type: Schema.Types.ObjectId, required: true },
   start_at: { type: Date, required: true },
@@ -40,9 +42,9 @@ export const PtBookingSchema = new Schema<PtBooking>({
   request_key: { type: String, required: true, maxlength: 80 },
   created_at: { type: Date, required: true },
   completed_at: { type: Date },
-  // Phần US-28 bổ sung; US-28 sẽ quyết định bắt buộc khi có luồng ghi.
+  // US-28 bước 2: bắt buộc sau khi ensure-indexes backfill booking cũ (version = 0, member_id, snapshot).
   // version ≥ 0 và là số nguyên (bộ đếm số lần sửa), giống work_shifts và public_sessions.
-  version: { type: Number, min: 0, validate: Number.isInteger },
+  version: { type: Number, required: true, min: 0, validate: Number.isInteger },
   trainer_name_snapshot: { type: String, maxlength: 120 },
   location_snapshot: { type: String, maxlength: 120 },
 }, { collection: 'pt_bookings', id: false, versionKey: false });
