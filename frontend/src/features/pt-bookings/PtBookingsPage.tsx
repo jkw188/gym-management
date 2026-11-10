@@ -246,12 +246,14 @@ export function PtBookingsPage() {
       {baseError
         ? <div role="alert"><p>{baseError}</p><button type="button" onClick={() => void loadBase()}>Thử lại</button></div>
         : <>
-          <label>Chọn PT <select value={trainerId} onChange={event => setTrainerId(event.target.value)}>
+          {/* US-28-TC10: đang gửi đặt lịch thì khóa PT/ngày/gói và các slot, để bảng xác nhận và key giữ đúng dữ liệu đã gửi;
+              lỗi mạng/503 thì Member vẫn bấm lại "Xác nhận đặt" với đúng key cũ. */}
+          <label>Chọn PT <select value={trainerId} disabled={submitting} onChange={event => setTrainerId(event.target.value)}>
             <option value="">-- Chọn PT --</option>
             {trainers.map(trainer => <option key={trainer.id} value={trainer.id}>{trainer.displayName}</option>)}
           </select></label>
-          <label>Ngày <input type="date" value={day} onChange={event => setDay(event.target.value)} /></label>
-          <label>Gói PT <select value={membershipId} onChange={event => setMembershipId(event.target.value)}>
+          <label>Ngày <input type="date" value={day} disabled={submitting} onChange={event => setDay(event.target.value)} /></label>
+          <label>Gói PT <select value={membershipId} disabled={submitting} onChange={event => setMembershipId(event.target.value)}>
             <option value="">-- Chưa chọn gói --</option>
             {plans?.items.map(plan => <option key={plan.id} value={plan.id}>{plan.planName}</option>)}
           </select></label>
@@ -275,7 +277,7 @@ export function PtBookingsPage() {
             {availability.slots.length === 0 ? <p>PT không có giờ trống trong ngày này.</p>
               : <ul>{availability.slots.map(slot => <li key={slot.startAt}>
                 {/* US-27-TC12: slot bookable=false bị khóa và có chữ giải thích. US-28: bấm slot mở bảng xác nhận. */}
-                <button type="button" disabled={!slot.bookable} onClick={() => openConfirm(slot)}>{formatRange(slot.startAt, slot.endAt)}</button>
+                <button type="button" disabled={!slot.bookable || submitting} onClick={() => openConfirm(slot)}>{formatRange(slot.startAt, slot.endAt)}</button>
                 {' '}{slot.location}
                 {!slot.bookable && slot.reason && <span> – {REASON_LABELS[slot.reason]}</span>}
               </li>)}</ul>}
