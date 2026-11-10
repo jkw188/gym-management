@@ -70,6 +70,13 @@ export class ShiftsRepository {
     return this.connection.db!.collection<TrainerProfile>('trainers').findOne({ account_id: accountId }, { session });
   }
 
+  // US-27-F02: ca của một PT có trạng thái do service truyền vào, bắt đầu trong [from, to), sắp giờ bắt đầu rồi _id.
+  // Ca không qua nửa đêm Việt Nam (US-24) nên luôn nằm gọn trong một ngày.
+  findShiftsByStatus(trainerId: Types.ObjectId, status: ShiftStatus, from: Date, to: Date): Promise<WorkShift[]> {
+    return this.shifts.find({ trainer_id: trainerId, status, start_at: { $gte: from, $lt: to } })
+      .sort({ start_at: 1, _id: 1 }).maxTimeMS(5000).lean().exec();
+  }
+
   // Chỉ tìm trong ca của chính PT: ca của PT khác coi như không tồn tại (404).
   findOwnShift(shiftId: Types.ObjectId, trainerId: Types.ObjectId, session?: ClientSession): Promise<WorkShift | null> {
     return this.shifts.findOne({ _id: shiftId, trainer_id: trainerId }).session(session ?? null).lean().exec();
