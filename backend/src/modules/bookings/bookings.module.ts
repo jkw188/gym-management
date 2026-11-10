@@ -1,6 +1,8 @@
 // Cấu hình NestJS (US-27 bước 1–2, 4; US-28 bước 3): module lịch PT – khai báo API Member xem PT/slot (AvailabilityService),
 // lịch PT riêng (MePtBookingsService) và đặt slot PT (BookingService, US-28).
-// Đọc ca qua ShiftsModule, lớp qua PublicSessionsModule, gói qua MembershipsModule, chủ thể qua MembersDataModule.
+// US-27 đọc ca qua ShiftsModule, lớp qua PublicSessionsModule, gói qua MembershipsModule, chủ thể qua MembersDataModule.
+// US-28 BookingService tự đọc members/gói/PT/lớp qua BookingRepository: sau khi giữ khóa phải đọc lại trong CÙNG session
+// của transaction (US-28-G04), mà các reader trên không nhận session.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';

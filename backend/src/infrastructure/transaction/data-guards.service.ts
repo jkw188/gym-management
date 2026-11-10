@@ -22,8 +22,9 @@ export interface DataGuardTargets {
 export class DataGuardsService {
   constructor(@InjectConnection() private readonly connection: Connection) {}
 
-  // Supply ALL targets once per transaction callback, before reading protected business data.
-  // A new invocation belongs inside every driver retry, never outside TransactionRunner.run().
+  // Gọi bên trong callback của transaction (mỗi lần driver chạy lại đều gọi lại), không gọi ngoài TransactionRunner.run().
+  // Được gọi nhiều lần trong một callback (ví dụ US-28: khóa lịch trước, tìm member rồi mới khóa member),
+  // miễn là các khóa lấy đúng thứ tự cố định bên dưới và không quay lại khóa đứng trước khóa đã giữ.
   // US-28-G01: thứ tự cố định security_state → plans → schedule_guards → members → transactions, không quay lại khóa trước.
   async acquire(session: ClientSession, targets: DataGuardTargets): Promise<void> {
     if (!session.inTransaction()) throw new Error('DATA_GUARD_TRANSACTION_REQUIRED');

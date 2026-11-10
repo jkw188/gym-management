@@ -10,6 +10,7 @@ import { DataGuardsService } from '../../infrastructure/transaction/data-guards.
 import { IdempotencyService, OperationResult, transactionRequestKey, WorkResult } from '../operations/idempotency.service';
 import { insidePeriod, TimeInterval, vietnamPeriod } from '../scheduling/interval.policy';
 import { checkSlot } from '../scheduling/slot.policy';
+import { ShiftIntervalService } from '../shifts/shift-interval.service';
 import { ShiftsRepository } from '../shifts/shifts.repository';
 import { CreatePtBookingDto } from './booking.dto';
 import { toCreatedPtBooking } from './booking.mapper';
@@ -32,6 +33,8 @@ export class BookingService {
     private readonly repository: BookingRepository,
     // Đọc ca của PT trong cùng session (ca thuộc US-24/25).
     private readonly shifts: ShiftsRepository,
+    // Luật đọc thời điểm ISO có thật dùng chung với ca US-24.
+    private readonly interval: ShiftIntervalService,
     private readonly guards: DataGuardsService,
     private readonly idempotency: IdempotencyService,
     private readonly clock: ServerClock,
@@ -40,8 +43,9 @@ export class BookingService {
   // POST /api/me/pt-bookings: US-28-TC01 – 201 BOOKED; gửi lại cùng key trả lại 201/body gốc (US-28-TC10).
   async create(accountId: string, dto: CreatePtBookingDto, clientKey: string): Promise<OperationResult> {
     // Bước 1 của G04: chuẩn hóa payload. Hai cách viết cùng một thời điểm (+07:00 hay Z) phải ra cùng hash idempotency.
-    const startAt = new Date(dto.startAt);
-    if (Number.isNaN(startAt.getTime())) throw new ApplicationError(400, 'VALIDATION_ERROR', 'Giờ bắt đầu không hợp lệ');
+    // US-28-TC03: new Date() tự "tràn" 30/02 thành 02/03, 24:00 thành hôm sau; parseInstant đọc lại ngày/giờ theo
+    // đúng offset gửi lên và so với chuỗi gốc, lệch thì 400 VALIDATION_ERROR (cùng luật với ca US-24).
+    const startAt = this.interval.parseInstant(dto.startAt, 'startAt');
     const membershipId = new Types.ObjectId(dto.membershipId);
     const trainerId = new Types.ObjectId(dto.trainerId);
     const shiftId = new Types.ObjectId(dto.shiftId);
