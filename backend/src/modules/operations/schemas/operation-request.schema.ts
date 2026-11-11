@@ -3,9 +3,10 @@
 import { Schema, Types } from 'mongoose';
 
 // EN-02-D01: các thao tác bắt buộc có Idempotency-Key. SHIFT_CREATE, SHIFT_UPDATE: PT tạo/sửa ca nháp (US-24);
-// SHIFT_CONFIRM, SHIFT_CANCEL: PT công bố/hủy ca (US-25); PT_BOOKING_CREATE: Member đặt slot PT (US-28).
+// SHIFT_CONFIRM, SHIFT_CANCEL: PT công bố/hủy ca (US-25); PT_BOOKING_CREATE: Member đặt slot PT (US-28);
+// PT_BOOKING_CANCEL_OWN: Member tự hủy, PT_BOOKING_CANCEL_SUPPORT: Staff/Admin hủy hỗ trợ (US-29).
 export const OPERATIONS = ['SALE_REGISTER', 'SALE_CANCEL', 'PAYMENT_CONFIRM', 'MEMBER_CREATE', 'MEMBER_LINK', 'SHIFT_CREATE', 'SHIFT_UPDATE',
-  'SHIFT_CONFIRM', 'SHIFT_CANCEL', 'PT_BOOKING_CREATE'] as const;
+  'SHIFT_CONFIRM', 'SHIFT_CANCEL', 'PT_BOOKING_CREATE', 'PT_BOOKING_CANCEL_OWN', 'PT_BOOKING_CANCEL_SUPPORT'] as const;
 export type Operation = (typeof OPERATIONS)[number];
 
 export interface OperationRequest {

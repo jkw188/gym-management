@@ -39,6 +39,9 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   SHIFT_CANCEL: ['TRAINER'],
   // US-28: quyền ptBookings.createOwn chỉ cho MEMBER.
   PT_BOOKING_CREATE: ACCESS_POLICY['ptBookings.createOwn'].roles,
+  // US-29 bước 2: tạm ghi vai trò cố định; bước 3 chuyển sang quyền ptBookings.cancelOwn/cancelSupport trong ACCESS_POLICY.
+  PT_BOOKING_CANCEL_OWN: ['MEMBER'],
+  PT_BOOKING_CANCEL_SUPPORT: ['STAFF', 'ADMIN'],
 };
 
 // Số lần thử lại khi hai request cùng key chạy đua và request này thua ở unique index.

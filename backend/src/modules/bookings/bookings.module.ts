@@ -22,12 +22,14 @@ import { MePtBookingsRepository } from './me-pt-bookings.repository';
 import { MePtBookingsService } from './me-pt-bookings.service';
 import { PtAvailabilityController } from './pt-availability.controller';
 import { PtAvailabilityRepository } from './pt-availability.repository';
+import { BookingEventSchema } from './schemas/booking-event.schema';
 import { PtBookingSchema } from './schemas/pt-booking.schema';
 
 @Module({
   imports: [
     // Cùng schema với MembershipsModule (US-17) nên Mongoose dùng lại một model PtBooking.
-    MongooseModule.forFeature([{ name: 'PtBooking', schema: PtBookingSchema }]),
+    // BookingEvent: audit booking_events của lệnh hủy (US-29 bước 2).
+    MongooseModule.forFeature([{ name: 'PtBooking', schema: PtBookingSchema }, { name: 'BookingEvent', schema: BookingEventSchema }]),
     // ShiftIntervalService (slot, overlap, ngày Việt Nam) và ShiftsRepository (ca CONFIRMED).
     ShiftsModule,
     // PublicSessionsRepository: giờ lớp PUBLISHED của PT.
