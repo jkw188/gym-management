@@ -4,7 +4,7 @@
 // Hợp đồng test đặt ra cho Builder (US-29 bước 1, theo F01–F03 và mục 2 của spec):
 //   File backend/src/modules/bookings/cancel-booking.service.ts, class CancelBookingService (provider của BookingsModule).
 //   cancel(input: { policy: 'OWN' | 'SUPPORT'; actorId: string (account id người gọi); actorRole: 'MEMBER' | 'TRAINER' | 'STAFF' | 'ADMIN';
-//                   bookingId: string; version: number; reason?: string }) → Promise<{ id, status: 'CANCELLED', version, cancelledAt }>.
+//                   bookingId: string; version: number; reason?: string; idempotencyKey: string (UUID, từ bước 2) }) → Promise<{ id, status: 'CANCELLED', version, cancelledAt }>.
 //   Service tự mở transaction; trong transaction đọc booking mới nhất, kiểm owner/trạng thái/version/hạn bằng giờ server rồi ghi CAS.
 //   Thành công: pt_bookings.status CANCELLED, cancelled_at, cancelled_by = actorId, cancellation_reason = reason đã trim (cùng tên với work_shifts US-25), updated_at, version+1.
 //     Không xóa booking, không đổi member_id/membership_id, không sửa memberships/service_sales/transactions, không tạo refund.
@@ -23,7 +23,7 @@ import { getConnectionToken } from '@nestjs/mongoose';
 import { Decimal128, Long, ObjectId } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Connection } from 'mongoose';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { ApplicationError } from '../src/common/errors/application-error';
 import { PasswordService } from '../src/common/security/password.service';
@@ -38,7 +38,7 @@ const REASON = 'Bận việc gia đình đột xuất';
 const MINUTE = 60 * 1000;
 
 type Role = 'MEMBER' | 'TRAINER' | 'STAFF' | 'ADMIN';
-type CancelInput = { policy: 'OWN' | 'SUPPORT'; actorId: string; actorRole: Role; bookingId: string; version: number; reason?: string };
+type CancelInput = { policy: 'OWN' | 'SUPPORT'; actorId: string; actorRole: Role; bookingId: string; version: number; reason?: string; idempotencyKey: string };
 
 describe('US-29 bước 1: CancelBookingService hai policy own/support', () => {
   let mongo: MongoMemoryReplSet;
@@ -189,10 +189,10 @@ describe('US-29 bước 1: CancelBookingService hai policy own/support', () => {
   }
 
   const ownInput = (me: { accountId: string }, bookingId: ObjectId, version = 0, reason: string | undefined = REASON): CancelInput => ({
-    policy: 'OWN', actorId: me.accountId, actorRole: 'MEMBER', bookingId: bookingId.toHexString(), version, reason,
+    policy: 'OWN', actorId: me.accountId, actorRole: 'MEMBER', bookingId: bookingId.toHexString(), version, reason, idempotencyKey: randomUUID(),
   });
   const supportInput = (actor: { accountId: string }, role: Role, bookingId: ObjectId, version = 0, reason: string | undefined = REASON): CancelInput => ({
-    policy: 'SUPPORT', actorId: actor.accountId, actorRole: role, bookingId: bookingId.toHexString(), version, reason,
+    policy: 'SUPPORT', actorId: actor.accountId, actorRole: role, bookingId: bookingId.toHexString(), version, reason, idempotencyKey: randomUUID(),
   });
 
   const bookingDoc = (id: ObjectId) => db().collection('pt_bookings').findOne({ _id: id });
