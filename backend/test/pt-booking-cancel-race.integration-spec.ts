@@ -335,25 +335,33 @@ describe('US-29 bước 4: ngưỡng 2 giờ theo đồng hồ giả và race th
   });
 
   describe('US-29-TC10: hủy và đặt slot vừa giải phóng cạnh tranh', () => {
-    // Member A đã đặt slot 09:00 qua API US-28; Member B có gói riêng, cùng PT/ca.
-    async function slotScenario() {
-      const day = vnDay(10);
+    // Tài khoản tạo MỘT lần cho cả test rồi dùng lại token: LoginLimiter chỉ cho 20 lần đăng nhập/phút trên một IP,
+    // tạo tài khoản mới ở mỗi vòng sẽ vượt giới hạn (giới hạn đăng nhập không thuộc phạm vi US-29).
+    async function slotActors() {
       const pt = await trainer();
-      const shiftId = await insertShift(pt.trainerId, day);
       const memberA = await linkedMember('Hội viên A');
-      const membershipA = await insertPlan(memberA.memberId);
       const memberB = await linkedMember('Hội viên B');
+      return { pt, memberA, memberB };
+    }
+
+    // Mỗi vòng một ngày riêng: ca mới của PT, gói mới cho A và B, A đặt slot 09:00 qua API US-28.
+    async function slotRound(actors: Awaited<ReturnType<typeof slotActors>>, day: string) {
+      const { pt, memberA, memberB } = actors;
+      const shiftId = await insertShift(pt.trainerId, day);
+      const membershipA = await insertPlan(memberA.memberId);
       const membershipB = await insertPlan(memberB.memberId);
       const startAt = `${day}T09:00:00+07:00`;
       const bodyFor = (membershipId: ObjectId) => ({
         membershipId: membershipId.toHexString(), trainerId: pt.trainerId.toHexString(), shiftId: shiftId.toHexString(), startAt,
       });
       const created = await book(memberA, bodyFor(membershipA)).expect(201);
-      return { pt, memberA, membershipA, memberB, membershipB, bookingA: new ObjectId(created.body.id as string), bodyB: bodyFor(membershipB), start: at(day, '09:00') };
+      return { membershipA, membershipB, bookingA: new ObjectId(created.body.id as string), bodyB: bodyFor(membershipB), start: at(day, '09:00') };
     }
 
     it('US-29-TC10: hủy xong rồi Member B đặt đúng slot đó (ý định mới, kiểm đủ điều kiện US-28) → 201', async () => {
-      const { memberA, memberB, bookingA, bodyB } = await slotScenario();
+      const actors = await slotActors();
+      const { memberA, memberB } = actors;
+      const { bookingA, bodyB } = await slotRound(actors, vnDay(10));
 
       await cancelOwn(memberA, bookingA).expect(200);
       const response = await book(memberB, bodyB);
@@ -363,9 +371,10 @@ describe('US-29 bước 4: ngưỡng 2 giờ theo đồng hồ giả và race th
     });
 
     it(`US-29-TC10: ${ROUNDS} vòng A hủy và B đặt cùng slot đồng thời trên hai instance (đảo thứ tự gửi) → thứ tự commit hợp lệ, không giữ chỗ kép, quota không âm`, async () => {
+      const actors = await slotActors();
+      const { pt, memberA, memberB } = actors;
       for (let round = 0; round < ROUNDS; round += 1) {
-        await db().collection('pt_bookings').deleteMany({});
-        const { pt, memberA, membershipA, memberB, membershipB, bookingA, bodyB, start } = await slotScenario();
+        const { membershipA, membershipB, bookingA, bodyB, start } = await slotRound(actors, vnDay(10 + round));
         const usedA = await usedOf(membershipA);
         const usedB = await usedOf(membershipB);
 
@@ -428,9 +437,13 @@ describe('US-29 bước 4: ngưỡng 2 giờ theo đồng hồ giả và race th
     }
 
     it(`US-29-TC11: ${ROUNDS} vòng hủy và fixture hoàn tất đồng thời → một status cuối; used tăng đúng 1 khi hoàn tất thắng, không tăng khi hủy thắng`, async () => {
+      // Tài khoản tạo một lần (giới hạn 20 lần đăng nhập/phút); mỗi vòng gói và booking mới ở ngày riêng.
+      const me = await linkedMember('Hội viên US29 B4');
+      const pt = await trainer();
+      const staff = await user('STAFF', 'Nhân viên Quầy');
       for (let round = 0; round < ROUNDS; round += 1) {
-        const { me, membershipId, bookingId } = await ready(at(vnDay(10), '09:00'));
-        const staff = await user('STAFF', 'Nhân viên Quầy');
+        const membershipId = await insertPlan(me.memberId);
+        const bookingId = await insertBooking(me.memberId, membershipId, pt.trainerId, at(vnDay(10 + round), '09:00'));
         const usedBefore = await usedOf(membershipId);
         const revisionBefore = await memberRevision(me.memberId);
 
@@ -460,8 +473,12 @@ describe('US-29 bước 4: ngưỡng 2 giờ theo đồng hồ giả và race th
     }, 300000);
 
     it(`US-29-TC11: ${ROUNDS} vòng Member hủy (version 0) và fixture nâng cấp đồng thời → hoặc hủy trên gói cũ, hoặc 409 và booking BOOKED ở gói mới; member_id không đổi`, async () => {
+      // Tài khoản tạo một lần (giới hạn 20 lần đăng nhập/phút); mỗi vòng gói cũ, gói mới và booking mới ở ngày riêng.
+      const me = await linkedMember('Hội viên US29 B4');
+      const pt = await trainer();
       for (let round = 0; round < ROUNDS; round += 1) {
-        const { me, membershipId, bookingId } = await ready(at(vnDay(10), '09:00'));
+        const membershipId = await insertPlan(me.memberId);
+        const bookingId = await insertBooking(me.memberId, membershipId, pt.trainerId, at(vnDay(10 + round), '09:00'));
         const newMembershipId = await insertPlan(me.memberId);
 
         const cancelCall = () => cancelOwn(me, bookingId, 0, randomUUID(), round % 2 === 0 ? app : second);
