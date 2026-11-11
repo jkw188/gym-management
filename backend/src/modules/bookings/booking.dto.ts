@@ -1,7 +1,7 @@
-// Tầng kiểm tra dữ liệu (US-28 bước 3): body của POST /api/me/pt-bookings – Member đặt một slot PT.
+// Tầng kiểm tra dữ liệu (US-28 bước 3, US-29 bước 3): body của POST /api/me/pt-bookings (đặt slot PT) và body của lệnh hủy buổi PT.
 // Chỉ nhận 4 field; ValidationPipe toàn cục bật forbidNonWhitelisted nên endAt, memberId, status, price, trainerName, location → 400 (US-28-F01).
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, Matches } from 'class-validator';
+import { IsInt, IsString, Matches, Min } from 'class-validator';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
@@ -23,4 +23,16 @@ export class CreatePtBookingDto {
   // endAt KHÔNG nhận từ client: server tự tính startAt + 60 phút (US-28-F02).
   @ApiProperty({ example: '2026-12-01T09:00:00+07:00' })
   @IsString() @Matches(START_AT) startAt!: string;
+}
+
+// US-29 bước 3: body của POST /api/me/pt-bookings/:id/cancel và POST /api/pt-bookings/:id/cancel.
+// CHỈ nhận {version, reason}; field khác (now, clientNow, status…) → 400 (US-29-TC02, TC06): server không dùng giờ client.
+// Độ dài lý do sau trim (10–500) do CancelBookingService kiểm, để mọi đường gọi dùng chung một luật.
+export class CancelPtBookingDto {
+  // Version client đang thấy; số nguyên ≥ 0, chuỗi "0" cũng bị 400 vì không tự đổi kiểu.
+  @ApiProperty({ example: 0 })
+  @IsInt() @Min(0) version!: number;
+
+  @ApiProperty({ example: 'Bận việc gia đình đột xuất', description: 'Lý do hủy, 10–500 ký tự sau khi bỏ khoảng trắng hai đầu' })
+  @IsString() reason!: string;
 }

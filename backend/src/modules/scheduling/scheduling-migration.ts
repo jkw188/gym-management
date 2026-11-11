@@ -1,7 +1,8 @@
-// Tầng dữ liệu – migration vận hành (US-28 bước 1–2): chạy trong lệnh ensure-indexes, TRƯỚC khi mở writer lịch.
+// Tầng dữ liệu – migration vận hành (US-28 bước 1–2, US-29 bước 2): chạy trong lệnh ensure-indexes, TRƯỚC khi mở writer lịch.
 // Kiểm HẾT dữ liệu lịch cũ trước, có vi phạm thì dừng và không sửa gì; hợp lệ thì tạo index, backfill booking cũ, cuối cùng tạo guard.
 import { Long, ObjectId } from 'mongodb';
 import { Connection } from 'mongoose';
+import { BookingEventSchema } from '../bookings/schemas/booking-event.schema';
 import { PtBookingSchema } from '../bookings/schemas/pt-booking.schema';
 import { SCHEDULE_GUARD_ID } from '../../infrastructure/transaction/data-guards.service';
 
@@ -36,6 +37,8 @@ export async function ensureSchedulingIntegrity(connection: Connection): Promise
 
   // 2. Index theo spec mục 3 (khai báo trong PtBookingSchema để chỉ có một nơi định nghĩa).
   await connection.model('PtBooking', PtBookingSchema).createIndexes();
+  // US-29 bước 2: index booking_events (request_key unique, booking_id + occurred_at) phải có trước khi mở lệnh hủy.
+  await connection.model('BookingEvent', BookingEventSchema).createIndexes();
 
   // 3. US-28-G03: backfill member_id và snapshot còn thiếu của booking cũ.
   await backfillBookings(connection, bookings);

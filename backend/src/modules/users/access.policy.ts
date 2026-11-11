@@ -35,6 +35,10 @@ export const ACCESS_POLICY = {
   'ptBookings.readOwn': { name: 'Xem lịch PT của mình', roles: ['MEMBER'] },
   // US-28: Member đặt slot PT bằng gói của chính mình.
   'ptBookings.createOwn': { name: 'Đặt lịch PT', roles: ['MEMBER'] },
+  // US-29-TC03: Member tự hủy lịch của mình; Staff/Admin tra cứu và hủy hỗ trợ. PT không có quyền nào ở đây.
+  'ptBookings.cancelOwn': { name: 'Hủy lịch PT của mình', roles: ['MEMBER'] },
+  'ptBookings.readSupport': { name: 'Tra cứu lịch PT để hỗ trợ', roles: ['STAFF', 'ADMIN'] },
+  'ptBookings.cancelSupport': { name: 'Hủy lịch PT hỗ trợ', roles: ['STAFF', 'ADMIN'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;

@@ -18,6 +18,7 @@ import { ClassesPage } from './features/classes/ClassesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
 import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
 import { PtBookingsPage } from './features/pt-bookings/PtBookingsPage';
+import { SupportPtBookingsPage } from './features/pt-bookings/SupportPtBookingsPage';
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
 
@@ -39,6 +40,9 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members/new" element={<NewMemberPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members/:id" element={<MemberDetailPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members/:id" element={<MemberDetailPage />} /></Route>
+      {/* US-29: Staff/Admin tra cứu và hủy hỗ trợ lịch PT (server kiểm quyền ptBookings.readSupport/cancelSupport). */}
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/pt-bookings" element={<SupportPtBookingsPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/pt-bookings" element={<SupportPtBookingsPage />} /></Route>
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/profile" element={<ProfilePage role="MEMBER" />} />
         <Route path="/member/security" element={<ChangePasswordPage />} />
         {/* US-47: inbox thông báo của member. */}
