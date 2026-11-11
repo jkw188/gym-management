@@ -137,18 +137,23 @@ async function backfillBookings(connection: Connection, bookings: BookingRow[]):
   }
 }
 
-// US-64-C04: booking tạo trước US-64 chưa có completion_revision.
-// - COMPLETED: đã hoàn tất đúng một lần → revision 1; gói bị trừ buổi là gói booking đang tham chiếu (nếu chưa ghi).
-// - BOOKED/CANCELLED: chưa hoàn tất lần nào → revision 0.
-// Chỉ chọn booking CHƯA có completion_revision nên booking đã có giữ nguyên và chạy lại lệnh không đổi gì.
+// US-64-C04: điền nguồn hoàn tất còn thiếu cho booking tạo trước US-64. Mỗi lệnh lọc theo ĐÚNG field nó điền:
+// - COMPLETED thiếu completion_membership_id (dù đã có revision hay chưa) → gói booking đang tham chiếu (US-64-C02 cần gói này).
+// - COMPLETED thiếu completion_revision: đã hoàn tất đúng một lần → 1.
+// - BOOKED/CANCELLED thiếu completion_revision: chưa hoàn tất lần nào → 0.
+// Field đã có thì giữ nguyên, nên chạy lại lệnh không đổi gì.
 // Không đụng sessions_used, status, membership_id, version (US-64-F02: không tự chữa dữ liệu).
 async function backfillCompletionSource(connection: Connection): Promise<void> {
   const bookings = connection.collection('pt_bookings');
   // Dạng update bằng pipeline ([{ $set }]) để đọc được field của chính document:
-  // '$membership_id' là giá trị membership_id của booking đó; $ifNull giữ completion_membership_id nếu đã có.
+  // '$membership_id' là giá trị membership_id của booking đó.
+  await bookings.updateMany(
+    { status: 'COMPLETED', completion_membership_id: { $exists: false } },
+    [{ $set: { completion_membership_id: '$membership_id' } }],
+  );
   await bookings.updateMany(
     { status: 'COMPLETED', completion_revision: { $exists: false } },
-    [{ $set: { completion_revision: 1, completion_membership_id: { $ifNull: ['$completion_membership_id', '$membership_id'] } } }],
+    { $set: { completion_revision: 1 } },
   );
   await bookings.updateMany(
     { status: { $ne: 'COMPLETED' }, completion_revision: { $exists: false } },
