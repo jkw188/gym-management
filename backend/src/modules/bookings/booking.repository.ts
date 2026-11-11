@@ -121,7 +121,7 @@ export class BookingRepository {
           status: change.toStatus,
           cancelled_at: change.now,
           cancelled_by: change.cancelledBy,
-          cancelled_reason: change.reason,
+          cancellation_reason: change.reason,
           updated_at: change.now,
         },
         $inc: { version: 1 },

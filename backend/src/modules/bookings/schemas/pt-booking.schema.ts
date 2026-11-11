@@ -3,7 +3,7 @@
 // US-28 bước 1: thêm index theo ca và request_key unique; lệnh ensure-indexes tạo các index này trước khi mở writer.
 // US-28 bước 2: member_id bắt buộc, bất biến; version bắt buộc (booking cũ được backfill trong ensure-indexes).
 // US-28 bước 3: thêm created_by, updated_at cho booking do Member đặt qua API.
-// US-29 bước 1: thêm cancelled_at/by/reason ghi khi buổi chuyển BOOKED → CANCELLED (US-29-F03).
+// US-29 bước 1: thêm cancelled_at, cancelled_by, cancellation_reason (cùng tên với work_shifts US-25) ghi khi buổi chuyển BOOKED → CANCELLED (US-29-F03).
 import { Schema, Types } from 'mongoose';
 
 export type PtBookingStatus = 'BOOKED' | 'COMPLETED' | 'CANCELLED';
@@ -32,7 +32,7 @@ export interface PtBooking {
   // US-29-F03: lúc hủy (giờ server), account người hủy (Member hoặc Staff/Admin), lý do đã trim; chỉ có khi CANCELLED.
   cancelled_at?: Date;
   cancelled_by?: Types.ObjectId;
-  cancelled_reason?: string;
+  cancellation_reason?: string;
 }
 
 // Mọi trạng thái của buổi PT; lịch riêng của Member gồm cả ba (US-27-F05).
@@ -61,7 +61,7 @@ export const PtBookingSchema = new Schema<PtBooking>({
   cancelled_at: { type: Date },
   cancelled_by: { type: Schema.Types.ObjectId, ref: 'Account' },
   // US-29-F02: lý do sau trim dài 10–500 ký tự (service kiểm, schema chặn thêm độ dài tối đa).
-  cancelled_reason: { type: String, maxlength: 500 },
+  cancellation_reason: { type: String, maxlength: 500 },
 }, { collection: 'pt_bookings', id: false, versionKey: false });
 
 // US-17-F03: đếm buổi BOOKED theo từng gói ngay trong DB.
