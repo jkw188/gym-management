@@ -424,8 +424,10 @@ describe('US-29 bước 1: CancelBookingService hai policy own/support', () => {
     it.each(cases)('US-29-TC06: %s → 400 VALIDATION_ERROR, booking giữ nguyên', async (_name, reason) => {
       const { bookingId } = await ready(minutesAhead(30));
       const staff = await account('STAFF', 'Nhân viên Quầy');
+      // Ghi đè reason sau khi tạo input: truyền undefined vào tham số mặc định của supportInput sẽ bị thay bằng REASON hợp lệ.
+      const input: CancelInput = { ...supportInput(staff, 'STAFF', bookingId), reason };
 
-      await expectUnchanged(bookingId, () => expectFail(cancel(supportInput(staff, 'STAFF', bookingId, 0, reason)), 400, 'VALIDATION_ERROR'));
+      await expectUnchanged(bookingId, () => expectFail(cancel(input), 400, 'VALIDATION_ERROR'));
     });
 
     it('US-29-TC06: biên hợp lệ – reason đúng 10 ký tự sau trim được nhận và lưu bản đã trim', async () => {
