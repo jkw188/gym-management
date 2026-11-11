@@ -66,6 +66,10 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}
     {role === 'TRAINER' && <Link to="/trainer/shifts">Ca làm việc</Link>}
+    {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
+    {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
+    {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
+    {role === 'MEMBER' && <Link to="/member/pt-bookings">Lịch PT của tôi</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
   </section>;

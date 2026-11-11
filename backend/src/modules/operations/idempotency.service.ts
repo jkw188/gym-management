@@ -37,6 +37,11 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   // US-25: quyền shifts.confirmOwn/cancelOwn chỉ cho TRAINER.
   SHIFT_CONFIRM: ['TRAINER'],
   SHIFT_CANCEL: ['TRAINER'],
+  // US-28: quyền ptBookings.createOwn chỉ cho MEMBER.
+  PT_BOOKING_CREATE: ACCESS_POLICY['ptBookings.createOwn'].roles,
+  // US-29: quyền ptBookings.cancelOwn chỉ cho MEMBER; ptBookings.cancelSupport cho STAFF/ADMIN.
+  PT_BOOKING_CANCEL_OWN: ACCESS_POLICY['ptBookings.cancelOwn'].roles,
+  PT_BOOKING_CANCEL_SUPPORT: ACCESS_POLICY['ptBookings.cancelSupport'].roles,
 };
 
 // Số lần thử lại khi hai request cùng key chạy đua và request này thua ở unique index.

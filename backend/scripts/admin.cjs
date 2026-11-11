@@ -71,6 +71,8 @@ async function run() {
       // US-05 migration: account tạo trước US-05 chưa có recovery_revision thì ghi 0. Chạy lại nhiều lần vẫn an toàn
       // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
       await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
+      // US-28 bước 1: kiểm dữ liệu lịch, tạo index pt_bookings và guard schedule_guards trước khi mở writer lịch.
+      await ensureSchedulingIntegrity(connection);
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INDEXES_ENSURED' }));
     } finally { await connection.close(); }
     return;

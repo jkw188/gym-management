@@ -4,7 +4,7 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { getConnectionToken } from '@nestjs/mongoose';
-import { ObjectId } from 'mongodb';
+import { Long, ObjectId } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Connection, Model } from 'mongoose';
 import { randomBytes } from 'node:crypto';
@@ -53,6 +53,8 @@ describe('US-25 bước 1: schema lưu công bố và hủy ca', () => {
   beforeEach(async () => {
     // Chỉ xóa dữ liệu, giữ index (unique index phải còn để test có ý nghĩa).
     for (const collection of await connection.db!.collections()) await collection.deleteMany({});
+    // US-28-G02: writer ca (US-24/25) lấy khóa lịch schedule_guards; môi trường thật do lệnh ensure-indexes tạo sẵn.
+    await connection.db!.collection<{ _id: string; revision: Long }>('schedule_guards').insertOne({ _id: 'global', revision: Long.ZERO });
   });
 
   afterAll(async () => {
