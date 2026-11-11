@@ -2,7 +2,7 @@
 // và hủy hỗ trợ có lý do (kể cả sát giờ hoặc đã qua giờ). Không có nút hoàn tất buổi trong S04. Luật hủy do server kiểm.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
-import { formatDate, formatRange, STATUS_LABELS } from './PtBookingsPage';
+import { formatDate, formatRange, STATUS_LABELS } from './pt-booking-format';
 import {
   isValidCancelReason, ptBookingsApi, type CancelBookingInput, type PtBookingStatus, type SupportFilter, type SupportPtBooking,
   type SupportPtBookingPage,

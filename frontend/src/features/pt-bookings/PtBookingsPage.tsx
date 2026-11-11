@@ -9,9 +9,7 @@ import {
   isValidCancelReason, ptBookingsApi, type BookingFilter, type CancelBookingInput, type CreateBookingInput, type MyPtBooking,
   type PtAvailability, type PtBookingStatus, type PtSlot, type PtTrainer, type SlotReason,
 } from './pt-bookings.api';
-
-// Dùng chung với trang hỗ trợ /staff/pt-bookings (US-29).
-export const STATUS_LABELS: Record<PtBookingStatus, string> = { BOOKED: 'Đã đặt', COMPLETED: 'Đã hoàn thành', CANCELLED: 'Đã hủy' };
+import { formatAsOf, formatDate, formatRange, STATUS_LABELS } from './pt-booking-format';
 
 // US-27-TC12: giải thích vì sao slot chưa đặt được.
 const REASON_LABELS: Record<SlotReason, string> = {
@@ -31,15 +29,6 @@ const CONFLICT_LABELS: Record<string, string> = {
   TRAINER_UNAVAILABLE: 'PT hiện không nhận lịch',
   MEMBERSHIP_NOT_ELIGIBLE: 'Gói không dùng được cho buổi này',
 };
-
-// US-27-TC11: mọi thời điểm hiển thị theo giờ Việt Nam, kể cả khi máy người dùng ở múi giờ khác.
-const vnDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
-const vnTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-// export: trang hỗ trợ /staff/pt-bookings (US-29) dùng cùng cách hiển thị giờ VN.
-export const formatDate = (iso: string) => vnDate.format(new Date(iso));              // "25/11/2026"
-const formatTime = (iso: string) => vnTime.format(new Date(iso));                     // "08:00"
-export const formatRange = (startAt: string, endAt: string) => `${formatTime(startAt)}–${formatTime(endAt)}`;
-const formatAsOf = (iso: string) => `${formatTime(iso)} ${formatDate(iso)}`;          // "10:05 20/11/2026"
 
 // US-29-F01: hạn tự hủy = giờ bắt đầu − 2 giờ, hiển thị giờ VN, ví dụ "07:00 25/11/2026".
 // Chỉ để hiển thị; được hủy hay không do cancelAllowed của server quyết định.
