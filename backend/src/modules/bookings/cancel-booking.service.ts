@@ -1,14 +1,20 @@
-// Tầng nghiệp vụ (US-29 bước 1): hủy một buổi PT BOOKED → CANCELLED, dùng chung cho hai policy:
-// OWN (Member tự hủy, phải còn ≥ 2 giờ) và SUPPORT (Staff/Admin hủy hỗ trợ, được vượt hạn). Toàn bộ luật F01–F03 nằm ở file này.
+// Tầng nghiệp vụ (US-29 bước 1–2): hủy một buổi PT BOOKED → CANCELLED, dùng chung cho hai policy:
+// OWN (Member tự hủy, phải còn ≥ 2 giờ) và SUPPORT (Staff/Admin hủy hỗ trợ, được vượt hạn). Toàn bộ luật F01–F05 nằm ở file này.
+// Bước 2: trong CÙNG transaction: khóa lịch → khóa member → CAS hủy → audit booking_events → thông báo EN-03.
 import { Injectable } from '@nestjs/common';
 import { ClientSession } from 'mongodb';
 import { Types } from 'mongoose';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { ServerClock } from '../../common/utils/business-date';
+import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
-import { toCancelledPtBooking } from './booking.mapper';
+import { NotificationsService } from '../notifications/notifications.service';
+import { transactionRequestKey } from '../operations/idempotency.service';
+import { Operation } from '../operations/schemas/operation-request.schema';
+import { toBookingCancelledMessage, toCancelledPtBooking } from './booking.mapper';
 import { BookingRepository } from './booking.repository';
 import { CancelledPtBooking } from './booking.types';
+import { BookingEventActorRole } from './schemas/booking-event.schema';
 import { PtBooking } from './schemas/pt-booking.schema';
 
 export type CancelPolicy = 'OWN' | 'SUPPORT';
@@ -23,6 +29,8 @@ export interface CancelBookingInput {
   // Version client đang thấy; khác version trong DB → 409 VERSION_CONFLICT (US-29-F04).
   version: number;
   reason?: string;
+  // US-29 bước 2: Idempotency-Key (UUID) của request, dùng để băm request_key của audit. Replay/operation_requests ở bước 3.
+  idempotencyKey: string;
 }
 
 // US-29-F01: Member chỉ được tự hủy khi startAt − giờ server ≥ 120 phút.
@@ -44,6 +52,10 @@ export class CancelBookingService {
   constructor(
     private readonly repository: BookingRepository,
     private readonly transactions: TransactionRunner,
+    // Khóa lịch và khóa member theo thứ tự cố định (US-28-G01, G03).
+    private readonly guards: DataGuardsService,
+    // EN-03: lưu thông báo + người nhận + outbox cùng transaction.
+    private readonly notifications: NotificationsService,
     private readonly clock: ServerClock,
   ) {}
 
@@ -58,11 +70,18 @@ export class CancelBookingService {
     if (!Types.ObjectId.isValid(input.bookingId)) throw notFound();
     const bookingId = new Types.ObjectId(input.bookingId);
     const actorId = new Types.ObjectId(input.actorId);
+    // EN-02: mỗi policy là một operation riêng để băm request_key (PT_BOOKING_CANCEL_OWN / _SUPPORT).
+    const operation: Operation = input.policy === 'OWN' ? 'PT_BOOKING_CANCEL_OWN' : 'PT_BOOKING_CANCEL_SUPPORT';
 
     // US-29-F04: mọi bước đọc – kiểm – ghi nằm trong MỘT transaction; lỗi nghiệp vụ thì không ghi gì.
     return this.transactions.run(async session => {
       // US-29-F01: lấy giờ server ở MỖI lần driver chạy lại callback, không tin giờ của browser hay lúc gửi request.
       const now = this.clock.now();
+
+      // US-29-F04, US-29-TC09, US-29-TC11: lấy khóa lịch (schedule_guards +1) TRƯỚC khi đọc booking, cùng thứ tự với
+      // lệnh đặt US-28: hai lệnh hủy/đặt cùng lúc ghi chung document này nên MongoDB bắt một bên chờ rồi chạy lại.
+      // Lệnh bị từ chối ở dưới thì transaction rollback, khóa không tăng.
+      await this.guards.acquire(session, { schedule: true });
 
       // Đọc booking MỚI NHẤT trong session, không dùng dữ liệu client gửi lên.
       const booking = await this.repository.findBookingById(bookingId, session);
@@ -86,6 +105,11 @@ export class CancelBookingService {
         }
       }
 
+      // US-29-F04, US-29-TC11: mọi luật đã đạt mới lấy khóa member chủ booking (members.service_revision +1), sau khóa lịch.
+      // Staff hủy hỗ trợ thì khóa member CHỦ booking, không phải staff. Writer khác của member này (nâng cấp US-16,
+      // hoàn tất S07) cũng ghi field này nên phải xếp hàng sau lệnh hủy.
+      await this.guards.acquire(session, { members: [booking.member_id] });
+
       // US-29-F03, US-29-TC01: BOOKED → CANCELLED, ghi người hủy, lý do, version+1. Không sửa memberships/sale,
       // không tạo refund; reserved = số buổi BOOKED nên tự giảm 1, sessions_used giữ nguyên.
       const cancelled = await this.repository.cancelBooking({
@@ -94,8 +118,50 @@ export class CancelBookingService {
       }, session);
       // CAS không khớp: booking vừa bị thay đổi giữa lúc đọc và lúc ghi.
       if (!cancelled) throw conflict('VERSION_CONFLICT', 'Lịch tập đã thay đổi. Vui lòng tải lại');
-      return toCancelledPtBooking(cancelled);
+
+      // US-29-F05, US-29-TC05, US-29-TC04: một dòng audit cùng transaction; membership_id là gói của booking LÚC hủy.
+      // request_key băm từ actor|operation|Idempotency-Key theo EN-02, không lưu key thô.
+      await this.repository.insertBookingEvent({
+        bookingId,
+        memberId: booking.member_id,
+        membershipId: booking.membership_id,
+        actorId,
+        // checkRole đã loại TRAINER nên ở đây chỉ còn MEMBER/STAFF/ADMIN.
+        actorRole: input.actorRole as BookingEventActorRole,
+        action: 'CANCELLED',
+        reason,
+        // occurred_at trùng cancelled_at: cùng một giờ server của lần chạy này.
+        occurredAt: now,
+        beforeStatus: 'BOOKED',
+        afterStatus: 'CANCELLED',
+        requestKey: transactionRequestKey(input.actorId, operation, input.idempotencyKey),
+      }, session);
+
+      // US-29-F05, US-29-TC13: thông báo BOOKING_CANCELLED:<id> theo EN-03 trong CÙNG session (notification + recipients + outbox).
+      // US-29-TC08: người nhận chụp lúc commit = account đang liên kết của Member + account của PT, kể cả account bị khóa.
+      // Không đụng tới thông báo BOOKING_CREATED cũ. Socket do outbox worker phát sau commit.
+      const recipients = await this.findRecipients(cancelled, session);
+      const message = toBookingCancelledMessage(cancelled);
+      const event = await this.notifications.persistBusinessEvent(session, {
+        eventKey: `BOOKING_CANCELLED:${bookingId.toHexString()}`,
+        title: message.title,
+        body: message.body,
+        memberId: booking.member_id.toHexString(),
+        createdBy: input.actorId,
+      }, recipients);
+
+      return toCancelledPtBooking(cancelled, event.notificationState);
     });
+  }
+
+  // US-29-TC08, US-29-TC13: account Member (nếu đã liên kết) và account PT của buổi, dạng chuỗi hex cho EN-03.
+  private async findRecipients(booking: PtBooking, session: ClientSession): Promise<string[]> {
+    const memberAccount = await this.repository.findAccountIdOfMember(booking.member_id, session);
+    const trainerAccount = await this.repository.findAccountIdOfTrainer(booking.trainer_id, session);
+    const recipients: string[] = [];
+    if (memberAccount) recipients.push(memberAccount.toHexString());
+    if (trainerAccount) recipients.push(trainerAccount.toHexString());
+    return recipients;
   }
 
   // US-29-TC03, US-29-TC06: SUPPORT chỉ dành cho STAFF/ADMIN; OWN chỉ dành cho MEMBER.

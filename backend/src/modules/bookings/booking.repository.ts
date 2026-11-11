@@ -2,6 +2,7 @@
 // Mọi hàm nhận session của transaction để đọc lại dữ liệu SAU khi đã giữ khóa lịch và khóa member (US-28-G04).
 // Trạng thái nào là "bận", "giữ quota" do BookingService quyết định và truyền vào; repository chỉ chạy truy vấn.
 // US-29 bước 1: thêm đọc booking theo id và ghi hủy có điều kiện (CAS) cho CancelBookingService.
+// US-29 bước 2: thêm ghi audit booking_events và tìm account người nhận thông báo hủy (Member, PT).
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongodb';
@@ -9,7 +10,8 @@ import { Connection, Model, Types } from 'mongoose';
 import { TimeInterval } from '../scheduling/interval.policy';
 import { Membership } from '../memberships/schemas/membership.schema';
 import { ServiceSale } from '../memberships/schemas/service-sale.schema';
-import { CancelPtBookingChange, NewPtBooking, TrainerForBooking, TransactionForBooking } from './booking.types';
+import { CancelPtBookingChange, NewBookingEvent, NewPtBooking, TrainerForBooking, TransactionForBooking } from './booking.types';
+import { BookingEvent } from './schemas/booking-event.schema';
 import { PtBooking, PtBookingStatus } from './schemas/pt-booking.schema';
 
 // Điều kiện "giao khoảng [startAt, endAt)": start < endAt và end > startAt (tiếp giáp không tính, US-28-TC14).
@@ -21,6 +23,7 @@ function overlapCondition(interval: TimeInterval) {
 export class BookingRepository {
   constructor(
     @InjectModel('PtBooking') private readonly bookings: Model<PtBooking>,
+    @InjectModel('BookingEvent') private readonly events: Model<BookingEvent>,
     @InjectConnection() private readonly connection: Connection,
   ) {}
 
@@ -129,5 +132,34 @@ export class BookingRepository {
       // returnDocument 'after' → trả document SAU khi cập nhật.
       { returnDocument: 'after', session },
     ).lean<PtBooking>().exec();
+  }
+
+  // US-29-F05, US-29-TC05: ghi một dòng audit trong CÙNG session với lệnh hủy; schema kiểm field bắt buộc và enum.
+  async insertBookingEvent(event: NewBookingEvent, session: ClientSession): Promise<void> {
+    await this.events.create([{
+      booking_id: event.bookingId,
+      member_id: event.memberId,
+      membership_id: event.membershipId,
+      actor_id: event.actorId,
+      actor_role: event.actorRole,
+      action: event.action,
+      reason: event.reason,
+      occurred_at: event.occurredAt,
+      before_status: event.beforeStatus,
+      after_status: event.afterStatus,
+      request_key: event.requestKey,
+    }], { session });
+  }
+
+  // US-29-TC08: account đang liên kết với hồ sơ member (kể cả account bị khóa); null nếu member chưa liên kết.
+  async findAccountIdOfMember(memberId: Types.ObjectId, session: ClientSession): Promise<Types.ObjectId | null> {
+    const member = await this.connection.db!.collection('members').findOne({ _id: memberId }, { projection: { account_id: 1 }, session });
+    return (member?.account_id as Types.ObjectId | undefined) ?? null;
+  }
+
+  // US-29-TC08: account của PT (kể cả account bị khóa, trainer INACTIVE); null nếu không có hồ sơ PT.
+  async findAccountIdOfTrainer(trainerId: Types.ObjectId, session: ClientSession): Promise<Types.ObjectId | null> {
+    const trainer = await this.connection.db!.collection('trainers').findOne({ _id: trainerId }, { projection: { account_id: 1 }, session });
+    return (trainer?.account_id as Types.ObjectId | undefined) ?? null;
   }
 }

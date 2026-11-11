@@ -1,6 +1,7 @@
 // Tầng kiểu dữ liệu (US-28 bước 3–4): đổi document pt_bookings vừa tạo thành body 201 trả cho Member
 // và thành tiêu đề/nội dung thông báo BOOKING_CREATED. Chỉ chép field trong hợp đồng; không trả request_key, created_by.
-// US-29 bước 1: đổi booking vừa hủy thành kết quả {id, status, version, cancelledAt}.
+// US-29 bước 1–2: đổi booking vừa hủy thành kết quả {id, status, version, cancelledAt, notificationState}
+// và thành tiêu đề/nội dung thông báo BOOKING_CANCELLED.
 import { BookingNotificationState, CancelledPtBooking, CreatedPtBooking } from './booking.types';
 import { PtBooking } from './schemas/pt-booking.schema';
 
@@ -25,12 +26,24 @@ export function toCreatedPtBooking(booking: PtBooking, notificationState: Bookin
 
 // US-29-TC01: booking vừa hủy → kết quả trả về; cancelledAt là giờ server lúc hủy, dạng ISO UTC.
 // Chỉ gọi với booking repository vừa ghi CANCELLED nên cancelled_at chắc chắn có (dấu !).
-export function toCancelledPtBooking(booking: PtBooking): CancelledPtBooking {
+export function toCancelledPtBooking(booking: PtBooking, notificationState: BookingNotificationState): CancelledPtBooking {
   return {
     id: booking._id.toHexString(),
     status: 'CANCELLED',
     version: booking.version,
     cancelledAt: booking.cancelled_at!.toISOString(),
+    notificationState,
+  };
+}
+
+// US-29-TC13: nội dung thông báo hủy, cùng khuôn với BOOKING_CREATED: tên buổi, giờ VN, địa điểm, trạng thái.
+// Không kèm lý do hủy, số điện thoại, email, tiền hay tên Member.
+export function toBookingCancelledMessage(booking: PtBooking): { title: string; body: string } {
+  const session = `Buổi PT với ${booking.trainer_name_snapshot ?? 'PT'}`;
+  const time = `${vietnamTime(booking.start_at)}–${vietnamTime(booking.end_at)} ngày ${vietnamDate(booking.start_at)}`;
+  return {
+    title: 'Đã hủy lịch PT',
+    body: `${session}, ${time}, tại ${booking.location_snapshot ?? ''}. Trạng thái: Đã hủy.`,
   };
 }
 
