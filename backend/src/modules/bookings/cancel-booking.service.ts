@@ -48,6 +48,9 @@ export class CancelBookingService {
   ) {}
 
   async cancel(input: CancelBookingInput): Promise<CancelledPtBooking> {
+    // Spec mục 2 (401 phiên không hợp lệ): actorId lấy từ JWT; sai định dạng ObjectId nghĩa là không biết ai đang gọi.
+    // Kiểm trước để new Types.ObjectId() không ném lỗi BSON thành 500.
+    if (!Types.ObjectId.isValid(input.actorId)) throw new ApplicationError(401, 'UNAUTHENTICATED', 'Cần đăng nhập lại');
     // Kiểm quyền theo vai trò và lý do TRƯỚC khi mở transaction: không cần đọc DB.
     this.checkRole(input);
     const reason = this.normalizeReason(input.reason);
