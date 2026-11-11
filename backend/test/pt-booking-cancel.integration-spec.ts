@@ -6,7 +6,7 @@
 //   cancel(input: { policy: 'OWN' | 'SUPPORT'; actorId: string (account id người gọi); actorRole: 'MEMBER' | 'TRAINER' | 'STAFF' | 'ADMIN';
 //                   bookingId: string; version: number; reason?: string }) → Promise<{ id, status: 'CANCELLED', version, cancelledAt }>.
 //   Service tự mở transaction; trong transaction đọc booking mới nhất, kiểm owner/trạng thái/version/hạn bằng giờ server rồi ghi CAS.
-//   Thành công: pt_bookings.status CANCELLED, cancelled_at, cancelled_by = actorId, cancelled_reason = reason đã trim, updated_at, version+1.
+//   Thành công: pt_bookings.status CANCELLED, cancelled_at, cancelled_by = actorId, cancellation_reason = reason đã trim (cùng tên với work_shifts US-25), updated_at, version+1.
 //     Không xóa booking, không đổi member_id/membership_id, không sửa memberships/service_sales/transactions, không tạo refund.
 //   Lỗi (ApplicationError status + code):
 //     400 VALIDATION_ERROR  – reason thiếu hoặc sau trim ngoài 10–500 ký tự.
@@ -227,7 +227,7 @@ describe('US-29 bước 1: CancelBookingService hai policy own/support', () => {
     expect(saved?.version).toBe(version);
     expect(saved?.cancelled_at).toBeInstanceOf(Date);
     expect(String(saved?.cancelled_by)).toBe(actorId);
-    expect(saved?.cancelled_reason).toBe(reason);
+    expect(saved?.cancellation_reason).toBe(reason);
     return saved!;
   }
 
@@ -248,7 +248,7 @@ describe('US-29 bước 1: CancelBookingService hai policy own/support', () => {
       expect(cancelledAt).toBeLessThanOrEqual(Date.now() + 1000);
     });
 
-    it('US-29-TC01: DB ghi cancelled_at/by/reason (đã trim), updated_at mới, version+1; không DELETE, giữ member_id và membership_id', async () => {
+    it('US-29-TC01: DB ghi cancelled_at/by, cancellation_reason (đã trim), updated_at mới, version+1; không DELETE, giữ member_id và membership_id', async () => {
       const { me, membershipId, bookingId } = await ready(minutesAhead(180));
       const before = await bookingDoc(bookingId);
 
@@ -464,7 +464,7 @@ describe('US-29 bước 1: CancelBookingService hai policy own/support', () => {
   });
 
   describe('US-29-TC07: booking CANCELLED hoặc COMPLETED → 409, không đổi used/lịch sử', () => {
-    it('US-29-TC07: booking đã CANCELLED, Member hủy lại → 409 INVALID_BOOKING_STATE, giữ cancelled_at/by/reason lần đầu', async () => {
+    it('US-29-TC07: booking đã CANCELLED, Member hủy lại → 409 INVALID_BOOKING_STATE, giữ cancelled_at/by và cancellation_reason lần đầu', async () => {
       const { me, bookingId } = await ready(minutesAhead(180));
       await cancel(ownInput(me, bookingId));
 
