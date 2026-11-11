@@ -1,15 +1,17 @@
-// Tầng giao diện – trang (US-27 bước 3, US-28 bước 4): trang /member/pt-bookings – lịch PT riêng của Member, chọn PT/ngày/gói
-// để xem slot trống và đặt slot sau bảng xác nhận. Quota, asOf, bookable lấy nguyên từ server, React không tự tính (US-27-TC12).
+// Tầng giao diện – trang (US-27 bước 3, US-28 bước 4, US-29 bước 3): trang /member/pt-bookings – lịch PT riêng của Member, chọn PT/ngày/gói
+// để xem slot trống và đặt slot sau bảng xác nhận; tự hủy buổi BOOKED khi server báo còn hạn (US-29).
+// Quota, asOf, bookable, cancelAllowed lấy nguyên từ server, React không tự tính (US-27-TC12, US-29-TC02).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import type { MyMembership } from '../memberships/memberships.api';
 import { useAccountId } from '../notifications/inbox-signals';
 import {
-  ptBookingsApi, type BookingFilter, type CreateBookingInput, type MyPtBooking, type PtAvailability, type PtBookingStatus, type PtSlot,
-  type PtTrainer, type SlotReason,
+  isValidCancelReason, ptBookingsApi, type BookingFilter, type CancelBookingInput, type CreateBookingInput, type MyPtBooking,
+  type PtAvailability, type PtBookingStatus, type PtSlot, type PtTrainer, type SlotReason,
 } from './pt-bookings.api';
 
-const STATUS_LABELS: Record<PtBookingStatus, string> = { BOOKED: 'Đã đặt', COMPLETED: 'Đã hoàn thành', CANCELLED: 'Đã hủy' };
+// Dùng chung với trang hỗ trợ /staff/pt-bookings (US-29).
+export const STATUS_LABELS: Record<PtBookingStatus, string> = { BOOKED: 'Đã đặt', COMPLETED: 'Đã hoàn thành', CANCELLED: 'Đã hủy' };
 
 // US-27-TC12: giải thích vì sao slot chưa đặt được.
 const REASON_LABELS: Record<SlotReason, string> = {
@@ -33,18 +35,36 @@ const CONFLICT_LABELS: Record<string, string> = {
 // US-27-TC11: mọi thời điểm hiển thị theo giờ Việt Nam, kể cả khi máy người dùng ở múi giờ khác.
 const vnDate = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
 const vnTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-const formatDate = (iso: string) => vnDate.format(new Date(iso));                     // "25/11/2026"
+// export: trang hỗ trợ /staff/pt-bookings (US-29) dùng cùng cách hiển thị giờ VN.
+export const formatDate = (iso: string) => vnDate.format(new Date(iso));              // "25/11/2026"
 const formatTime = (iso: string) => vnTime.format(new Date(iso));                     // "08:00"
-const formatRange = (startAt: string, endAt: string) => `${formatTime(startAt)}–${formatTime(endAt)}`;
+export const formatRange = (startAt: string, endAt: string) => `${formatTime(startAt)}–${formatTime(endAt)}`;
 const formatAsOf = (iso: string) => `${formatTime(iso)} ${formatDate(iso)}`;          // "10:05 20/11/2026"
+
+// US-29-F01: hạn tự hủy = giờ bắt đầu − 2 giờ, hiển thị giờ VN, ví dụ "07:00 25/11/2026".
+// Chỉ để hiển thị; được hủy hay không do cancelAllowed của server quyết định.
+const CANCEL_LEAD_MS = 2 * 60 * 60 * 1000;
+const formatCancelDeadline = (startAt: string) => formatAsOf(new Date(Date.parse(startAt) - CANCEL_LEAD_MS).toISOString());
+
+// US-29-TC02, TC04: thông báo khi server từ chối hủy (409).
+const CANCEL_CONFLICT_LABELS: Record<string, string> = {
+  CANCELLATION_WINDOW_CLOSED: 'Đã quá hạn tự hủy (trước giờ tập 2 giờ). Vui lòng liên hệ quầy để được hỗ trợ.',
+  VERSION_CONFLICT: 'Lịch tập vừa thay đổi. Lịch đã được tải lại, vui lòng kiểm tra rồi hủy lại nếu cần.',
+  INVALID_BOOKING_STATE: 'Buổi này không còn ở trạng thái hủy được. Lịch đã được tải lại.',
+};
 
 // ---------- Vùng "Lịch của tôi" ----------
 
-function BookingCard({ booking }: { booking: MyPtBooking }) {
+function BookingCard({ booking, onCancel }: { booking: MyPtBooking; onCancel: (booking: MyPtBooking) => void }) {
   return <article aria-label={`Buổi PT ${formatDate(booking.startAt)} ${formatRange(booking.startAt, booking.endAt)}`}>
     <p><strong>{booking.trainerName}</strong> · <span>{STATUS_LABELS[booking.status]}</span></p>
     <p>{formatDate(booking.startAt)} · {formatRange(booking.startAt, booking.endAt)}</p>
     <p>{booking.location}</p>
+    {/* US-29-TC01, TC02: chỉ buổi BOOKED mới nói tới hủy. cancelAllowed lấy từ server, không tự tính lại bằng đồng hồ máy. */}
+    {booking.status === 'BOOKED' && (booking.cancelAllowed
+      ? <p>Hạn hủy: {formatCancelDeadline(booking.startAt)}{' '}
+        <button type="button" onClick={() => onCancel(booking)}>Hủy lịch</button></p>
+      : <p>Đã quá hạn tự hủy. Vui lòng liên hệ quầy để được hỗ trợ.</p>)}
   </article>;
 }
 
@@ -80,6 +100,16 @@ export function PtBookingsPage() {
   // US-28-TC10: Idempotency-Key gắn với đúng dữ liệu gửi (payload). Mất phản hồi/503 rồi bấm lại cùng slot → dùng LẠI key cũ;
   // đặt xong, bị 409 hoặc chọn slot khác là ý định mới → key mới.
   const pendingKey = useRef<{ payload: string; key: string } | null>(null);
+
+  // US-29: buổi đang xác nhận hủy, lý do Member nhập, trạng thái gửi và kết quả (giữ chỗ riêng với luồng đặt lịch).
+  const [cancelTarget, setCancelTarget] = useState<MyPtBooking | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelSuccess, setCancelSuccess] = useState('');
+  const [cancelError, setCancelError] = useState('');
+  const cancellingNow = useRef(false);
+  // US-29-TC12: giống US-28 – mất phản hồi/503 rồi bấm lại cùng dữ liệu thì dùng LẠI key cũ; xong hoặc bị 409 thì bỏ key.
+  const pendingCancelKey = useRef<{ payload: string; key: string } | null>(null);
 
   // Số thứ tự lần tải mới nhất: kết quả cũ về muộn (bộ lọc/lựa chọn đã đổi) thì bỏ qua.
   const latestBookings = useRef(0);
@@ -195,6 +225,51 @@ export function PtBookingsPage() {
     }
   }
 
+  // US-29-TC01: bấm "Hủy lịch" chỉ mở bảng xác nhận, chưa gửi gì.
+  function openCancel(booking: MyPtBooking) {
+    setCancelSuccess('');
+    setCancelError('');
+    setCancelReason('');
+    setCancelTarget(booking);
+  }
+
+  // US-29-TC01, TC02, TC04, TC12, TC13: gửi hủy buổi đang xác nhận.
+  async function submitCancel() {
+    if (!cancelTarget || cancellingNow.current || !isValidCancelReason(cancelReason)) return;
+    cancellingNow.current = true;
+    setCancelling(true);
+    setCancelSuccess('');
+    setCancelError('');
+
+    // Body CHỈ {version, reason}: version của buổi đang hiện, lý do đã bỏ khoảng trắng hai đầu.
+    const input: CancelBookingInput = { version: cancelTarget.version, reason: cancelReason.trim() };
+    const payload = JSON.stringify({ id: cancelTarget.id, ...input });
+    if (pendingCancelKey.current?.payload !== payload) pendingCancelKey.current = { payload, key: crypto.randomUUID() };
+
+    try {
+      await ptBookingsApi.cancelOwnBooking(cancelTarget.id, input, pendingCancelKey.current.key);
+      // Thành công: bỏ key, đóng bảng xác nhận; trạng thái thẻ, quota và giờ trống hiện theo số server sau khi tải lại.
+      pendingCancelKey.current = null;
+      setCancelTarget(null);
+      setCancelSuccess(`Đã hủy lịch ${formatRange(cancelTarget.startAt, cancelTarget.endAt)} ngày ${formatDate(cancelTarget.startAt)}.`);
+      await refreshAll();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        // US-29-TC02, TC04: server từ chối → đóng xác nhận, tải lại lịch (thẻ vẫn còn, theo dữ liệu mới); lần hủy sau là ý định mới.
+        pendingCancelKey.current = null;
+        setCancelTarget(null);
+        setCancelError((error.code && CANCEL_CONFLICT_LABELS[error.code]) || 'Không hủy được buổi này. Lịch đã được tải lại.');
+        await refreshAll();
+      } else {
+        // US-29-TC12: mất phản hồi hoặc 503 → chưa biết kết quả: giữ bảng xác nhận, lý do và key, KHÔNG tự gửi lại.
+        setCancelError(`${errorMessage(error, 'Không gửi được yêu cầu hủy lịch.')} Bấm "Xác nhận hủy" để thử lại.`);
+      }
+    } finally {
+      cancellingNow.current = false;
+      setCancelling(false);
+    }
+  }
+
   // Đổi bộ lọc thì quay về trang 1.
   function changeFilter(change: Partial<BookingFilter>) {
     setFilter(current => ({ ...current, ...change, page: 1 }));
@@ -229,7 +304,7 @@ export function PtBookingsPage() {
         : !bookings ? <p>Đang tải lịch…</p>
           : bookings.memberLinked && bookings.items.length === 0 ? <p>Không có buổi PT nào trong khoảng này.</p>
             : <>
-              {bookings.items.map(item => <BookingCard key={item.id} booking={item} />)}
+              {bookings.items.map(item => <BookingCard key={item.id} booking={item} onCancel={openCancel} />)}
               {/* Lịch có phân trang: chỉ chuyển trang, không dùng số buổi đang thấy để suy ra quota. */}
               {bookings.totalPages > 1 && <p>
                 <button type="button" disabled={filter.page <= 1}
@@ -239,6 +314,23 @@ export function PtBookingsPage() {
                   onClick={() => setFilter(current => ({ ...current, page: current.page + 1 }))}>Trang sau</button>
               </p>}
             </>}
+
+      {/* US-29-TC01: xác nhận hủy – PT, thời gian buổi và hạn hủy (giờ VN), lý do bắt buộc 10–500 ký tự.
+          Thời gian buổi và hạn hủy chung một dòng để mỗi mốc ngày chỉ xuất hiện một lần. */}
+      {cancelTarget && <section aria-labelledby="pt-confirm-cancel">
+        <h4 id="pt-confirm-cancel">Xác nhận hủy lịch</h4>
+        <ul>
+          <li>PT: {cancelTarget.trainerName}</li>
+          <li>Thời gian: {formatRange(cancelTarget.startAt, cancelTarget.endAt)} ngày {formatDate(cancelTarget.startAt)} · Hạn hủy: {formatCancelDeadline(cancelTarget.startAt)}</li>
+        </ul>
+        <label>Lý do hủy <textarea value={cancelReason} disabled={cancelling} onChange={event => setCancelReason(event.target.value)} /></label>
+        <p className="hint">Lý do dài từ 10 đến 500 ký tự.</p>
+        {/* US-29-TC06: lý do không hợp lệ hoặc đang gửi thì khóa nút (không gửi kép). */}
+        <button type="button" disabled={cancelling || !isValidCancelReason(cancelReason)} onClick={() => void submitCancel()}>Xác nhận hủy</button>
+        {' '}<button type="button" disabled={cancelling} onClick={() => setCancelTarget(null)}>Đóng</button>
+      </section>}
+      {cancelSuccess && <p role="status">{cancelSuccess}</p>}
+      {cancelError && <p role="alert">{cancelError}</p>}
     </section>
 
     <section aria-labelledby="pt-book-panel">
