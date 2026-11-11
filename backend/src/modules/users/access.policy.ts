@@ -24,22 +24,7 @@ export const ACCESS_POLICY = {
   'transactions.read': { name: 'Xem giao dịch', roles: ['ADMIN', 'STAFF'] },
   'transactions.confirmPayment': { name: 'Xác nhận thu tiền', roles: ['ADMIN', 'STAFF'] },
   'invoices.read': { name: 'Xem chứng từ', roles: ['ADMIN', 'STAFF'] },
-  // US-17: Member chỉ xem dữ liệu gói/giao dịch/chứng từ của chính mình.
-  'memberships.readOwn': { name: 'Xem gói tập của mình', roles: ['MEMBER'] },
-  'serviceSales.readOwn': { name: 'Xem lần mua gói của mình', roles: ['MEMBER'] },
-  'transactions.readOwn': { name: 'Xem giao dịch của mình', roles: ['MEMBER'] },
-  'invoices.readOwn': { name: 'Xem chứng từ của mình', roles: ['MEMBER'] },
-  // US-27: Member xem danh mục PT khả dụng và giờ trống của PT (chỉ xem, không giữ chỗ).
-  'ptTrainers.readAvailable': { name: 'Xem danh mục PT khả dụng', roles: ['MEMBER'] },
-  'ptAvailability.read': { name: 'Xem giờ trống của PT', roles: ['MEMBER'] },
-  'ptBookings.readOwn': { name: 'Xem lịch PT của mình', roles: ['MEMBER'] },
-  // US-28: Member đặt slot PT bằng gói của chính mình.
-  'ptBookings.createOwn': { name: 'Đặt lịch PT', roles: ['MEMBER'] },
-  // US-29-TC03: Member tự hủy lịch của mình; Staff/Admin tra cứu và hủy hỗ trợ. PT không có quyền nào ở đây.
-  'ptBookings.cancelOwn': { name: 'Hủy lịch PT của mình', roles: ['MEMBER'] },
-  'ptBookings.readSupport': { name: 'Tra cứu lịch PT để hỗ trợ', roles: ['STAFF', 'ADMIN'] },
-  'ptBookings.cancelSupport': { name: 'Hủy lịch PT hỗ trợ', roles: ['STAFF', 'ADMIN'] },
-  'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
+  'plans.manage': { name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
 

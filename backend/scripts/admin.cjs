@@ -24,7 +24,8 @@ const { NotificationCounterSchema } = require('../dist/modules/notifications/sch
 const { EnvironmentCheck } = require('../dist/infrastructure/environment/environment-check');
 const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction/financial-integrity');
 const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-query.indexes');
-const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/scheduling-migration');
+const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
+const { PlanPolicySchema } = require('../dist/modules/plans/schemas/plan-policy.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -40,6 +41,8 @@ async function run() {
       // EN-02: preflight duplicates, install constraints, backfill missing BSON Int64 revisions.
       await ensureFinancialIntegrity(connection);
       await ensureMembersQueryIndexes(connection);
+      await connection.model('Plan', PlanSchema).createIndexes();
+      await connection.model('PlanPolicy', PlanPolicySchema).createIndexes();
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
       await Promise.all([connection.model('Permission', PermissionSchema).createIndexes(),
@@ -139,10 +142,8 @@ async function run() {
 run().catch(error => {
   const mapped = mapError(error);
   const en02 = error instanceof Error && /^EN02_(DUPLICATE_DATA|INVALID_REVISION|INDEX_CONFLICT): [a-z_]+\/[a-z_]+$/.test(error.message);
-  // US-28-G01: dữ liệu lịch vi phạm → in mã SCHEDULE_DATA_INVALID kèm loại vi phạm và id để người vận hành đối chiếu.
-  const scheduleInvalid = error instanceof Error && /^SCHEDULE_DATA_INVALID: [a-z_]+\/[0-9a-f]{24}$/.test(error.message);
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), requestId: randomUUID(),
-    code: en02 || scheduleInvalid ? error.message.split(':')[0] : error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
-    message: en02 || scheduleInvalid || error instanceof ConfigurationError ? error.message : mapped.message }));
+    code: en02 ? error.message.split(':')[0] : error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
+    message: en02 || error instanceof ConfigurationError ? error.message : mapped.message }));
   process.exitCode = 1;
 });

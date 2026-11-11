@@ -1,10 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmpty, IsIn, IsInt, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsIn, IsInt, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { VERIFICATION_METHODS, VerificationMethod } from './schemas/member-link-event.schema';
 import { EntitlementSummaryDto, MemberReadTimeDto } from './members-query.dto';
-
-// Thông báo khi client gửi field do server quản lý.
-const SERVER_OWNED = { message: 'Trường do hệ thống quản lý, không được gửi lên' };
 
 const present = (_object: unknown, value: unknown) => value !== undefined;
 export class CreateMemberDto {
@@ -12,15 +9,6 @@ export class CreateMemberDto {
   @ApiProperty() @IsString() @MaxLength(32) phone!: string;
   @ApiPropertyOptional({ example: '2000-01-31' }) @ValidateIf(present) @IsString() birthDate?: string;
   @ApiPropertyOptional({ maxLength: 255 }) @ValidateIf(present) @IsString() address?: string;
-
-  // US-09-F02, US-09-TC03: mã, ID, version, tài khoản và trường gói do server quản lý. Khai báo rõ ở đây để
-  // client gửi lên thì bị 400 kèm đúng tên field (field lạ khác vẫn bị ValidationPipe toàn cục chặn, báo unknownField).
-  @IsEmpty(SERVER_OWNED) id?: never;
-  @IsEmpty(SERVER_OWNED) memberCode?: never;
-  @IsEmpty(SERVER_OWNED) accountId?: never;
-  @IsEmpty(SERVER_OWNED) version?: never;
-  @IsEmpty(SERVER_OWNED) planId?: never;
-  @IsEmpty(SERVER_OWNED) sessionsQuota?: never;
 }
 export class LinkCandidatesQueryDto {
   @ApiProperty() @IsString() @MaxLength(32) phone!: string;

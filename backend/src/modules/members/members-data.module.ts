@@ -2,7 +2,6 @@
 // MemberRegistrationReader. Tách riêng để UsersModule (US-01) và MembersModule cùng dùng mà không import vòng.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MemberOwnerReader } from './member-owner.reader';
 import { MemberRegistrationReader } from './member-registration.reader';
 import { MembersRepository } from './members.repository';
 import { MemberLinkEventSchema } from './schemas/member-link-event.schema';
@@ -14,9 +13,8 @@ import { MemberSchema } from './schemas/member.schema';
     // US-09 bước 3: audit liên kết hồ sơ – account.
     { name: 'MemberLinkEvent', schema: MemberLinkEventSchema },
   ])],
-  providers: [MembersRepository, MemberRegistrationReader, MemberOwnerReader],
-  // MembersRepository chỉ dành cho MembersModule; module khác chỉ dùng reader: UsersModule dùng MemberRegistrationReader,
-  // MembershipsModule (US-17) dùng MemberOwnerReader.
-  exports: [MembersRepository, MemberRegistrationReader, MemberOwnerReader],
+  providers: [MembersRepository, MemberRegistrationReader],
+  // MembersRepository chỉ dành cho MembersModule; module khác (UsersModule) chỉ được dùng MemberRegistrationReader.
+  exports: [MembersRepository, MemberRegistrationReader],
 })
 export class MembersDataModule {}
