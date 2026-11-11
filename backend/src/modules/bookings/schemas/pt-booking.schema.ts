@@ -4,9 +4,14 @@
 // US-28 bước 2: member_id bắt buộc, bất biến; version bắt buộc (booking cũ được backfill trong ensure-indexes).
 // US-28 bước 3: thêm created_by, updated_at cho booking do Member đặt qua API.
 // US-29 bước 1: thêm cancelled_at, cancelled_by, cancellation_reason (cùng tên với work_shifts US-25) ghi khi buổi chuyển BOOKED → CANCELLED (US-29-F03).
+// US-64 bước 1: thêm nguồn hoàn tất completed_by, completed_actor_type, completion_membership_id, completion_revision (US-64-C01, C04).
 import { Schema, Types } from 'mongoose';
 
 export type PtBookingStatus = 'BOOKED' | 'COMPLETED' | 'CANCELLED';
+
+// US-64-C01: ai xác nhận buổi đã dạy – PT tự xác nhận hoặc Admin xác nhận hỗ trợ có lý do.
+export type CompletedActorType = 'TRAINER' | 'ADMIN_SUPPORT';
+export const COMPLETED_ACTOR_TYPES: CompletedActorType[] = ['TRAINER', 'ADMIN_SUPPORT'];
 
 export interface PtBooking {
   _id: Types.ObjectId;
@@ -33,6 +38,13 @@ export interface PtBooking {
   cancelled_at?: Date;
   cancelled_by?: Types.ObjectId;
   cancellation_reason?: string;
+  // US-64-C04: account người xác nhận, loại người xác nhận, gói bị trừ buổi lúc hoàn tất.
+  // Chỉ có khi đang COMPLETED; Admin rút xác nhận (reopen) thì bỏ, lịch sử nằm trong booking_events.
+  completed_by?: Types.ObjectId;
+  completed_actor_type?: CompletedActorType;
+  completion_membership_id?: Types.ObjectId;
+  // US-64-C04: số lần complete/reopen đã xảy ra, tăng 1 mỗi lần; booking mới = 0.
+  completion_revision: number;
 }
 
 // Mọi trạng thái của buổi PT; lịch riêng của Member gồm cả ba (US-27-F05).
@@ -62,6 +74,11 @@ export const PtBookingSchema = new Schema<PtBooking>({
   cancelled_by: { type: Schema.Types.ObjectId, ref: 'Account' },
   // US-29-F02: lý do sau trim dài 10–500 ký tự (service kiểm, schema chặn thêm độ dài tối đa).
   cancellation_reason: { type: String, maxlength: 500 },
+  completed_by: { type: Schema.Types.ObjectId, ref: 'Account' },
+  completed_actor_type: { type: String, enum: COMPLETED_ACTOR_TYPES },
+  completion_membership_id: { type: Schema.Types.ObjectId, ref: 'Membership' },
+  // US-64-C04: số nguyên ≥ 0, mặc định 0 (booking cũ được backfill trong ensure-indexes).
+  completion_revision: { type: Number, default: 0, min: 0, validate: Number.isInteger },
 }, { collection: 'pt_bookings', id: false, versionKey: false });
 
 // US-17-F03: đếm buổi BOOKED theo từng gói ngay trong DB.

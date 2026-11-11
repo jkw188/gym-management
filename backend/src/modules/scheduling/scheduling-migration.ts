@@ -1,5 +1,6 @@
 // Tầng dữ liệu – migration vận hành (US-28 bước 1–2, US-29 bước 2): chạy trong lệnh ensure-indexes, TRƯỚC khi mở writer lịch.
 // Kiểm HẾT dữ liệu lịch cũ trước, có vi phạm thì dừng và không sửa gì; hợp lệ thì tạo index, backfill booking cũ, cuối cùng tạo guard.
+// US-64 bước 1: thêm backfill nguồn hoàn tất (completion_revision, completion_membership_id) sau khi đã đối chiếu used/BOOKED.
 import { Long, ObjectId } from 'mongodb';
 import { Connection } from 'mongoose';
 import { BookingEventSchema } from '../bookings/schemas/booking-event.schema';
@@ -38,6 +39,7 @@ export async function ensureSchedulingIntegrity(connection: Connection): Promise
   // 2. Index theo spec mục 3 (khai báo trong PtBookingSchema để chỉ có một nơi định nghĩa).
   await connection.model('PtBooking', PtBookingSchema).createIndexes();
   // US-29 bước 2: index booking_events (request_key unique, booking_id + occurred_at) phải có trước khi mở lệnh hủy.
+  // US-64-C04: thêm index unique (booking_id, completion_revision, action) trước khi mở lệnh hoàn tất.
   await connection.model('BookingEvent', BookingEventSchema).createIndexes();
 
   // 3. US-28-G03: backfill member_id và snapshot còn thiếu của booking cũ.
@@ -46,7 +48,10 @@ export async function ensureSchedulingIntegrity(connection: Connection): Promise
   // 4. Booking tạo trước US-28 chưa có version → đặt 0; booking đã có version giữ nguyên.
   await connection.collection('pt_bookings').updateMany({ version: { $exists: false } }, { $set: { version: 0 } });
 
-  // 5. US-28-G01: tạo guard sau cùng, chỉ khi chưa có ($setOnInsert) → chạy lại không đổi revision đang có.
+  // 5. US-64-C04/F02: backfill nguồn hoàn tất cho booking cũ. Chạy SAU bước 1 (đã đối chiếu used + BOOKED ≤ quota).
+  await backfillCompletionSource(connection);
+
+  // 6. US-28-G01: tạo guard sau cùng, chỉ khi chưa có ($setOnInsert) → chạy lại không đổi revision đang có.
   await connection.db!.collection<{ _id: string; revision: Long }>('schedule_guards').updateOne(
     { _id: SCHEDULE_GUARD_ID }, { $setOnInsert: { revision: Long.ZERO } }, { upsert: true });
 }
@@ -130,6 +135,25 @@ async function backfillBookings(connection: Connection, bookings: BookingRow[]):
     if (Object.keys(missing).length === 0) continue; // đã đủ → chạy lại lệnh không đổi gì
     await connection.collection('pt_bookings').updateOne({ _id: booking._id }, { $set: missing });
   }
+}
+
+// US-64-C04: booking tạo trước US-64 chưa có completion_revision.
+// - COMPLETED: đã hoàn tất đúng một lần → revision 1; gói bị trừ buổi là gói booking đang tham chiếu (nếu chưa ghi).
+// - BOOKED/CANCELLED: chưa hoàn tất lần nào → revision 0.
+// Chỉ chọn booking CHƯA có completion_revision nên booking đã có giữ nguyên và chạy lại lệnh không đổi gì.
+// Không đụng sessions_used, status, membership_id, version (US-64-F02: không tự chữa dữ liệu).
+async function backfillCompletionSource(connection: Connection): Promise<void> {
+  const bookings = connection.collection('pt_bookings');
+  // Dạng update bằng pipeline ([{ $set }]) để đọc được field của chính document:
+  // '$membership_id' là giá trị membership_id của booking đó; $ifNull giữ completion_membership_id nếu đã có.
+  await bookings.updateMany(
+    { status: 'COMPLETED', completion_revision: { $exists: false } },
+    [{ $set: { completion_revision: 1, completion_membership_id: { $ifNull: ['$completion_membership_id', '$membership_id'] } } }],
+  );
+  await bookings.updateMany(
+    { status: { $ne: 'COMPLETED' }, completion_revision: { $exists: false } },
+    { $set: { completion_revision: 0 } },
+  );
 }
 
 // Lỗi cho người vận hành: loại vi phạm và id document để đối chiếu, sửa tay rồi chạy lại lệnh. Không tự sửa dữ liệu.
