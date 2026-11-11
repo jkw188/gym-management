@@ -39,23 +39,23 @@ export function toCancelledPtBooking(booking: PtBooking, notificationState: Book
 // US-29-TC13: nội dung thông báo hủy, cùng khuôn với BOOKING_CREATED: tên buổi, giờ VN, địa điểm, trạng thái.
 // Không kèm lý do hủy, số điện thoại, email, tiền hay tên Member.
 export function toBookingCancelledMessage(booking: PtBooking): { title: string; body: string } {
-  const session = `Buổi PT với ${booking.trainer_name_snapshot ?? 'PT'}`;
-  const time = `${vietnamTime(booking.start_at)}–${vietnamTime(booking.end_at)} ngày ${vietnamDate(booking.start_at)}`;
-  return {
-    title: 'Đã hủy lịch PT',
-    body: `${session}, ${time}, tại ${booking.location_snapshot ?? ''}. Trạng thái: Đã hủy.`,
-  };
+  return { title: 'Đã hủy lịch PT', body: bookingMessageBody(booking, 'Đã hủy') };
 }
 
 // US-28-G04, US-28-TC01: nội dung thông báo CHỈ có tên buổi, giờ (giờ Việt Nam), địa điểm, trạng thái.
 // Không có số điện thoại, email, tiền hay tên Member. Tiêu đề ≤ 190 và nội dung ≤ 2000 ký tự theo schema EN-03.
 export function toBookingCreatedMessage(booking: PtBooking): { title: string; body: string } {
+  return { title: 'Đã đặt lịch PT', body: bookingMessageBody(booking, 'Đã đặt') };
+}
+
+// Nội dung chung của thông báo đặt/hủy: "Buổi PT với <PT>, <giờ VN>[, tại <địa điểm>]. Trạng thái: <trạng thái>."
+// Booking cũ (trước US-28) có thể không có location_snapshot: khi đó bỏ hẳn đoạn ", tại …" để không ra câu "tại .".
+function bookingMessageBody(booking: PtBooking, statusLabel: string): string {
   const session = `Buổi PT với ${booking.trainer_name_snapshot ?? 'PT'}`;
   const time = `${vietnamTime(booking.start_at)}–${vietnamTime(booking.end_at)} ngày ${vietnamDate(booking.start_at)}`;
-  return {
-    title: 'Đã đặt lịch PT',
-    body: `${session}, ${time}, tại ${booking.location_snapshot ?? ''}. Trạng thái: Đã đặt.`,
-  };
+  const location = booking.location_snapshot?.trim();
+  const place = location ? `, tại ${location}` : '';
+  return `${session}, ${time}${place}. Trạng thái: ${statusLabel}.`;
 }
 
 // Cộng 7 giờ rồi đọc phần UTC để ra giờ Việt Nam, không phụ thuộc múi giờ của máy chủ. Ví dụ 02:00Z → "09:00".
