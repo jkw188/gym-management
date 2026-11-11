@@ -1,6 +1,7 @@
 // Tầng dữ liệu (US-28 bước 3): nơi duy nhất đọc/ghi MongoDB cho lệnh Member đặt slot PT.
 // Mọi hàm nhận session của transaction để đọc lại dữ liệu SAU khi đã giữ khóa lịch và khóa member (US-28-G04).
 // Trạng thái nào là "bận", "giữ quota" do BookingService quyết định và truyền vào; repository chỉ chạy truy vấn.
+// US-29 bước 1: thêm đọc booking theo id và ghi hủy có điều kiện (CAS) cho CancelBookingService.
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongodb';
@@ -8,7 +9,7 @@ import { Connection, Model, Types } from 'mongoose';
 import { TimeInterval } from '../scheduling/interval.policy';
 import { Membership } from '../memberships/schemas/membership.schema';
 import { ServiceSale } from '../memberships/schemas/service-sale.schema';
-import { NewPtBooking, TrainerForBooking, TransactionForBooking } from './booking.types';
+import { CancelPtBookingChange, NewPtBooking, TrainerForBooking, TransactionForBooking } from './booking.types';
 import { PtBooking, PtBookingStatus } from './schemas/pt-booking.schema';
 
 // Điều kiện "giao khoảng [startAt, endAt)": start < endAt và end > startAt (tiếp giáp không tính, US-28-TC14).
@@ -102,5 +103,31 @@ export class BookingRepository {
       updated_at: booking.now,
     }], { session });
     return created.toObject();
+  }
+
+  // US-29-F04: đọc booking mới nhất trong session của transaction; null nếu không tồn tại.
+  findBookingById(id: Types.ObjectId, session: ClientSession): Promise<PtBooking | null> {
+    return this.bookings.findById(id).session(session).lean<PtBooking>().exec();
+  }
+
+  // US-29-F03, F04: CAS – chỉ ghi khi booking VẪN đúng trạng thái và version mà service vừa kiểm.
+  // Thành công trả booking sau khi ghi (version+1); null nếu booking đã bị đổi trước (service báo VERSION_CONFLICT).
+  // Không DELETE, không đụng member_id/membership_id hay memberships: reserved = số buổi BOOKED nên tự giảm 1.
+  cancelBooking(change: CancelPtBookingChange, session: ClientSession): Promise<PtBooking | null> {
+    return this.bookings.findOneAndUpdate(
+      { _id: change.bookingId, status: change.fromStatus, version: change.version },
+      {
+        $set: {
+          status: change.toStatus,
+          cancelled_at: change.now,
+          cancelled_by: change.cancelledBy,
+          cancelled_reason: change.reason,
+          updated_at: change.now,
+        },
+        $inc: { version: 1 },
+      },
+      // returnDocument 'after' → trả document SAU khi cập nhật.
+      { returnDocument: 'after', session },
+    ).lean<PtBooking>().exec();
   }
 }

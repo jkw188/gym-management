@@ -1,6 +1,7 @@
 // Tầng kiểu dữ liệu (US-28 bước 3–4): đổi document pt_bookings vừa tạo thành body 201 trả cho Member
 // và thành tiêu đề/nội dung thông báo BOOKING_CREATED. Chỉ chép field trong hợp đồng; không trả request_key, created_by.
-import { BookingNotificationState, CreatedPtBooking } from './booking.types';
+// US-29 bước 1: đổi booking vừa hủy thành kết quả {id, status, version, cancelledAt}.
+import { BookingNotificationState, CancelledPtBooking, CreatedPtBooking } from './booking.types';
 import { PtBooking } from './schemas/pt-booking.schema';
 
 const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -19,6 +20,17 @@ export function toCreatedPtBooking(booking: PtBooking, notificationState: Bookin
     status: 'BOOKED',
     version: booking.version,
     notificationState,
+  };
+}
+
+// US-29-TC01: booking vừa hủy → kết quả trả về; cancelledAt là giờ server lúc hủy, dạng ISO UTC.
+// Chỉ gọi với booking repository vừa ghi CANCELLED nên cancelled_at chắc chắn có (dấu !).
+export function toCancelledPtBooking(booking: PtBooking): CancelledPtBooking {
+  return {
+    id: booking._id.toHexString(),
+    status: 'CANCELLED',
+    version: booking.version,
+    cancelledAt: booking.cancelled_at!.toISOString(),
   };
 }
 

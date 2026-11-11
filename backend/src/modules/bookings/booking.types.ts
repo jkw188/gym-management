@@ -2,6 +2,7 @@
 // và các kiểu dùng chung giữa BookingService và BookingRepository. Không có request_key, created_by, tên Member hay dữ liệu liên hệ.
 import { Types } from 'mongoose';
 import { NotificationState } from '../notifications/notifications.types';
+import { PtBookingStatus } from './schemas/pt-booking.schema';
 
 // US-28 bước 4: thông báo BOOKING_CREATED đã lưu cùng commit (STORED) hay không có account nhận (NO_LINKED_ACCOUNT) theo EN-03.
 export type BookingNotificationState = NotificationState;
@@ -50,5 +51,26 @@ export interface NewPtBooking {
   location: string;
   requestKey: string;
   createdBy: Types.ObjectId;
+  now: Date;
+}
+
+// US-29 bước 1: kết quả hủy buổi PT (spec mục 2: {id, status, version, cancelledAt}).
+// notificationState thêm ở bước 2 khi có thông báo BOOKING_CANCELLED.
+export interface CancelledPtBooking {
+  id: string;
+  status: 'CANCELLED';
+  version: number;
+  cancelledAt: string;
+}
+
+// US-29 bước 1: lệnh hủy service đã kiểm xong luật, đưa xuống repository để ghi có điều kiện (CAS).
+export interface CancelPtBookingChange {
+  bookingId: Types.ObjectId;
+  // Trạng thái và version service vừa đọc; repository chỉ ghi khi DB vẫn đúng như vậy.
+  fromStatus: PtBookingStatus;
+  version: number;
+  toStatus: PtBookingStatus;
+  cancelledBy: Types.ObjectId;
+  reason: string;
   now: Date;
 }
