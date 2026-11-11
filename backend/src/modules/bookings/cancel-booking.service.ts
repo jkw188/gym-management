@@ -1,15 +1,15 @@
 // Tầng nghiệp vụ (US-29 bước 1–2): hủy một buổi PT BOOKED → CANCELLED, dùng chung cho hai policy:
 // OWN (Member tự hủy, phải còn ≥ 2 giờ) và SUPPORT (Staff/Admin hủy hỗ trợ, được vượt hạn). Toàn bộ luật F01–F05 nằm ở file này.
 // Bước 2: trong CÙNG transaction: khóa lịch → khóa member → CAS hủy → audit booking_events → thông báo EN-03.
+// Bước 3: chạy qua IdempotencyService (EN-02) để gửi lại cùng Idempotency-Key trả kết quả gốc, operation_requests cùng commit.
 import { Injectable } from '@nestjs/common';
 import { ClientSession } from 'mongodb';
 import { Types } from 'mongoose';
 import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { ServerClock } from '../../common/utils/business-date';
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
-import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { NotificationsService } from '../notifications/notifications.service';
-import { transactionRequestKey } from '../operations/idempotency.service';
+import { IdempotencyService, transactionRequestKey, WorkResult } from '../operations/idempotency.service';
 import { Operation } from '../operations/schemas/operation-request.schema';
 import { toBookingCancelledMessage, toCancelledPtBooking } from './booking.mapper';
 import { BookingRepository } from './booking.repository';
@@ -29,7 +29,7 @@ export interface CancelBookingInput {
   // Version client đang thấy; khác version trong DB → 409 VERSION_CONFLICT (US-29-F04).
   version: number;
   reason?: string;
-  // US-29 bước 2: Idempotency-Key (UUID) của request, dùng để băm request_key của audit. Replay/operation_requests ở bước 3.
+  // Idempotency-Key (UUID v4) của request: chống xử lý lặp (EN-02) và băm request_key của audit.
   idempotencyKey: string;
 }
 
@@ -51,7 +51,8 @@ const notFound = () => new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấ
 export class CancelBookingService {
   constructor(
     private readonly repository: BookingRepository,
-    private readonly transactions: TransactionRunner,
+    // EN-02: chống xử lý lặp theo Idempotency-Key; tự mở transaction và lưu operation_requests cùng commit.
+    private readonly idempotency: IdempotencyService,
     // Khóa lịch và khóa member theo thứ tự cố định (US-28-G01, G03).
     private readonly guards: DataGuardsService,
     // EN-03: lưu thông báo + người nhận + outbox cùng transaction.
@@ -73,8 +74,14 @@ export class CancelBookingService {
     // EN-02: mỗi policy là một operation riêng để băm request_key (PT_BOOKING_CANCEL_OWN / _SUPPORT).
     const operation: Operation = input.policy === 'OWN' ? 'PT_BOOKING_CANCEL_OWN' : 'PT_BOOKING_CANCEL_SUPPORT';
 
-    // US-29-F04: mọi bước đọc – kiểm – ghi nằm trong MỘT transaction; lỗi nghiệp vụ thì không ghi gì.
-    return this.transactions.run(async session => {
+    // US-29-F05, US-29-TC09 (EN-02): payload chuẩn hóa gồm id booking, version và lý do ĐÃ trim.
+    // Cùng key + cùng payload → trả lại 200/body gốc, không hủy hay thông báo lần hai; khác payload → 409 IDEMPOTENCY_CONFLICT.
+    const payload = { bookingId: bookingId.toHexString(), version: input.version, reason };
+
+    // US-29-F04: mọi bước đọc – kiểm – ghi nằm trong MỘT transaction (IdempotencyService mở transaction và ghi
+    // operation_requests cùng commit); lỗi nghiệp vụ thì không ghi gì.
+    const result = await this.idempotency.execute({ actorId: input.actorId, operation, clientKey: input.idempotencyKey, payload },
+      async (session): Promise<WorkResult> => {
       // US-29-F01: lấy giờ server ở MỖI lần driver chạy lại callback, không tin giờ của browser hay lúc gửi request.
       const now = this.clock.now();
 
@@ -150,8 +157,12 @@ export class CancelBookingService {
         createdBy: input.actorId,
       }, recipients);
 
-      return toCancelledPtBooking(cancelled, event.notificationState);
+      const body = toCancelledPtBooking(cancelled, event.notificationState);
+      // { ...body }: chép sang object thường để TypeScript chấp nhận kiểu Record<string, unknown> của WorkResult.
+      return { status: 200, body: { ...body }, resultIds: { bookingId } };
     });
+    // Body là kết quả vừa tạo hoặc kết quả gốc đã lưu khi gửi lại cùng key; cả hai đều do toCancelledPtBooking tạo ra.
+    return result.body as unknown as CancelledPtBooking;
   }
 
   // US-29-TC08, US-29-TC13: account Member (nếu đã liên kết) và account PT của buổi, dạng chuỗi hex cho EN-03.
