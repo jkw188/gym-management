@@ -20,6 +20,11 @@ export interface ServiceSale {
   credit_amount: Types.Decimal128;
   sessions_snapshot: number;
   policy_snapshot: string;
+  requested_start_date?: string;
+  duration_days_snapshot?: number;
+  kind_snapshot?: 'GYM' | 'PT';
+  plan_version_snapshot?: number;
+  created_at?: Date;
 }
 
 export const ServiceSaleSchema = new Schema<ServiceSale>({
@@ -37,7 +42,14 @@ export const ServiceSaleSchema = new Schema<ServiceSale>({
   credit_amount: { type: Schema.Types.Decimal128, required: true },
   sessions_snapshot: { type: Schema.Types.Int32, required: true, min: 0 },
   policy_snapshot: { type: String, required: true, maxlength: 2000 },
+  requested_start_date: { type: String, match: /^\d{4}-\d{2}-\d{2}$/ },
+  duration_days_snapshot: { type: Schema.Types.Int32, min: 1 },
+  kind_snapshot: { type: String, enum: ['GYM', 'PT'] },
+  plan_version_snapshot: { type: Number, min: 0, validate: Number.isSafeInteger },
+  created_at: { type: Date },
 }, { collection: 'service_sales', id: false, versionKey: false });
 
 // Spec US-17 mục 2: index service_sales.member_id để lọc theo chủ sở hữu ngay trong DB, xếp mới nhất trước.
 ServiceSaleSchema.index({ member_id: 1, _id: -1 }, { name: 'service_sales_member_desc' });
+ServiceSaleSchema.index({ transaction_id: 1 }, { unique: true, name: 'service_sales_transaction_unique' });
+ServiceSaleSchema.index({ member_id: 1, kind_snapshot: 1 }, { name: 'service_sales_member_kind' });
