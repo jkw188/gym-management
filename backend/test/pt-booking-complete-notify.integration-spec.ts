@@ -10,7 +10,7 @@
 //     Response thêm notificationState "STORED". Lỗi insert thông báo/outbox trước commit → 503, không hoàn tất, không trừ buổi.
 //     Gửi lại cùng key hoặc key mới trên COMPLETED không tạo thông báo thứ hai. Xác nhận lại sau REOPEN → event_key revision mới.
 //   GET /api/me/trainer-bookings?fromDate&toDate[&status] – chỉ TRAINER (vai trò khác 403); fromDate/toDate ngày VN YYYY-MM-DD,
-//     sai định dạng hoặc toDate < fromDate → 400. 200 {items:[{id, memberName, startAt, endAt, status, version, completedAt?, permittedActions}]},
+//     sai định dạng, toDate < fromDate hoặc quá 31 ngày → 400. 200 {items:[{id, memberName, startAt, endAt, status, version, completedAt?, permittedActions}]},
 //     chỉ buổi có trainer_id của chính PT, startAt nằm trong các ngày VN đã chọn, sắp theo startAt tăng dần.
 //     permittedActions = ['COMPLETE'] khi BOOKED và giờ server ≥ endAt; ngược lại []. Không có phone/tiền/gói của Member.
 //   Đối chiếu sau hoàn tất: GET /api/me/memberships (US-17) thấy sessionsUsed +1, sessionsReserved −1;
@@ -463,6 +463,18 @@ describe('US-64 bước 4: thông báo hoàn tất và danh sách buổi của P
     ])('US-64-TC15: %s → 400', async (_label, query) => {
       const pt = await trainer();
       expectError(await get('/api/me/trainer-bookings', pt, query as Record<string, string>), 400);
+    });
+
+    // Giới hạn tối đa 31 ngày mỗi lần xem (sinh viên chốt 12/11, giống tra cứu US-27/US-29).
+    it('US-64-TC15: khoảng đúng 31 ngày (01/11–01/12/2026) → 200', async () => {
+      const pt = await trainer();
+      const response = await get('/api/me/trainer-bookings', pt, { fromDate: '2026-11-01', toDate: '2026-12-01' }).expect(200);
+      expect(Array.isArray(response.body.items)).toBe(true);
+    });
+
+    it('US-64-TC15: khoảng 32 ngày (01/11–02/12/2026) → 400', async () => {
+      const pt = await trainer();
+      expectError(await get('/api/me/trainer-bookings', pt, { fromDate: '2026-11-01', toDate: '2026-12-02' }), 400);
     });
   });
 });
