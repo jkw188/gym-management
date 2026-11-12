@@ -65,7 +65,11 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}
+    {/* US-29: tra cứu và hủy hỗ trợ lịch PT. */}
+    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/pt-bookings`}>Tra cứu lịch PT</Link>}
     {role === 'TRAINER' && <Link to="/trainer/shifts">Ca làm việc</Link>}
+    {/* US-64: PT xem buổi dạy của mình và xác nhận buổi đã dạy. */}
+    {role === 'TRAINER' && <Link to="/trainer/bookings">Buổi dạy của tôi</Link>}
     {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
     {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
     {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}

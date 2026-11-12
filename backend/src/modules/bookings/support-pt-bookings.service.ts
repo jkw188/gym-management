@@ -1,14 +1,15 @@
 // Tầng nghiệp vụ (US-29 bước 3): Staff/Admin tra cứu danh sách và chi tiết lịch PT để hỗ trợ (chỉ đọc).
 // Quyền ptBookings.readSupport do controller kiểm; service đổi ngày VN → khoảng UTC và chọn bộ lọc. Hủy hỗ trợ ở CancelBookingService.
+// US-64 bước 3: thêm chi tiết Admin (quyền ptBookings.correct) kèm nguồn quota và lịch sử hoàn tất.
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ServerClock } from '../../common/utils/business-date';
 import { ShiftIntervalService } from '../shifts/shift-interval.service';
-import { toSupportPtBookingItem } from './support-pt-bookings.mapper';
+import { toAdminPtBookingDetail, toSupportPtBookingItem } from './support-pt-bookings.mapper';
 import { SupportPtBookingsQueryDto } from './support-pt-bookings.dto';
 import { SupportPtBookingsRepository } from './support-pt-bookings.repository';
-import { SupportBookingFilter, SupportPtBookingItem, SupportPtBookingPage } from './support-pt-bookings.types';
+import { AdminPtBookingDetail, SupportBookingFilter, SupportPtBookingItem, SupportPtBookingPage } from './support-pt-bookings.types';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
@@ -49,5 +50,17 @@ export class SupportPtBookingsService {
     const row = await this.repository.findById(new Types.ObjectId(bookingId));
     if (!row) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy buổi PT');
     return toSupportPtBookingItem(row);
+  }
+
+  // GET /api/admin/pt-bookings/:id: US-64-C04 – chi tiết có lịch sử COMPLETE/REOPEN/CANCELLED và nguồn quota.
+  // id đã được PtBookingIdParamDto kiểm định dạng ở controller (sai → 400).
+  async adminDetail(bookingId: string): Promise<AdminPtBookingDetail> {
+    const id = new Types.ObjectId(bookingId);
+    const row = await this.repository.findById(id);
+    if (!row) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy buổi PT');
+    const source = await this.repository.findQuotaSource(row.membership_id);
+    const events = await this.repository.findEvents(id);
+    const quotaSource = { membershipId: row.membership_id.toHexString(), sessionsUsed: source.used, sessionsQuota: source.quota };
+    return toAdminPtBookingDetail(row, quotaSource, events);
   }
 }

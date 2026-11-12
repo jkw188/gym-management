@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import { PublicSession } from './schemas/public-session.schema';
-import { SubjectCode } from './public-sessions.types';
+import { SessionStatus, SubjectCode } from './public-sessions.types';
 
 // Bộ lọc đã kiểm tra ở service: khoảng UTC [from, to) và các filter tùy chọn.
 export interface PublishedSessionFilter {
@@ -41,6 +41,14 @@ export class PublicSessionsRepository {
   // US-26-TC02, TC09: chỉ tìm lớp PUBLISHED; DRAFT/CANCELLED coi như không tồn tại.
   findPublished(id: Types.ObjectId): Promise<PublicSession | null> {
     return this.sessions.findOne({ _id: id, status: 'PUBLISHED' }).lean().exec();
+  }
+
+  // US-27-F03: giờ các lớp của một PT có trạng thái do service truyền vào, giao [from, to). Chỉ lấy start_at, end_at.
+  findClassTimesByStatus(trainerId: Types.ObjectId, status: SessionStatus, from: Date, to: Date): Promise<{ start_at: Date; end_at: Date }[]> {
+    return this.sessions.find(
+      { trainer_id: trainerId, status, start_at: { $lt: to }, end_at: { $gt: from } },
+      { _id: 0, start_at: 1, end_at: 1 },
+    ).maxTimeMS(5000).lean<{ start_at: Date; end_at: Date }[]>().exec();
   }
 
   // US-26-F03: tên PT = accounts.full_name qua trainers.account_id. Chỉ lấy đúng field cần, không đọc phone/email.

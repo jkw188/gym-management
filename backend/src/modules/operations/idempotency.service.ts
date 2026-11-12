@@ -42,6 +42,10 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   // US-29: quyền ptBookings.cancelOwn chỉ cho MEMBER; ptBookings.cancelSupport cho STAFF/ADMIN.
   PT_BOOKING_CANCEL_OWN: ACCESS_POLICY['ptBookings.cancelOwn'].roles,
   PT_BOOKING_CANCEL_SUPPORT: ACCESS_POLICY['ptBookings.cancelSupport'].roles,
+  // US-64: quyền ptBookings.completeOwn chỉ cho TRAINER.
+  PT_BOOKING_COMPLETE: ACCESS_POLICY['ptBookings.completeOwn'].roles,
+  // US-64-C01, C02: quyền ptBookings.correct chỉ cho ADMIN.
+  PT_BOOKING_CORRECT: ACCESS_POLICY['ptBookings.correct'].roles,
 };
 
 // Số lần thử lại khi hai request cùng key chạy đua và request này thua ở unique index.

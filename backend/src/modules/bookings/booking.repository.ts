@@ -3,6 +3,8 @@
 // Trạng thái nào là "bận", "giữ quota" do BookingService quyết định và truyền vào; repository chỉ chạy truy vấn.
 // US-29 bước 1: thêm đọc booking theo id và ghi hủy có điều kiện (CAS) cho CancelBookingService.
 // US-29 bước 2: thêm ghi audit booking_events và tìm account người nhận thông báo hủy (Member, PT).
+// US-64 bước 2: thêm tìm PT của account, ghi hoàn tất có điều kiện (CAS) và tăng sessions_used của gói.
+// US-64 bước 3: thêm rút xác nhận có điều kiện (CAS) và kiểm booking đã có đánh giá chưa.
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongodb';
@@ -10,7 +12,7 @@ import { Connection, Model, Types } from 'mongoose';
 import { TimeInterval } from '../scheduling/interval.policy';
 import { Membership } from '../memberships/schemas/membership.schema';
 import { ServiceSale } from '../memberships/schemas/service-sale.schema';
-import { CancelPtBookingChange, NewBookingEvent, NewPtBooking, TrainerForBooking, TransactionForBooking } from './booking.types';
+import { CancelPtBookingChange, CompletePtBookingChange, NewBookingEvent, ReopenPtBookingChange, NewPtBooking, TrainerForBooking, TransactionForBooking } from './booking.types';
 import { BookingEvent } from './schemas/booking-event.schema';
 import { PtBooking, PtBookingStatus } from './schemas/pt-booking.schema';
 
@@ -148,7 +150,69 @@ export class BookingRepository {
       before_status: event.beforeStatus,
       after_status: event.afterStatus,
       request_key: event.requestKey,
+      // US-64-C04: chỉ dòng COMPLETE có các field này; dòng CANCELLED để undefined nên Mongoose không lưu.
+      completion_revision: event.completionRevision,
+      used_before: event.usedBefore,
+      used_after: event.usedAfter,
+      version_before: event.versionBefore,
+      version_after: event.versionAfter,
     }], { session });
+  }
+
+  // US-64-F01: account đang đăng nhập → hồ sơ PT (trainers.account_id); null nếu account không có hồ sơ PT.
+  async findTrainerIdOfAccount(accountId: Types.ObjectId, session: ClientSession): Promise<Types.ObjectId | null> {
+    const trainer = await this.connection.db!.collection('trainers').findOne({ account_id: accountId }, { projection: { _id: 1 }, session });
+    return trainer ? (trainer._id as Types.ObjectId) : null;
+  }
+
+  // US-64-F02, F04: CAS – chỉ ghi khi booking VẪN là BOOKED với đúng version service vừa kiểm.
+  // Thành công trả booking sau khi ghi (version+1, completion_revision+1); null nếu booking đã bị đổi trước.
+  // Không đổi giờ, PT, ca, member_id, membership_id (US-64-F03).
+  completeBooking(change: CompletePtBookingChange, session: ClientSession): Promise<PtBooking | null> {
+    return this.bookings.findOneAndUpdate(
+      { _id: change.bookingId, status: 'BOOKED', version: change.version },
+      {
+        $set: {
+          status: 'COMPLETED',
+          completed_at: change.now,
+          completed_by: change.completedBy,
+          completed_actor_type: change.completedActorType,
+          completion_membership_id: change.membershipId,
+          updated_at: change.now,
+        },
+        $inc: { version: 1, completion_revision: 1 },
+      },
+      { returnDocument: 'after', session },
+    ).lean<PtBooking>().exec();
+  }
+
+  // US-64-F02, C02: cộng delta vào sessions_used của gói trong cùng session (+1 khi hoàn tất, −1 khi Admin rút xác nhận).
+  // Trả giá trị SAU khi đổi; null nếu không có gói.
+  async addSessionsUsed(membershipId: Types.ObjectId, delta: number, session: ClientSession): Promise<number | null> {
+    const updated = await this.connection.db!.collection<Membership>('memberships').findOneAndUpdate(
+      { _id: membershipId }, { $inc: { sessions_used: delta } }, { returnDocument: 'after', session });
+    return updated ? Number(updated.sessions_used) : null;
+  }
+
+  // US-64-C02: CAS – chỉ ghi khi booking VẪN là COMPLETED với đúng version service vừa kiểm.
+  // COMPLETED → BOOKED, version+1, completion_revision+1; bỏ thông tin của lần hoàn tất hiện tại (lịch sử nằm ở booking_events).
+  // Thành công trả booking sau khi ghi; null nếu booking đã bị đổi trước.
+  reopenBooking(change: ReopenPtBookingChange, session: ClientSession): Promise<PtBooking | null> {
+    return this.bookings.findOneAndUpdate(
+      { _id: change.bookingId, status: 'COMPLETED', version: change.version },
+      {
+        $set: { status: 'BOOKED', updated_at: change.now },
+        $unset: { completed_at: 1, completed_by: 1, completed_actor_type: 1, completion_membership_id: 1 },
+        $inc: { version: 1, completion_revision: 1 },
+      },
+      { returnDocument: 'after', session },
+    ).lean<PtBooking>().exec();
+  }
+
+  // US-64-C03, US-64-TC12: booking đã có đánh giá trong trainer_reviews chưa (collection của US-65).
+  async hasReview(bookingId: Types.ObjectId, session: ClientSession): Promise<boolean> {
+    const review = await this.connection.db!.collection('trainer_reviews').findOne({ booking_id: bookingId }, { projection: { _id: 1 }, session });
+    return review !== null;
   }
 
   // US-29-TC08: account đang liên kết với hồ sơ member (kể cả account bị khóa); null nếu member chưa liên kết.

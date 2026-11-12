@@ -4,7 +4,7 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { getConnectionToken } from '@nestjs/mongoose';
-import { ObjectId } from 'mongodb';
+import { Long, ObjectId } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Connection } from 'mongoose';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -12,6 +12,7 @@ import request from 'supertest';
 import { PasswordService } from '../src/common/security/password.service';
 import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
 import { UsersRepository } from '../src/modules/users/users.repository';
+import { ACCOUNT_ADMINISTRATION } from '../src/modules/users/schemas/security-state.schema';
 // Hợp đồng test đặt ra cho Builder (US-09 bước 2, theo mục 3 của spec):
 //   GET /api/members/link-candidates?phone=<số đầy đủ>: role STAFF/ADMIN. Server chuẩn hóa phone theo EN01-D01
 //     (0901234567, +84 901 234 567 là cùng một số) rồi so KHỚP CHÍNH XÁC, không tìm theo tên hay một phần số.
@@ -71,6 +72,8 @@ describe('US-09 bước 2: tra cứu account để liên kết hồ sơ', () => 
     for (const collection of await connection.db!.collections()) {
       if (collection.collectionName !== 'roles') await collection.deleteMany({});
     }
+    // Khóa quản trị US-07 (lệnh ensure-indexes tạo sẵn trong môi trường thật): từ fix/us09, tạo hồ sơ cũng lấy khóa này.
+    await connection.db!.collection<{ _id: string; revision: Long }>('security_state').insertOne({ _id: ACCOUNT_ADMINISTRATION, revision: Long.fromNumber(0) });
   });
 
   afterEach(() => {
