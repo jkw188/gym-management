@@ -45,6 +45,8 @@ export const ACCESS_POLICY = {
   'ptBookings.correct': { name: 'Xử lý sai xác nhận buổi PT', roles: ['ADMIN'] },
   // US-64 bước 4 (spec 1.1): PT xem danh sách buổi dạy của chính mình (UI /trainer/bookings).
   'ptBookings.readTrainerOwn': { name: 'Xem buổi dạy của mình', roles: ['TRAINER'] },
+  // US-30: PT tra cứu học viên có booking BOOKED/COMPLETED với mình (UI /trainer/trainees).
+  'trainees.readRelated': { name: 'Xem học viên có booking với mình', roles: ['TRAINER'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
