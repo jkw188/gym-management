@@ -2,7 +2,8 @@
 // và thành tiêu đề/nội dung thông báo BOOKING_CREATED. Chỉ chép field trong hợp đồng; không trả request_key, created_by.
 // US-29 bước 1–2: đổi booking vừa hủy thành kết quả {id, status, version, cancelledAt, notificationState}
 // và thành tiêu đề/nội dung thông báo BOOKING_CANCELLED.
-import { BookingNotificationState, CancelledPtBooking, CreatedPtBooking } from './booking.types';
+// US-64 bước 2: đổi booking vừa hoàn tất thành kết quả trả cho PT.
+import { BookingNotificationState, CancelledPtBooking, CompletedPtBooking, CreatedPtBooking } from './booking.types';
 import { PtBooking } from './schemas/pt-booking.schema';
 
 const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -33,6 +34,20 @@ export function toCancelledPtBooking(booking: PtBooking, notificationState: Book
     version: booking.version,
     cancelledAt: booking.cancelled_at!.toISOString(),
     notificationState,
+  };
+}
+
+// US-64-TC01: booking vừa hoàn tất → kết quả trả về. completedAt là giờ server lúc xác nhận (không phải endAt).
+// Chỉ gọi với booking repository vừa ghi COMPLETED nên completed_at và completion_membership_id chắc chắn có (dấu !).
+export function toCompletedPtBooking(booking: PtBooking, sessionsUsed: number): CompletedPtBooking {
+  return {
+    id: booking._id.toHexString(),
+    status: 'COMPLETED',
+    version: booking.version,
+    completedAt: booking.completed_at!.toISOString(),
+    completionRevision: booking.completion_revision,
+    membershipId: booking.completion_membership_id!.toHexString(),
+    sessionsUsed,
   };
 }
 

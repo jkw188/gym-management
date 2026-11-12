@@ -1,9 +1,10 @@
 // Tầng kiểu dữ liệu (US-28 bước 3): dữ liệu trả về khi Member đặt slot PT thành công (camelCase, thời điểm ISO UTC)
 // và các kiểu dùng chung giữa BookingService và BookingRepository. Không có request_key, created_by, tên Member hay dữ liệu liên hệ.
+// US-64 bước 2: thêm kết quả và lệnh ghi của PT xác nhận buổi đã dạy; dòng audit có thêm revision, used/version trước–sau.
 import { Types } from 'mongoose';
 import { NotificationState } from '../notifications/notifications.types';
 import { BookingEventAction, BookingEventActorRole } from './schemas/booking-event.schema';
-import { PtBookingStatus } from './schemas/pt-booking.schema';
+import { CompletedActorType, PtBookingStatus } from './schemas/pt-booking.schema';
 
 // US-28 bước 4: thông báo BOOKING_CREATED đã lưu cùng commit (STORED) hay không có account nhận (NO_LINKED_ACCOUNT) theo EN-03.
 export type BookingNotificationState = NotificationState;
@@ -73,11 +74,43 @@ export interface NewBookingEvent {
   actorId: Types.ObjectId;
   actorRole: BookingEventActorRole;
   action: BookingEventAction;
-  reason: string;
+  // Bắt buộc với CANCELLED; PT xác nhận đã dạy (COMPLETE) không có lý do.
+  reason?: string;
   occurredAt: Date;
   beforeStatus: PtBookingStatus;
   afterStatus: PtBookingStatus;
   requestKey: string;
+  // US-64-C04: chỉ có ở dòng COMPLETE.
+  completionRevision?: number;
+  usedBefore?: number;
+  usedAfter?: number;
+  versionBefore?: number;
+  versionAfter?: number;
+}
+
+// US-64 bước 2: kết quả PT xác nhận buổi đã dạy (spec mục 3: {id, status, version, completedAt, completionRevision, membershipId, sessionsUsed}).
+// notificationState sẽ thêm ở bước 4 khi có thông báo PT_BOOKING_COMPLETED.
+export interface CompletedPtBooking {
+  id: string;
+  status: 'COMPLETED';
+  version: number;
+  completedAt: string;
+  completionRevision: number;
+  // Gói đã bị trừ buổi (gói booking đang tham chiếu lúc xác nhận, kể cả sau nâng cấp).
+  membershipId: string;
+  // sessions_used của gói đó sau khi trừ.
+  sessionsUsed: number;
+}
+
+// US-64 bước 2: lệnh hoàn tất service đã kiểm xong luật, đưa xuống repository để ghi có điều kiện (CAS).
+export interface CompletePtBookingChange {
+  bookingId: Types.ObjectId;
+  // Version service vừa đọc; repository chỉ ghi khi booking VẪN là BOOKED với version này.
+  version: number;
+  completedBy: Types.ObjectId;
+  completedActorType: CompletedActorType;
+  membershipId: Types.ObjectId;
+  now: Date;
 }
 
 // US-29 bước 1: lệnh hủy service đã kiểm xong luật, đưa xuống repository để ghi có điều kiện (CAS).

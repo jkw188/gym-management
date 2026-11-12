@@ -1,6 +1,6 @@
 // Cấu hình NestJS (US-27 bước 1–2, 4; US-28 bước 3): module lịch PT – khai báo API Member xem PT/slot (AvailabilityService),
 // lịch PT riêng (MePtBookingsService), đặt slot PT (BookingService, US-28), hủy buổi PT (CancelBookingService, US-29)
-// và tra cứu lịch PT hỗ trợ cho Staff/Admin (SupportPtBookingsService, US-29 bước 3).
+// và tra cứu lịch PT hỗ trợ cho Staff/Admin (SupportPtBookingsService, US-29 bước 3), PT xác nhận buổi đã dạy (CompleteBookingService, US-64).
 // US-27 đọc ca qua ShiftsModule, lớp qua PublicSessionsModule, gói qua MembershipsModule, chủ thể qua MembersDataModule.
 // US-28 BookingService tự đọc members/gói/PT/lớp qua BookingRepository: sau khi giữ khóa phải đọc lại trong CÙNG session
 // của transaction (US-28-G04), mà các reader trên không nhận session.
@@ -18,12 +18,14 @@ import { BookingController } from './booking.controller';
 import { BookingRepository } from './booking.repository';
 import { BookingService } from './booking.service';
 import { CancelBookingService } from './cancel-booking.service';
+import { CompleteBookingService } from './complete-booking.service';
 import { MePtBookingsController } from './me-pt-bookings.controller';
 import { MePtBookingsRepository } from './me-pt-bookings.repository';
 import { MePtBookingsService } from './me-pt-bookings.service';
 import { PtAvailabilityController } from './pt-availability.controller';
 import { PtAvailabilityRepository } from './pt-availability.repository';
 import { PtBookingCancelController } from './pt-booking-cancel.controller';
+import { PtBookingCompleteController } from './pt-booking-complete.controller';
 import { BookingEventSchema } from './schemas/booking-event.schema';
 import { PtBookingSchema } from './schemas/pt-booking.schema';
 import { SupportPtBookingsController } from './support-pt-bookings.controller';
@@ -51,9 +53,13 @@ import { SupportPtBookingsService } from './support-pt-bookings.service';
     TransactionModule,
   ],
   // US-29 bước 3: PtBookingCancelController (hủy own/support), SupportPtBookingsController (tra cứu hỗ trợ).
-  controllers: [PtAvailabilityController, MePtBookingsController, BookingController, PtBookingCancelController, SupportPtBookingsController],
+  controllers: [PtAvailabilityController, MePtBookingsController, BookingController, PtBookingCancelController, SupportPtBookingsController,
+    // US-64 bước 2: PT xác nhận buổi đã dạy.
+    PtBookingCompleteController],
   providers: [AvailabilityService, PtAvailabilityRepository, MePtBookingsService, MePtBookingsRepository, BookingService, BookingRepository,
     // US-29: hủy buổi PT dùng chung hai policy OWN/SUPPORT; tra cứu hỗ trợ cho Staff/Admin.
-    CancelBookingService, SupportPtBookingsService, SupportPtBookingsRepository],
+    CancelBookingService, SupportPtBookingsService, SupportPtBookingsRepository,
+    // US-64: PT xác nhận buổi đã dạy, trừ đúng một buổi của gói.
+    CompleteBookingService],
 })
 export class BookingsModule {}
