@@ -14,9 +14,12 @@ import { NotificationsPage } from './features/notifications/NotificationsPage';
 import { ChangePasswordPage } from './features/security/ChangePasswordPage';
 import { UsersPage } from './features/users/UsersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
+import { TrainerBookingsPage } from './features/pt-bookings/TrainerBookingsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
 import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
+import { PtBookingsPage } from './features/pt-bookings/PtBookingsPage';
+import { SupportPtBookingsPage } from './features/pt-bookings/SupportPtBookingsPage';
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
 import { PlansPage } from './features/plans/PlansPage';
@@ -40,6 +43,9 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members/new" element={<NewMemberPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members/:id" element={<MemberDetailPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members/:id" element={<MemberDetailPage />} /></Route>
+      {/* US-29: Staff/Admin tra cứu và hủy hỗ trợ lịch PT (server kiểm quyền ptBookings.readSupport/cancelSupport). */}
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/pt-bookings" element={<SupportPtBookingsPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/pt-bookings" element={<SupportPtBookingsPage />} /></Route>
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/profile" element={<ProfilePage role="MEMBER" />} />
         <Route path="/member/security" element={<ChangePasswordPage />} />
         {/* US-47: inbox thông báo của member. */}
@@ -51,7 +57,9 @@ export default function App() {
       <Route element={<ProtectedRoute role="TRAINER" />}><Route path="/trainer/profile" element={<ProfilePage role="TRAINER" />} />
         <Route path="/trainer/security" element={<ChangePasswordPage />} />
         {/* US-24: lịch tuần và ca nháp của PT. */}
-        <Route path="/trainer/shifts" element={<ShiftsPage />} /></Route>
+        <Route path="/trainer/shifts" element={<ShiftsPage />} />
+        {/* US-64 bước 4: PT xem buổi dạy và xác nhận buổi đã dạy; chỉ TRAINER. */}
+        <Route path="/trainer/bookings" element={<TrainerBookingsPage />} /></Route>
       {(Object.entries(rolePaths) as [RoleCode, string][]).map(([role, path]) => <Route key={role} element={<ProtectedRoute role={role} />}>
         <Route path={path} element={<RoleShell role={role} />} /></Route>)}
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />

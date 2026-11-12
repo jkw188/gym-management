@@ -1,5 +1,6 @@
 // Tầng giao diện – gọi API (US-27 bước 3, US-28 bước 4, US-29 bước 3): Member đọc lịch PT riêng, danh mục PT, slot trống, gói PT,
 // đặt và hủy slot PT; Staff/Admin tra cứu, xem chi tiết và hủy hỗ trợ (US-29). Tất cả qua ApiClient.
+// US-64 bước 4: PT xem buổi dạy của mình và xác nhận buổi đã dạy.
 // Không gửi memberId/accountId vì server lấy chủ thể từ phiên đăng nhập; lệnh đặt gửi header Idempotency-Key (EN-02).
 import { apiClient } from '../../api/client';
 import type { MyListPage, MyMembership } from '../memberships/memberships.api';
@@ -146,6 +147,32 @@ function postCancel(path: string, input: CancelBookingInput, idempotencyKey: str
   });
 }
 
+// US-64 bước 4: một buổi trong danh sách buổi dạy của PT (GET /api/me/trainer-bookings). Không có số điện thoại hay tiền.
+export interface TrainerBooking {
+  id: string;
+  memberName: string;
+  startAt: string;
+  endAt: string;
+  status: PtBookingStatus;
+  version: number;
+  // Giờ xác nhận, chỉ có khi buổi đã hoàn tất (khác giờ kết thúc buổi).
+  completedAt?: string;
+  // Server tính sẵn PT được làm gì với buổi; có 'COMPLETE' thì hiện nút "Xác nhận đã dạy".
+  permittedActions: 'COMPLETE'[];
+}
+
+// US-64: 200 của POST /api/me/pt-bookings/:id/complete.
+export interface CompletedBooking {
+  id: string;
+  status: 'COMPLETED';
+  version: number;
+  completedAt: string;
+  completionRevision: number;
+  membershipId: string;
+  sessionsUsed: number;
+  notificationState: 'STORED' | 'NO_LINKED_ACCOUNT';
+}
+
 export const BOOKINGS_PAGE_SIZE = 20;
 
 export const ptBookingsApi = {
@@ -211,5 +238,20 @@ export const ptBookingsApi = {
   // POST /api/pt-bookings/:id/cancel (US-29, Staff/Admin): hủy hỗ trợ, cùng body và cùng cách giữ key như Member.
   cancelSupportBooking(bookingId: string, input: CancelBookingInput, idempotencyKey: string) {
     return postCancel(`/pt-bookings/${encodeURIComponent(bookingId)}/cancel`, input, idempotencyKey);
+  },
+
+  // GET /api/me/trainer-bookings (US-64 bước 4): buổi dạy của PT đang đăng nhập trong các ngày VN đã chọn.
+  listTrainerBookings(fromDate: string, toDate: string) {
+    const params = new URLSearchParams({ fromDate, toDate });
+    return apiClient.request<{ items: TrainerBooking[] }>(`/me/trainer-bookings?${params.toString()}`);
+  },
+
+  // POST /api/me/pt-bookings/:id/complete (US-64): body CHỈ {version}. idempotencyKey do trang giữ, mất phản hồi thì gửi lại ĐÚNG key cũ.
+  completeBooking(bookingId: string, version: number, idempotencyKey: string) {
+    return apiClient.request<CompletedBooking>(`/me/pt-bookings/${encodeURIComponent(bookingId)}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ version }),
+    });
   },
 };
