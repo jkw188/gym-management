@@ -15,7 +15,7 @@
 //     memberships.sessions_used +1; booking_events một dòng COMPLETE (actor_role TRAINER, completion_revision, used/version trước–sau,
 //       request_key băm hex 64); operation_requests một dòng.
 //   Lỗi (EN01-D03): 400 key/version/id sai; 401 phiên/account khóa; 403 sai vai trò; 404 booking không có hoặc của PT khác;
-//     409 chưa tới endAt hoặc không còn BOOKED; 409 VERSION_CONFLICT; 409 BOOKING_ALREADY_COMPLETED (key mới trên COMPLETED);
+//     409 BOOKING_NOT_ENDED (chưa tới endAt), 409 INVALID_BOOKING_STATE (CANCELLED) – sinh viên chốt 12/11; 409 VERSION_CONFLICT; 409 BOOKING_ALREADY_COMPLETED (key mới trên COMPLETED);
 //     409 IDEMPOTENCY_CONFLICT (cùng key khác payload); 503 khi DB lỗi, không lộ lỗi MongoDB thô.
 //   Để bước sau: thông báo PT_BOOKING_COMPLETED/outbox/notificationState và UI (bước 4), Admin correction (bước 3),
 //     cạnh tranh với nâng cấp US-16/20 thật (chờ US-16), 10 vòng race (bước 5).
@@ -400,27 +400,27 @@ describe('US-64 bước 2: PT xác nhận buổi đã dạy', () => {
       expectError(await complete(pt, 'khong-phai-id'), 400);
     });
 
-    it('US-64-TC03: now = endAt − 1 giây → 409, không trừ quota, không event', async () => {
+    it('US-64-TC03: now = endAt − 1 giây → 409 BOOKING_NOT_ENDED, không trừ quota, không event', async () => {
       const { membershipId, pt, bookingId, end } = await ready();
       freezeClock(new Date(end.getTime() - 1000));
       await expectNothingWritten(bookingId, membershipId, async () => {
-        expectError(await complete(pt, bookingId), 409);
+        expectError(await complete(pt, bookingId), 409, 'BOOKING_NOT_ENDED');
       });
     });
 
-    it('US-64-TC03: buổi chưa bắt đầu (endAt còn 2 giờ nữa) → 409, không ghi gì', async () => {
+    it('US-64-TC03: buổi chưa bắt đầu (endAt còn 2 giờ nữa) → 409 BOOKING_NOT_ENDED, không ghi gì', async () => {
       const { membershipId, pt, bookingId } = await ready({ end: new Date(roundedNow().getTime() + 120 * MINUTE) });
       await expectNothingWritten(bookingId, membershipId, async () => {
-        expectError(await complete(pt, bookingId), 409);
+        expectError(await complete(pt, bookingId), 409, 'BOOKING_NOT_ENDED');
       });
     });
 
-    it('US-64-TC03: booking đã CANCELLED → 409, không trừ quota, không event', async () => {
+    it('US-64-TC03: booking đã CANCELLED → 409 INVALID_BOOKING_STATE, không trừ quota, không event', async () => {
       const { membershipId, pt, bookingId, end } = await ready();
       await db().collection('pt_bookings').updateOne({ _id: bookingId }, { $set: { status: 'CANCELLED', cancelled_at: new Date() } });
       freezeClock(end);
       await expectNothingWritten(bookingId, membershipId, async () => {
-        expectError(await complete(pt, bookingId), 409);
+        expectError(await complete(pt, bookingId), 409, 'INVALID_BOOKING_STATE');
       });
     });
 
