@@ -18,7 +18,9 @@ import { BookingController } from './booking.controller';
 import { BookingRepository } from './booking.repository';
 import { BookingService } from './booking.service';
 import { CancelBookingService } from './cancel-booking.service';
+import { AdminPtBookingsController } from './admin-pt-bookings.controller';
 import { CompleteBookingService } from './complete-booking.service';
+import { CorrectBookingService } from './correct-booking.service';
 import { MePtBookingsController } from './me-pt-bookings.controller';
 import { MePtBookingsRepository } from './me-pt-bookings.repository';
 import { MePtBookingsService } from './me-pt-bookings.service';
@@ -55,11 +57,15 @@ import { SupportPtBookingsService } from './support-pt-bookings.service';
   // US-29 bước 3: PtBookingCancelController (hủy own/support), SupportPtBookingsController (tra cứu hỗ trợ).
   controllers: [PtAvailabilityController, MePtBookingsController, BookingController, PtBookingCancelController, SupportPtBookingsController,
     // US-64 bước 2: PT xác nhận buổi đã dạy.
-    PtBookingCompleteController],
+    PtBookingCompleteController,
+    // US-64 bước 3: Admin xử lý sai và xem chi tiết kèm lịch sử hoàn tất.
+    AdminPtBookingsController],
   providers: [AvailabilityService, PtAvailabilityRepository, MePtBookingsService, MePtBookingsRepository, BookingService, BookingRepository,
     // US-29: hủy buổi PT dùng chung hai policy OWN/SUPPORT; tra cứu hỗ trợ cho Staff/Admin.
     CancelBookingService, SupportPtBookingsService, SupportPtBookingsRepository,
     // US-64: PT xác nhận buổi đã dạy, trừ đúng một buổi của gói.
-    CompleteBookingService],
+    CompleteBookingService,
+    // US-64 bước 3: Admin xác nhận hỗ trợ / rút xác nhận sai.
+    CorrectBookingService],
 })
 export class BookingsModule {}
