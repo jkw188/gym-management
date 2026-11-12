@@ -105,6 +105,11 @@ export class MeMembershipsRepository {
     return this.memberships.findById(id).maxTimeMS(5000).lean<Membership>().exec();
   }
 
+  // US-30 bước 2: gói theo danh sách mã; người gọi phải kiểm tiếp sale của gói thuộc đúng member (findSalesByIds).
+  findMembershipsByIds(ids: Types.ObjectId[]): Promise<Membership[]> {
+    return this.memberships.find({ _id: { $in: ids } }).maxTimeMS(5000).lean<Membership[]>().exec();
+  }
+
   findMembershipsBySaleIds(saleIds: Types.ObjectId[]): Promise<Membership[]> {
     return this.memberships.find({ service_sale_id: { $in: saleIds } }).maxTimeMS(5000).lean<Membership[]>().exec();
   }
