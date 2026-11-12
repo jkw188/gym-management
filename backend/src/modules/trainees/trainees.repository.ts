@@ -40,12 +40,12 @@ export class TraineesRepository {
       { $group: {
         _id: '$member_id',
         related_booking_count: { $sum: 1 },
-        // Buổi BOOKED có giờ bắt đầu từ bây giờ trở đi, lấy buổi sớm nhất.
+        // Buổi sắp tới sớm nhất, theo trạng thái và mốc giờ service truyền xuống.
         next_booking_at: { $min: { $cond: [
-          { $and: [{ $eq: ['$status', 'BOOKED'] }, { $gte: ['$start_at', filter.now] }] }, '$start_at', null,
+          { $and: [{ $eq: ['$status', filter.upcomingStatus] }, { $gte: ['$start_at', filter.upcomingFrom] }] }, '$start_at', null,
         ] } },
-        // Lúc xác nhận của buổi COMPLETED gần nhất.
-        last_completed_at: { $max: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, '$completed_at', null] } },
+        // Lúc xác nhận của buổi hoàn tất gần nhất, theo trạng thái service truyền xuống.
+        last_completed_at: { $max: { $cond: [{ $eq: ['$status', filter.completedStatus] }, '$completed_at', null] } },
       } },
       // 3. Nối members bằng _id, chỉ lấy mã và tên; không đọc phone/email/address (US-30-F02).
       { $lookup: { from: 'members', localField: '_id', foreignField: '_id', as: 'member',

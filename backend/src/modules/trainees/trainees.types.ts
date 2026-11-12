@@ -42,7 +42,11 @@ export interface TraineeFilter {
   trainerId: Types.ObjectId;
   // Trạng thái booking tạo quan hệ học viên, do service quyết định (US-30-F01).
   relationStatuses: PtBookingStatus[];
-  now: Date;
+  // Buổi "sắp tới" = buổi có trạng thái upcomingStatus và start_at >= upcomingFrom (service quyết định).
+  upcomingStatus: PtBookingStatus;
+  upcomingFrom: Date;
+  // Buổi "đã hoàn tất" = buổi có trạng thái completedStatus (service quyết định).
+  completedStatus: PtBookingStatus;
   search?: string;
   hasUpcoming?: boolean;
   page: number;

@@ -12,6 +12,10 @@ import { TraineeListResponse } from './trainees.types';
 // US-30-F01: chỉ BOOKED và COMPLETED tạo quan hệ; chỉ có CANCELLED thì không còn là học viên (US-30-TC02).
 // BOOKED đã quá giờ vẫn tính cho đến khi được xử lý (US-30-TC11).
 const RELATION_STATUSES: PtBookingStatus[] = ['BOOKED', 'COMPLETED'];
+// US-30-F02, TC01, TC05: buổi "sắp tới" là buổi BOOKED chưa tới giờ bắt đầu → nextBookingAt, hasUpcoming.
+const UPCOMING_STATUS: PtBookingStatus = 'BOOKED';
+// US-30-F02, TC01: buổi "đã hoàn tất" là buổi COMPLETED → lastCompletedAt.
+const COMPLETED_STATUS: PtBookingStatus = 'COMPLETED';
 
 @Injectable()
 export class TraineeQueryService {
@@ -31,8 +35,10 @@ export class TraineeQueryService {
     const { rows, total } = await this.repository.findTrainees({
       trainerId,
       relationStatuses: RELATION_STATUSES,
-      // "Sắp tới" tính theo giờ server, không theo đồng hồ máy người dùng. GET chỉ đọc, không đổi trạng thái buổi (US-30-TC11).
-      now: this.clock.now(),
+      upcomingStatus: UPCOMING_STATUS,
+      // "Sắp tới" tính từ giờ server, không theo đồng hồ máy người dùng. GET chỉ đọc, không đổi trạng thái buổi (US-30-TC11).
+      upcomingFrom: this.clock.now(),
+      completedStatus: COMPLETED_STATUS,
       // q rỗng sau khi trim thì coi như không tìm.
       search: query.q ? query.q : undefined,
       hasUpcoming: query.hasUpcoming,
