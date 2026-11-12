@@ -282,6 +282,7 @@ Frontend giữ `api`, `components`, `features`, `hooks`, `layouts`, `pages`, `ro
 
 ## EN-02 — Hợp đồng nhất quán dữ liệu S02
 
+Đã có hạ tầng transaction/idempotency, khóa ghi chung, index/migration, tiền VND và ngày Việt Nam. US-14 đã có luồng bán/hủy tại quầy, hoàn tất gói miễn phí và activation port cho US-22; xem [hợp đồng US-14/UC-20](docs/service-sales-contract.md) và [sequence](docs/service-sales-sequence.mmd). Danh mục US-12 hiện chỉ có schema/read contract phục vụ bán; thu tiền có phí US-21/22 chưa triển khai. **Chưa đánh dấu Done EN-02/US-14 toàn bộ:** vẫn cần nghiệm thu các luồng phụ thuộc thật. Test hạ tầng không thay cho nghiệm thu nghiệp vụ. Ca làm việc US-24/25 đang tái sử dụng IdempotencyService; NotificationsService/outbox hỗ trợ session và phát sau commit.
 Đã có hạ tầng transaction/idempotency, khóa ghi chung, index/migration, tiền VND và ngày Việt Nam; US-09 và PlansModule US-12 sử dụng nền tảng này. **Chưa đánh dấu Done EN-02:** source chưa triển khai sale/membership US-14 và thu/chứng từ US-22; EN-02 không tự đặt chính sách gia hạn, nâng gói, hủy hoặc đánh số chứng từ. Test hạ tầng dựng các đơn vị công việc tối thiểu để kiểm chứng constraint, không thay cho nghiệm thu các luồng này. Ca làm việc US-24/25 đang tái sử dụng IdempotencyService; NotificationsService/outbox hiện có hỗ trợ session và phát sau commit.
 
 ### Môi trường và migration (EN-02-F01, TC01–02)

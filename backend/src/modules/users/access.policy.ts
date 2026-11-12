@@ -24,7 +24,12 @@ export const ACCESS_POLICY = {
   'transactions.read': { name: 'Xem giao dịch', roles: ['ADMIN', 'STAFF'] },
   'transactions.confirmPayment': { name: 'Xác nhận thu tiền', roles: ['ADMIN', 'STAFF'] },
   'invoices.read': { name: 'Xem chứng từ', roles: ['ADMIN', 'STAFF'] },
-  'plans.manage': { name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
+  // US-17: Member chỉ xem dữ liệu gói/giao dịch/chứng từ của chính mình.
+  'memberships.readOwn': { name: 'Xem gói tập của mình', roles: ['MEMBER'] },
+  'serviceSales.readOwn': { name: 'Xem lần mua gói của mình', roles: ['MEMBER'] },
+  'transactions.readOwn': { name: 'Xem giao dịch của mình', roles: ['MEMBER'] },
+  'invoices.readOwn': { name: 'Xem chứng từ của mình', roles: ['MEMBER'] },
+  'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
 

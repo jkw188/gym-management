@@ -16,6 +16,7 @@ import { UsersPage } from './features/users/UsersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
+import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
 import { PlansPage } from './features/plans/PlansPage';

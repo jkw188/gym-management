@@ -1,3 +1,4 @@
+
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
@@ -9,8 +10,19 @@ import { PlanSchema } from './schemas/plan.schema';
 import { PlanPolicySchema } from './schemas/plan-policy.schema';
 
 @Module({
-  imports: [TransactionModule, MongooseModule.forFeature([{ name: 'Plan', schema: PlanSchema }, { name: 'PlanPolicy', schema: PlanPolicySchema }])],
-  controllers: [PlansController, PlanPoliciesController], providers: [PlansRepository, PlansService, PlanReaderService],
+  imports: [
+    TransactionModule,
+    MongooseModule.forFeature([
+      { name: 'Plan', schema: PlanSchema },
+      { name: 'PlanPolicy', schema: PlanPolicySchema },
+    ]),
+  ],
+  controllers: [PlansController, PlanPoliciesController],
+  providers: [
+    PlansRepository,
+    PlansService,
+    PlanReaderService,
+  ],
   exports: [PlanReaderService],
 })
 export class PlansModule {}

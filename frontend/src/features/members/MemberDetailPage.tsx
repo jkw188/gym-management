@@ -4,6 +4,7 @@ import { ApiError } from '../../api/client';
 import { membersApi, type Member, type MemberDetail } from './members.api';
 import { MemberEntitlements, MemberReadTime } from './MemberEntitlements';
 import { MemberHistory } from './MemberHistory';
+import { ServiceSalePanel } from '../sales/ServiceSalePanel';
 
 const fields = ['fullName', 'phone', 'birthDate', 'address'] as const;
 type Field = typeof fields[number];
@@ -174,7 +175,7 @@ function MemberProfileEditor({ id }: { id: string }) {
         <button type="button" disabled={pending} onClick={closeReload}>Giữ bản nhập</button>
       </div>}
       {!editing && <><button type="button" disabled={pending} onClick={() => void load(false)}>Làm mới hồ sơ và quyền lợi</button>
-        <MemberHistory id={id} /></>}
+        <ServiceSalePanel memberId={id} /><MemberHistory id={id} /></>}
     </>}
   </section>;
 }

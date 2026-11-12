@@ -169,7 +169,7 @@ describe('EN-02 bước 1: TransactionRunner trên MongoDB standalone', () => {
       await connection.collection('payments').insertOne({ amount: 1000 });
     });
 
-    await expect(runner.run(work)).rejects.toThrow();
+    await expect(runner.run(work)).rejects.toMatchObject({ status: 503, code: 'TRANSACTIONS_NOT_SUPPORTED' });
 
     expect(work).not.toHaveBeenCalled();
     expect(await connection.collection('payments').countDocuments()).toBe(0);
