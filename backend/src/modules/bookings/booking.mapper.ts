@@ -2,8 +2,9 @@
 // và thành tiêu đề/nội dung thông báo BOOKING_CREATED. Chỉ chép field trong hợp đồng; không trả request_key, created_by.
 // US-29 bước 1–2: đổi booking vừa hủy thành kết quả {id, status, version, cancelledAt, notificationState}
 // và thành tiêu đề/nội dung thông báo BOOKING_CANCELLED.
-// US-64 bước 2: đổi booking vừa hoàn tất thành kết quả trả cho PT.
-import { BookingNotificationState, CancelledPtBooking, CompletedPtBooking, CreatedPtBooking } from './booking.types';
+// US-64 bước 2: đổi booking vừa hoàn tất thành kết quả trả cho PT. Bước 3: đổi booking vừa được Admin rút xác nhận.
+import { BookingNotificationState, CancelledPtBooking, CompletedPtBooking, CorrectedPtBooking, CreatedPtBooking } from './booking.types';
+import { Types } from 'mongoose';
 import { PtBooking } from './schemas/pt-booking.schema';
 
 const VIETNAM_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -47,6 +48,18 @@ export function toCompletedPtBooking(booking: PtBooking, sessionsUsed: number): 
     completedAt: booking.completed_at!.toISOString(),
     completionRevision: booking.completion_revision,
     membershipId: booking.completion_membership_id!.toHexString(),
+    sessionsUsed,
+  };
+}
+
+// US-64-TC11: booking vừa được Admin rút xác nhận → kết quả trả về. membershipId là gói vừa được hoàn lại 1 buổi.
+export function toReopenedPtBooking(booking: PtBooking, membershipId: Types.ObjectId, sessionsUsed: number): CorrectedPtBooking {
+  return {
+    id: booking._id.toHexString(),
+    status: 'BOOKED',
+    version: booking.version,
+    completionRevision: booking.completion_revision,
+    membershipId: membershipId.toHexString(),
     sessionsUsed,
   };
 }

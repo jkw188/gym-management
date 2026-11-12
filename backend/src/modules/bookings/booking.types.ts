@@ -1,6 +1,7 @@
 // Tầng kiểu dữ liệu (US-28 bước 3): dữ liệu trả về khi Member đặt slot PT thành công (camelCase, thời điểm ISO UTC)
 // và các kiểu dùng chung giữa BookingService và BookingRepository. Không có request_key, created_by, tên Member hay dữ liệu liên hệ.
 // US-64 bước 2: thêm kết quả và lệnh ghi của PT xác nhận buổi đã dạy; dòng audit có thêm revision, used/version trước–sau.
+// US-64 bước 3: thêm kết quả Admin xử lý sai (COMPLETE/REOPEN) và lệnh ghi rút xác nhận.
 import { Types } from 'mongoose';
 import { NotificationState } from '../notifications/notifications.types';
 import { BookingEventAction, BookingEventActorRole } from './schemas/booking-event.schema';
@@ -123,4 +124,26 @@ export interface CancelPtBookingChange {
   cancelledBy: Types.ObjectId;
   reason: string;
   now: Date;
+}
+
+// US-64-C02: lệnh rút xác nhận service đã kiểm xong luật, đưa xuống repository để ghi có điều kiện (CAS).
+export interface ReopenPtBookingChange {
+  bookingId: Types.ObjectId;
+  // Version service vừa đọc; repository chỉ ghi khi booking VẪN là COMPLETED với version này.
+  version: number;
+  now: Date;
+}
+
+// US-64 bước 3 (spec mục 3): 200 của POST /api/admin/pt-bookings/:id/corrections – trạng thái mới và nguồn quota.
+export interface CorrectedPtBooking {
+  id: string;
+  status: 'COMPLETED' | 'BOOKED';
+  version: number;
+  completionRevision: number;
+  // Gói bị trừ buổi (COMPLETE) hoặc được hoàn lại buổi (REOPEN).
+  membershipId: string;
+  // sessions_used của gói đó sau thao tác.
+  sessionsUsed: number;
+  // Chỉ có khi COMPLETE: giờ server lúc xác nhận.
+  completedAt?: string;
 }
