@@ -41,6 +41,8 @@ export const ACCESS_POLICY = {
   'ptBookings.cancelSupport': { name: 'Hủy lịch PT hỗ trợ', roles: ['STAFF', 'ADMIN'] },
   // US-64-F01: chỉ PT xác nhận buổi mình đã dạy; Member, Staff, Admin gọi lệnh này → 403.
   'ptBookings.completeOwn': { name: 'Xác nhận buổi PT đã dạy', roles: ['TRAINER'] },
+  // US-64-C01, C02: chỉ Admin xác nhận hỗ trợ hoặc rút xác nhận sai, và xem chi tiết kèm lịch sử hoàn tất.
+  'ptBookings.correct': { name: 'Xử lý sai xác nhận buổi PT', roles: ['ADMIN'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
