@@ -19,6 +19,7 @@ import { NewMemberPage } from './features/members/NewMemberPage';
 import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
+import { PlansPage } from './features/plans/PlansPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider><main><h1>Gym Management</h1><p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p>
@@ -32,6 +33,7 @@ export default function App() {
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members" element={<MembersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members/new" element={<NewMemberPage />} /></Route>
@@ -43,7 +45,9 @@ export default function App() {
         {/* US-47: inbox thông báo của member. */}
         <Route path="/member/notifications" element={<NotificationsPage />} />
         {/* US-17: gói tập, lịch sử mua và chứng từ của member (chỉ đọc). */}
-        <Route path="/member/memberships" element={<MyMembershipsPage />} /></Route>
+        <Route path="/member/memberships" element={<MyMembershipsPage />} />
+        {/* US-27: lịch PT riêng và xem giờ trống của PT. */}
+        <Route path="/member/pt-bookings" element={<PtBookingsPage />} /></Route>
       <Route element={<ProtectedRoute role="TRAINER" />}><Route path="/trainer/profile" element={<ProfilePage role="TRAINER" />} />
         <Route path="/trainer/security" element={<ChangePasswordPage />} />
         {/* US-24: lịch tuần và ca nháp của PT. */}

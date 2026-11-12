@@ -54,7 +54,7 @@ export class TransactionRunner {
       this.transactionsSupported = await supportsTransactions(this.connection);
     }
     if (!this.transactionsSupported) {
-      throw new ApplicationError(503, 'TRANSACTIONS_NOT_SUPPORTED', 'MongoDB phải chạy replica set để dùng transaction');
+      throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'TRANSACTIONS_NOT_SUPPORTED: MongoDB phải chạy replica set để dùng transaction');
     }
   }
 }

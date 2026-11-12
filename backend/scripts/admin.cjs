@@ -28,6 +28,7 @@ const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
 const { MembershipSchema } = require('../dist/modules/memberships/schemas/membership.schema');
 const { TransactionSchema } = require('../dist/modules/payments/schemas/transaction.schema');
+const { PlanPolicySchema } = require('../dist/modules/plans/schemas/plan-policy.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -50,6 +51,8 @@ async function run() {
         await model.createIndexes();
         if (name !== 'ServiceSale') await model.updateMany({ version: { $exists: false } }, { $set: { version: 0 } });
       }
+      await connection.model('Plan', PlanSchema).createIndexes();
+      await connection.model('PlanPolicy', PlanPolicySchema).createIndexes();
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
       await Promise.all([connection.model('Permission', PermissionSchema).createIndexes(),
@@ -78,6 +81,8 @@ async function run() {
       // US-05 migration: account tạo trước US-05 chưa có recovery_revision thì ghi 0. Chạy lại nhiều lần vẫn an toàn
       // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
       await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
+      // US-28 bước 1: kiểm dữ liệu lịch, tạo index pt_bookings và guard schedule_guards trước khi mở writer lịch.
+      await ensureSchedulingIntegrity(connection);
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INDEXES_ENSURED' }));
     } finally { await connection.close(); }
     return;
