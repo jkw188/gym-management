@@ -170,6 +170,19 @@ describe('US-64 bước 1: migration nguồn hoàn tất qua ensure-indexes', ()
       expect(String(doc?.completion_membership_id)).toBe(String(otherMembership));
     });
 
+    it('US-64-C04: booking COMPLETED đã có completion_revision = 2 nhưng thiếu completion_membership_id → điền membership_id, revision vẫn 2', async () => {
+      const { memberId, membershipId } = await insertPtMembership(10, 1);
+      const completed = await insertBooking(memberId, membershipId, '08:00', '09:00', {
+        status: 'COMPLETED', extra: { completed_at: at('09:10'), completion_revision: 2 },
+      });
+
+      expect((await ensureIndexes()).ok).toBe(true);
+
+      const doc = await bookings().findOne({ _id: completed });
+      expect(String(doc?.completion_membership_id)).toBe(String(membershipId));
+      expect(Number(doc?.completion_revision)).toBe(2);
+    });
+
     it('US-64-F02: migration không đổi sessions_used, status, membership_id, version; chạy lại lần hai không đổi thêm', async () => {
       const { memberId, membershipId } = await insertPtMembership(10, 2);
       await insertBooking(memberId, membershipId, '08:00', '09:00', { status: 'COMPLETED', extra: { completed_at: at('09:10') } });
