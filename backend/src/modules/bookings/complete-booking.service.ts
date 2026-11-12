@@ -2,14 +2,16 @@
 // Trong CÙNG transaction: khóa lịch → đọc booking → khóa member → đọc gói, quota → CAS booking → sessions_used +1 → audit.
 // Chạy qua IdempotencyService (EN-02): gửi lại cùng Idempotency-Key trả kết quả gốc, operation_requests cùng commit.
 // US-64 bước 3: tách phần ghi trong transaction thành completeInSession để Admin xác nhận hỗ trợ (C01) dùng CÙNG điều kiện.
+// US-64 bước 4: lưu thông báo PT_BOOKING_COMPLETED:<id>:<revision> cho Member và PT cùng transaction (F05, EN-03).
 import { Injectable } from '@nestjs/common';
 import { ClientSession } from 'mongodb';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ServerClock } from '../../common/utils/business-date';
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { IdempotencyService, transactionRequestKey, WorkResult } from '../operations/idempotency.service';
-import { toCompletedPtBooking } from './booking.mapper';
+import { toBookingCompletedMessage, toCompletedPtBooking } from './booking.mapper';
 import { BookingRepository } from './booking.repository';
 import { CompletedPtBooking } from './booking.types';
 import { CompletedActorType, PtBooking } from './schemas/pt-booking.schema';
@@ -50,6 +52,8 @@ export class CompleteBookingService {
     private readonly idempotency: IdempotencyService,
     // Khóa lịch và khóa member theo thứ tự cố định schedule_guards → members (US-64-F04).
     private readonly guards: DataGuardsService,
+    // EN-03: lưu thông báo + người nhận + outbox cùng transaction.
+    private readonly notifications: NotificationsService,
     private readonly clock: ServerClock,
   ) {}
 
@@ -153,7 +157,29 @@ export class CompleteBookingService {
       versionAfter: completed.version,
     }, session);
 
-    return toCompletedPtBooking(completed, usedAfter);
+    // US-64-F05, US-64-TC09: thông báo PT_BOOKING_COMPLETED:<bookingId>:<revision> trong CÙNG session (notification + recipients + outbox).
+    // Mỗi lượt hoàn tất hợp lệ có revision riêng nên xác nhận lại sau REOPEN có thông báo mới (C04); gửi lại cùng key thì
+    // IdempotencyService trả body gốc, không chạy tới đây. Lỗi insert → rollback cả hoàn tất. Socket do outbox worker phát sau commit.
+    const message = toBookingCompletedMessage(completed);
+    const event = await this.notifications.persistBusinessEvent(session, {
+      eventKey: `PT_BOOKING_COMPLETED:${bookingId.toHexString()}:${completed.completion_revision}`,
+      title: message.title,
+      body: message.body,
+      memberId: booking.member_id.toHexString(),
+      createdBy: actor.accountId.toHexString(),
+    }, await this.findRecipients(completed, session));
+
+    return toCompletedPtBooking(completed, usedAfter, event.notificationState);
+  }
+
+  // US-64-F05: người nhận chụp lúc commit = account đang liên kết của Member + account của PT (dạng chuỗi hex cho EN-03).
+  private async findRecipients(booking: PtBooking, session: ClientSession): Promise<string[]> {
+    const memberAccount = await this.repository.findAccountIdOfMember(booking.member_id, session);
+    const trainerAccount = await this.repository.findAccountIdOfTrainer(booking.trainer_id, session);
+    const recipients: string[] = [];
+    if (memberAccount) recipients.push(memberAccount.toHexString());
+    if (trainerAccount) recipients.push(trainerAccount.toHexString());
+    return recipients;
   }
 
   // US-64-F02, US-64-TC05: gói booking đang tham chiếu phải tồn tại, của đúng Member, loại PT, giao dịch SETTLED,

@@ -3,6 +3,7 @@
 // US-29 bước 1–2: đổi booking vừa hủy thành kết quả {id, status, version, cancelledAt, notificationState}
 // và thành tiêu đề/nội dung thông báo BOOKING_CANCELLED.
 // US-64 bước 2: đổi booking vừa hoàn tất thành kết quả trả cho PT. Bước 3: đổi booking vừa được Admin rút xác nhận.
+// Bước 4: thêm tiêu đề/nội dung thông báo PT_BOOKING_COMPLETED.
 import { BookingNotificationState, CancelledPtBooking, CompletedPtBooking, CorrectedPtBooking, CreatedPtBooking } from './booking.types';
 import { Types } from 'mongoose';
 import { PtBooking } from './schemas/pt-booking.schema';
@@ -40,7 +41,7 @@ export function toCancelledPtBooking(booking: PtBooking, notificationState: Book
 
 // US-64-TC01: booking vừa hoàn tất → kết quả trả về. completedAt là giờ server lúc xác nhận (không phải endAt).
 // Chỉ gọi với booking repository vừa ghi COMPLETED nên completed_at và completion_membership_id chắc chắn có (dấu !).
-export function toCompletedPtBooking(booking: PtBooking, sessionsUsed: number): CompletedPtBooking {
+export function toCompletedPtBooking(booking: PtBooking, sessionsUsed: number, notificationState: BookingNotificationState): CompletedPtBooking {
   return {
     id: booking._id.toHexString(),
     status: 'COMPLETED',
@@ -49,6 +50,7 @@ export function toCompletedPtBooking(booking: PtBooking, sessionsUsed: number): 
     completionRevision: booking.completion_revision,
     membershipId: booking.completion_membership_id!.toHexString(),
     sessionsUsed,
+    notificationState,
   };
 }
 
@@ -62,6 +64,11 @@ export function toReopenedPtBooking(booking: PtBooking, membershipId: Types.Obje
     membershipId: membershipId.toHexString(),
     sessionsUsed,
   };
+}
+
+// US-64-F05: nội dung thông báo hoàn tất, cùng khuôn với đặt/hủy. Không kèm lý do của Admin, số điện thoại hay tiền.
+export function toBookingCompletedMessage(booking: PtBooking): { title: string; body: string } {
+  return { title: 'Đã xác nhận buổi PT', body: bookingMessageBody(booking, 'Đã hoàn tất') };
 }
 
 // US-29-TC13: nội dung thông báo hủy, cùng khuôn với BOOKING_CREATED: tên buổi, giờ VN, địa điểm, trạng thái.

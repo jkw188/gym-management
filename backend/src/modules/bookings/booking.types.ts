@@ -90,7 +90,6 @@ export interface NewBookingEvent {
 }
 
 // US-64 bước 2: kết quả PT xác nhận buổi đã dạy (spec mục 3: {id, status, version, completedAt, completionRevision, membershipId, sessionsUsed}).
-// notificationState sẽ thêm ở bước 4 khi có thông báo PT_BOOKING_COMPLETED.
 export interface CompletedPtBooking {
   id: string;
   status: 'COMPLETED';
@@ -101,6 +100,8 @@ export interface CompletedPtBooking {
   membershipId: string;
   // sessions_used của gói đó sau khi trừ.
   sessionsUsed: number;
+  // US-64 bước 4 (F05): thông báo PT_BOOKING_COMPLETED đã lưu cùng commit (STORED) theo EN-03.
+  notificationState: BookingNotificationState;
 }
 
 // US-64 bước 2: lệnh hoàn tất service đã kiểm xong luật, đưa xuống repository để ghi có điều kiện (CAS).
@@ -144,6 +145,7 @@ export interface CorrectedPtBooking {
   membershipId: string;
   // sessions_used của gói đó sau thao tác.
   sessionsUsed: number;
-  // Chỉ có khi COMPLETE: giờ server lúc xác nhận.
+  // Chỉ có khi COMPLETE: giờ server lúc xác nhận và trạng thái thông báo PT_BOOKING_COMPLETED.
   completedAt?: string;
+  notificationState?: BookingNotificationState;
 }
