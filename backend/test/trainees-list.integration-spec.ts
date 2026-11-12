@@ -430,7 +430,7 @@ describe('US-30 bước 1: danh sách học viên của PT', () => {
     it('US-30-TC04: token của phiên đã đăng xuất → 401', async () => {
       const pt = await trainer();
       await list(pt).expect(200);
-      await http().post('/api/auth/logout').set('Origin', origin).set('Authorization', `Bearer ${pt.accessToken}`).expect(204);
+      await http().post('/api/auth/logout').set('Origin', origin).set('Authorization', `Bearer ${pt.accessToken}`).send({}).expect(204);
 
       expectError(await list(pt), 401);
     });
