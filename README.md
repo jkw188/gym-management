@@ -1,5 +1,7 @@
 # Gym Management — EN-01, EN-04 và các nghiệp vụ Sprint 1
 
+US-12 bổ sung danh mục GYM/PT và policy chuyển đổi cho Admin tại `/admin/plans`. Hợp đồng UC-30, schema mục 4.2, API, khóa sale-reader US-14, index và kiểm thử: [docs/plans-contract.md](docs/plans-contract.md). Chạy `npm run ensure-indexes` ở backend trước khi khởi động production; sửa gói/policy cần MongoDB replica set.
+
 React + TypeScript (Vite), NestJS 11 với Express và MongoDB/Mongoose, kiến trúc Modular Monolith.
 EN-01 bổ sung nền tảng dùng chung; US-02 triển khai đăng nhập theo bốn vai trò, JWT/Passport, refresh và khôi phục phiên. US-06 bổ sung danh sách, chi tiết, tạo và sửa thông tin tài khoản dành cho Admin; US-07/08 bổ sung khóa/mở khóa và đổi vai trò qua transaction bảo vệ Admin cuối cùng.
 US-01 bổ sung đăng ký tài khoản Member công khai tại `/register`.
@@ -280,7 +282,7 @@ Frontend giữ `api`, `components`, `features`, `hooks`, `layouts`, `pages`, `ro
 
 ## EN-02 — Hợp đồng nhất quán dữ liệu S02
 
-Đã có hạ tầng transaction/idempotency, khóa ghi chung, index/migration, tiền VND và ngày Việt Nam. **Chưa đánh dấu Done EN-02:** source hiện chưa triển khai US-09/12/14/22 (members/link, plans, sale/membership, thu/chứng từ); EN-02 không tự đặt chính sách gia hạn, nâng gói, hủy hoặc đánh số chứng từ. Test hạ tầng dựng các đơn vị công việc tối thiểu để kiểm chứng constraint, không thay cho nghiệm thu các luồng này. Ca làm việc US-24/25 đang tái sử dụng IdempotencyService; NotificationsService/outbox hiện có hỗ trợ session và phát sau commit.
+Đã có hạ tầng transaction/idempotency, khóa ghi chung, index/migration, tiền VND và ngày Việt Nam. US-14 đã có luồng bán/hủy tại quầy, hoàn tất gói miễn phí và activation port cho US-22; xem [hợp đồng US-14/UC-20](docs/service-sales-contract.md) và [sequence](docs/service-sales-sequence.mmd). Danh mục US-12 hiện chỉ có schema/read contract phục vụ bán; thu tiền có phí US-21/22 chưa triển khai. **Chưa đánh dấu Done EN-02/US-14 toàn bộ:** vẫn cần nghiệm thu các luồng phụ thuộc thật. Test hạ tầng không thay cho nghiệm thu nghiệp vụ. Ca làm việc US-24/25 đang tái sử dụng IdempotencyService; NotificationsService/outbox hỗ trợ session và phát sau commit.
 
 ### Môi trường và migration (EN-02-F01, TC01–02)
 

@@ -25,6 +25,11 @@ const { EnvironmentCheck } = require('../dist/infrastructure/environment/environ
 const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction/financial-integrity');
 const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-query.indexes');
 const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/scheduling-migration');
+const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
+const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
+const { MembershipSchema } = require('../dist/modules/memberships/schemas/membership.schema');
+const { TransactionSchema } = require('../dist/modules/payments/schemas/transaction.schema');
+const { PlanPolicySchema } = require('../dist/modules/plans/schemas/plan-policy.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
@@ -40,6 +45,15 @@ async function run() {
       // EN-02: preflight duplicates, install constraints, backfill missing BSON Int64 revisions.
       await ensureFinancialIntegrity(connection);
       await ensureMembersQueryIndexes(connection);
+      // US-14: keep old sale terms intact; only backfill absent business versions.
+      for (const [name, schema] of [['Plan', PlanSchema], ['ServiceSale', ServiceSaleSchema],
+        ['Membership', MembershipSchema], ['Transaction', TransactionSchema]]) {
+        const model = connection.model(name, schema);
+        await model.createIndexes();
+        if (name !== 'ServiceSale') await model.updateMany({ version: { $exists: false } }, { $set: { version: 0 } });
+      }
+      await connection.model('Plan', PlanSchema).createIndexes();
+      await connection.model('PlanPolicy', PlanPolicySchema).createIndexes();
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
       await Promise.all([connection.model('Permission', PermissionSchema).createIndexes(),

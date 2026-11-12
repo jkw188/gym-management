@@ -22,6 +22,7 @@ import { PtBookingsPage } from './features/pt-bookings/PtBookingsPage';
 import { SupportPtBookingsPage } from './features/pt-bookings/SupportPtBookingsPage';
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
+import { PlansPage } from './features/plans/PlansPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider><main><h1>Gym Management</h1><p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p>
@@ -35,6 +36,7 @@ export default function App() {
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members" element={<MembersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members/new" element={<NewMemberPage />} /></Route>

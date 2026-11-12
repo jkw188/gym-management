@@ -20,6 +20,8 @@ import { ReportsModule } from './modules/reports/reports.module';
 import { OperationsModule } from './modules/operations/operations.module';
 import { ShiftsModule } from './modules/shifts/shifts.module';
 import { PublicSessionsModule } from './modules/public-sessions/public-sessions.module';
+import { SalesModule } from './modules/sales/sales.module';
+import { PlansModule } from './modules/plans/plans.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { PublicSessionsModule } from './modules/public-sessions/public-sessions.
     OperationsModule,
     ShiftsModule,
     PublicSessionsModule,
+    SalesModule,
+    PlansModule,
   ],
 })
 export class AppModule {}
