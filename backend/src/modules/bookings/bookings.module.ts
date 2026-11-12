@@ -33,6 +33,9 @@ import { PtBookingSchema } from './schemas/pt-booking.schema';
 import { SupportPtBookingsController } from './support-pt-bookings.controller';
 import { SupportPtBookingsRepository } from './support-pt-bookings.repository';
 import { SupportPtBookingsService } from './support-pt-bookings.service';
+import { TrainerBookingsController } from './trainer-bookings.controller';
+import { TrainerBookingsRepository } from './trainer-bookings.repository';
+import { TrainerBookingsService } from './trainer-bookings.service';
 
 @Module({
   imports: [
@@ -59,13 +62,17 @@ import { SupportPtBookingsService } from './support-pt-bookings.service';
     // US-64 bước 2: PT xác nhận buổi đã dạy.
     PtBookingCompleteController,
     // US-64 bước 3: Admin xử lý sai và xem chi tiết kèm lịch sử hoàn tất.
-    AdminPtBookingsController],
+    AdminPtBookingsController,
+    // US-64 bước 4: PT xem buổi dạy của mình.
+    TrainerBookingsController],
   providers: [AvailabilityService, PtAvailabilityRepository, MePtBookingsService, MePtBookingsRepository, BookingService, BookingRepository,
     // US-29: hủy buổi PT dùng chung hai policy OWN/SUPPORT; tra cứu hỗ trợ cho Staff/Admin.
     CancelBookingService, SupportPtBookingsService, SupportPtBookingsRepository,
     // US-64: PT xác nhận buổi đã dạy, trừ đúng một buổi của gói.
     CompleteBookingService,
     // US-64 bước 3: Admin xác nhận hỗ trợ / rút xác nhận sai.
-    CorrectBookingService],
+    CorrectBookingService,
+    // US-64 bước 4: danh sách buổi dạy của PT.
+    TrainerBookingsService, TrainerBookingsRepository],
 })
 export class BookingsModule {}

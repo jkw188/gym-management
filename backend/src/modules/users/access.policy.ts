@@ -43,6 +43,8 @@ export const ACCESS_POLICY = {
   'ptBookings.completeOwn': { name: 'Xác nhận buổi PT đã dạy', roles: ['TRAINER'] },
   // US-64-C01, C02: chỉ Admin xác nhận hỗ trợ hoặc rút xác nhận sai, và xem chi tiết kèm lịch sử hoàn tất.
   'ptBookings.correct': { name: 'Xử lý sai xác nhận buổi PT', roles: ['ADMIN'] },
+  // US-64 bước 4 (spec 1.1): PT xem danh sách buổi dạy của chính mình (UI /trainer/bookings).
+  'ptBookings.readTrainerOwn': { name: 'Xem buổi dạy của mình', roles: ['TRAINER'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
