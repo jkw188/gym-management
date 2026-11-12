@@ -45,6 +45,13 @@ export const bookingNotFound = () => new ApplicationError(404, 'NOT_FOUND', 'Kh�
 export const dataIntegrityError = () => new ApplicationError(409, 'DATA_INTEGRITY_ERROR', 'Dữ liệu gói tập không nhất quán. Vui lòng liên hệ quản trị');
 export const versionConflict = () => conflict('VERSION_CONFLICT', 'Lịch tập đã thay đổi. Vui lòng tải lại');
 
+// US-64-F01: luật DUY NHẤT "buổi được xác nhận đã dạy": đang BOOKED và giờ server ≥ giờ kết thúc (đúng bằng endAt vẫn được).
+// Lệnh ghi (completeInSession) và danh sách của PT (TrainerBookingsService.permittedActions) cùng gọi hàm này,
+// để nút "Xác nhận đã dạy" hiện ra đúng khi lệnh ghi chấp nhận.
+export function canComplete(booking: Pick<PtBooking, 'status' | 'end_at'>, now: Date): boolean {
+  return booking.status === 'BOOKED' && now.getTime() >= booking.end_at.getTime();
+}
+
 @Injectable()
 export class CompleteBookingService {
   constructor(
@@ -109,8 +116,9 @@ export class CompleteBookingService {
     // US-64-F04, US-64-TC03: client giữ version cũ → 409 để tải lại.
     if (booking.version !== version) throw versionConflict();
 
-    // US-64-F01, US-64-TC01, US-64-TC03, US-64-TC10: chỉ xác nhận khi giờ server ≥ giờ kết thúc buổi (đúng bằng endAt vẫn được).
-    if (now.getTime() < booking.end_at.getTime()) throw conflict('BOOKING_NOT_ENDED', 'Buổi tập chưa kết thúc, chưa thể xác nhận');
+    // US-64-F01, US-64-TC01, US-64-TC03, US-64-TC10: dùng chung luật canComplete. Trạng thái đã được kiểm ở trên
+    // (để trả mã lỗi riêng), nên tới đây canComplete chỉ còn sai khi giờ server chưa tới giờ kết thúc buổi.
+    if (!canComplete(booking, now)) throw conflict('BOOKING_NOT_ENDED', 'Buổi tập chưa kết thúc, chưa thể xác nhận');
 
     // US-64-F04: khóa member chủ booking (members.service_revision +1) SAU khóa lịch, TRƯỚC khi đọc gói/quota.
     // Nâng cấp gói (US-16/20) cũng lấy khóa này nên hai lệnh xếp hàng, không cùng đọc một số liệu cũ.
