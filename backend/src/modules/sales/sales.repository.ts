@@ -33,7 +33,9 @@ export class SalesRepository implements OnModuleInit {
       const actual = await model.collection.listIndexes().toArray();
       for (const [key, options] of model.schema.indexes()) {
         if (!actual.some(index => JSON.stringify(index.key) === JSON.stringify(key) && !!index.unique === !!options.unique &&
-          !index.sparse && index.expireAfterSeconds === undefined && (!index.collation || index.collation.locale === 'simple'))) {
+          !index.sparse && index.expireAfterSeconds === undefined &&
+          // US-13: collation của index thật phải đúng collation khai báo trong schema (không khai báo = 'simple').
+          (index.collation?.locale ?? 'simple') === (options.collation?.locale ?? 'simple'))) {
           throw new Error('DATABASE_INDEXES_REQUIRED: run npm run ensure-indexes');
         }
       }

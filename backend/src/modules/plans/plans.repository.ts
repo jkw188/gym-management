@@ -18,7 +18,8 @@ export class PlansRepository implements OnModuleInit {
       for (const [key, options] of model.schema.indexes()) {
         if (!actual.some(index => JSON.stringify(index.key) === JSON.stringify(key) &&
           Boolean(index.unique) === Boolean(options.unique) && !index.sparse && !index.partialFilterExpression && index.expireAfterSeconds === undefined &&
-          (!index.collation || index.collation.locale === 'simple'))) {
+          // US-13: collation của index thật phải đúng collation khai báo trong schema (không khai báo = 'simple').
+          (index.collation?.locale ?? 'simple') === (options.collation?.locale ?? 'simple'))) {
           throw new Error('DATABASE_INDEXES_REQUIRED: run npm run ensure-indexes');
         }
       }

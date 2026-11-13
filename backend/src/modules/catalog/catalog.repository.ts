@@ -10,7 +10,7 @@ import { CatalogPlanFilter } from './catalog.types';
 const PUBLIC_FIELDS = '_id code name kind duration_days session_quota price benefits version';
 
 // US-13 mục 2: sắp tên theo thứ tự chữ cái tiếng Việt (không theo mã byte, nên chữ hoa/có dấu không bị dồn sai chỗ).
-// Index plans(status,kind,name,_id) ở bước 3 phải dùng cùng collation này thì MongoDB mới dùng được index để sắp.
+// Index plans_status_kind_name_id (plan.schema.ts) dùng cùng collation này nên MongoDB dùng được index để sắp.
 const NAME_COLLATION = { locale: 'vi' };
 
 // Thêm "\" trước ký tự đặc biệt để từ khóa được tìm đúng nguyên văn, không chạy regex của client (US-13-TC08).
