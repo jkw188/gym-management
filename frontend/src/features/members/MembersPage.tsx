@@ -36,19 +36,23 @@ export function MembersPage() {
     return () => { clearTimeout(timer); controller.abort(); };
   }, [q, kind, membershipState, page, reload]);
 
-  return <section className="auth-card"><h2>Tra cứu hội viên</h2>
-    <Link to={`${base}/new`}>Tạo hồ sơ hội viên</Link>
-    <label htmlFor="member-search">Mã, tên hoặc số điện thoại</label>
-    <input id="member-search" value={q} maxLength={120} onChange={event => change(() => { setQ(event.target.value); setPage(1); })} />
-    <label htmlFor="member-kind">Loại dịch vụ</label>
+  return <section className="auth-card">
+    {/* Tiêu đề bên trái, link tạo hồ sơ dạng nút bên phải. */}
+    <div className="page-head"><h2>Tra cứu hội viên</h2><Link className="button-link" to={`${base}/new`}>Tạo hồ sơ hội viên</Link></div>
+    {/* Ô tìm và hai ô lọc trên một hàng. */}
+    <div className="toolbar">
+    <div className="toolbar-search"><label htmlFor="member-search">Mã, tên hoặc số điện thoại</label>
+    <input id="member-search" value={q} maxLength={120} onChange={event => change(() => { setQ(event.target.value); setPage(1); })} /></div>
+    <div><label htmlFor="member-kind">Loại dịch vụ</label>
     <select id="member-kind" value={kind} onChange={event => change(() => { setKind(event.target.value as ServiceKind | ''); setPage(1); })}>
       <option value="">Tất cả loại</option><option value="GYM">GYM</option><option value="PT">PT</option>
-    </select>
-    <label htmlFor="member-state">Trạng thái gói</label>
+    </select></div>
+    <div><label htmlFor="member-state">Trạng thái gói</label>
     <select id="member-state" value={membershipState} onChange={event => change(() => { setMembershipState(event.target.value as MembershipState | ''); setPage(1); })}>
       <option value="">Tất cả trạng thái</option>
       {Object.entries(membershipStateNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-    </select>
+    </select></div>
+    </div>
     {loading && <p role="status">Đang tải hội viên…</p>}
     {error && <div role="alert"><p>{error}</p><button type="button" onClick={() => change(() => setReload(value => value + 1))}><Icon name="retry" label="Thử lại" /></button></div>}
     {data && <><MemberReadTime time={data} />

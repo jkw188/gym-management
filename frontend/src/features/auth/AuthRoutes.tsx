@@ -58,7 +58,7 @@ export function HomeRedirect() {
 
 export function RoleShell({ role }: { role: RoleCode }) {
   const { user } = useAuth();
-  return <section className="auth-card"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
+  return <section className="auth-card role-home"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
     <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
     {/* Trang chính chỉ có lời chào và các chức năng; thông tin tài khoản nằm ở trang riêng (thẻ "Thông tin tài khoản"). */}
     <div className="quick-links">

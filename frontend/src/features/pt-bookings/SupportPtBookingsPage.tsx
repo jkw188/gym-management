@@ -126,7 +126,8 @@ export function SupportPtBookingsPage() {
   return <section className="auth-card pt-bookings">
     <h2>Tra cứu lịch PT</h2>
 
-    <form onSubmit={event => { event.preventDefault(); search(); }}>
+    {/* Thanh tra cứu một hàng: từ ngày, đến ngày, trạng thái, nút tìm; dòng gợi ý nằm dưới. */}
+    <form className="toolbar" onSubmit={event => { event.preventDefault(); search(); }}>
       <label>Từ ngày <input type="date" value={form.fromDate} onChange={event => setForm({ ...form, fromDate: event.target.value })} /></label>
       <label>Đến ngày <input type="date" value={form.toDate} onChange={event => setForm({ ...form, toDate: event.target.value })} /></label>
       <label>Trạng thái <select value={form.status} onChange={event => setForm({ ...form, status: event.target.value as PtBookingStatus | '' })}>

@@ -41,10 +41,10 @@ export function PlansPage() {
     {editingPlan && <PlanForm key={editingPlan === 'new' ? 'new' : editingPlan.id} initial={editingPlan === 'new' ? undefined : editingPlan} onClose={() => setEditingPlan(undefined)} onSaved={saved} />}
     {editingPolicy && <PolicyForm key={editingPolicy === 'new' ? 'new-policy' : editingPolicy.id} initial={editingPolicy === 'new' ? undefined : editingPolicy} onClose={() => setEditingPolicy(undefined)} onSaved={saved} />}
     {!formOpen && <>
-      {tab === 'plans' ? <><form className="users-filter" onSubmit={event => { event.preventDefault(); setQuery({ ...query, q, page: 1 }); }}>
-        <label htmlFor="plans-search">Tìm mã hoặc tên gói</label><input id="plans-search" maxLength={120} value={q} onChange={e => setQ(e.target.value)} />
-        <div className="users-filter-row"><div><label htmlFor="plans-kind">Lọc loại gói</label><select id="plans-kind" value={query.kind ?? ''} onChange={e => setQuery({ ...query, kind: e.target.value, page: 1 })}><option value="">Tất cả</option><option value="GYM">GYM</option><option value="PT">PT</option></select></div>
-          <div><label htmlFor="plans-status">Lọc trạng thái</label><select id="plans-status" value={query.status ?? ''} onChange={e => setQuery({ ...query, status: e.target.value, page: 1 })}><option value="">Tất cả</option><option value="ACTIVE">Đang bán</option><option value="INACTIVE">Ngừng bán</option></select></div></div>
+      {tab === 'plans' ? <><form className="users-filter toolbar" onSubmit={event => { event.preventDefault(); setQuery({ ...query, q, page: 1 }); }}>
+        <div className="toolbar-search"><label htmlFor="plans-search">Tìm mã hoặc tên gói</label><input id="plans-search" maxLength={120} value={q} onChange={e => setQ(e.target.value)} /></div>
+        <div><label htmlFor="plans-kind">Lọc loại gói</label><select id="plans-kind" value={query.kind ?? ''} onChange={e => setQuery({ ...query, kind: e.target.value, page: 1 })}><option value="">Tất cả</option><option value="GYM">GYM</option><option value="PT">PT</option></select></div>
+          <div><label htmlFor="plans-status">Lọc trạng thái</label><select id="plans-status" value={query.status ?? ''} onChange={e => setQuery({ ...query, status: e.target.value, page: 1 })}><option value="">Tất cả</option><option value="ACTIVE">Đang bán</option><option value="INACTIVE">Ngừng bán</option></select></div>
         <button type="submit"><Icon name="search" label="Tìm kiếm" /></button></form><button onClick={() => { setNotice(''); setEditingPlan('new'); }}>Tạo gói</button></>
         : <><PlanPicker label="Lọc gói nguồn" value={from} onChange={id => { setFrom(id); setPolicyPage(1); }} />
           <div className="user-actions"><button onClick={() => { setFrom(''); setPolicyPage(1); }}>Tất cả chính sách</button><button onClick={() => { setNotice(''); setEditingPolicy('new'); }}>Tạo chính sách</button></div></>}
