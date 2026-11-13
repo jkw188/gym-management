@@ -1,0 +1,52 @@
+sequenceDiagram
+    actor Staff as STAFF / ADMIN
+    participant UI as Hồ sơ hội viên
+    participant Sales as SalesService
+    participant Key as IdempotencyService
+    participant Lock as DataGuardsService
+    participant Activation as SaleActivation
+    participant Zero as ZeroSettlement
+    participant Events as NotificationsService
+    participant DB as MongoDB replica set
+    Staff->>UI: Chọn gói ACTIVE + ngày yêu cầu
+    UI->>Sales: POST /service-sales/preview
+    Sales->>DB: Đọc member, plan/version, gói cùng loại
+    Sales-->>UI: Điều khoản dự kiến, canProceed
+    Staff->>UI: Xác nhận
+    UI->>Sales: POST /service-sales + SALE_REGISTER key
+    Sales->>Key: execute(actor, key, normalized input)
+    rect rgb(240, 248, 255)
+      Note over Key,DB: Một MongoDB transaction; mọi ghi dùng cùng session
+      Key->>DB: Đọc kết quả key đã commit
+      alt Replay
+        DB-->>Key: Body + HTTP status gốc
+      else Lần tạo đầu
+        Sales->>Lock: Khóa plan → member, tăng Int64 thật
+        Sales->>DB: Đọc lại ACTIVE/version + kiểm cùng kind
+        Sales->>DB: Insert transaction PENDING + sale snapshot REGISTER_V1
+        alt amountDue > 0
+          Note over Sales,DB: Không membership/payment/invoice; chờ US-22
+        else amountDue = 0 từ snapshot
+          Sales->>Zero: completeZeroWithinSession + callback activation
+          Zero->>Activation: activateNewFreeSaleWithinSession
+          Note over Lock,Activation: Dùng khóa tạo đã giữ; transaction mới chưa thấy từ session khác
+          Activation->>DB: Tái kiểm, ghi kỳ thực tế + membership duy nhất
+          Zero->>DB: Insert invoice0 + SETTLED/version+1, không payment0
+          Zero->>Events: persistBusinessEvent(session, eventKey, recipients)
+          Events->>DB: Notification + recipients + outbox
+        end
+        Key->>DB: Ghi operation result cùng session
+      end
+      Note over Key,DB: Lỗi bất kỳ → rollback toàn bộ; thành công → commit
+    end
+    Key-->>UI: PENDING hoặc SETTLED, các ID đã có
+    Note over UI,Key: Mất response: giữ input/key; lookup hoặc gửi lại cùng key
+    Note over Activation,DB: Port cho US-22 (API thu tiền chưa triển khai): cùng session payment đã xác minh → khóa member/transaction → activate → invoice/SETTLED/event → commit
+    Staff->>UI: Hủy sale chờ, nhập lý do
+    UI->>Sales: POST /service-sales/:id/cancel + version + SALE_CANCEL key
+    Sales->>Key: execute CANCEL
+    Key->>Lock: Khóa member → transaction
+    Sales->>DB: Kiểm PENDING/version/không payment SUCCEEDED
+    Sales->>DB: CANCELLED + audit + version+1
+    Key->>DB: Ghi operation result + commit
+    Key-->>UI: Đã hủy; giữ lịch sử, giải phóng ý định

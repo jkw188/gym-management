@@ -1,49 +1,246 @@
-body { margin: 0; font-family: system-ui, sans-serif; color: #172a3a; background: #f5f7fa; }
-main { max-width: 840px; margin: 80px auto; padding: 32px; }
-.status-card { padding: 16px 20px; margin: 12px 0; border: 1px solid #c7d2de; border-radius: 8px; background: white; }
+/* Tầng giao diện – CSS chung: giao diện tối kiểu web phòng gym (nền đen, chữ in hoa đậm, màu cam nhấn). */
+/* Font lấy từ Google Fonts trong index.html: Oswald cho tiêu đề, Be Vietnam Pro cho chữ thường (đều hỗ trợ tiếng Việt). */
+
+/* ===== 1. Biến màu: đổi màu cả web chỉ cần sửa ở đây ===== */
+:root {
+  --dark: #111114;          /* nền tối của thanh menu, banner, chân trang */
+  --bg: #f3f4f6;            /* nền sáng của vùng nội dung */
+  --surface: #ffffff;       /* nền thẻ, bảng, form */
+  --surface-2: #f7f7f9;     /* nền ô nhập, tiêu đề bảng, thẻ con */
+  --border: #e2e4e9;        /* đường viền */
+  --text: #1c1c22;          /* chữ chính */
+  --muted: #6b7280;         /* chữ phụ */
+  --content-width: 1040px;  /* bề rộng chung để menu, banner và nội dung thẳng hàng giữa trang */
+  --accent: #ff5a1f;        /* màu cam nhấn: nút chính, link, gạch chân */
+  --accent-hover: #ff7a45;
+  --success: #22c55e;
+  --danger: #ef4444;
+  --radius: 10px;
+  --font-heading: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
+}
+
+/* ===== 2. Nền tảng ===== */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--font-body); line-height: 1.6; color: var(--text); background: var(--bg); }
+#root { display: flex; flex-direction: column; min-height: 100vh; }
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: 600; letter-spacing: .5px; text-transform: uppercase; line-height: 1.25; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.15rem; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); text-decoration: underline; }
+small, .hint { color: var(--muted); }
+
+/* ===== 3. Khung trang: thanh menu, banner, nội dung, chân trang ===== */
+.site-header { position: sticky; top: 0; z-index: 10; background: var(--dark); box-shadow: 0 2px 12px rgb(0 0 0 / 25%); }
+.site-header-inner { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; max-width: var(--content-width); margin: 0 auto; padding: 14px 24px; }
+.brand { display: flex; gap: 10px; align-items: center; color: #fff; font-family: var(--font-heading); font-size: 1.3rem; font-weight: 700; text-transform: uppercase; }
+.brand:hover { color: #fff; text-decoration: none; }
+.brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 1rem; }
+nav { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Chỉ menu trên thanh tối mới dùng chữ trắng in hoa; nav phân trang trong trang giữ kiểu thường. */
+.site-header nav a { padding: 8px 14px; border-radius: 6px; color: #fff; font-family: var(--font-heading); font-size: .95rem; text-transform: uppercase; letter-spacing: .5px; }
+.site-header nav a:hover { color: var(--accent); text-decoration: none; }
+/* NavLink gắn class "active" cho trang đang mở: gạch cam bên dưới. */
+.site-header nav a.active { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* Banner: nền tối có vệt cam, chữ to in hoa căn giữa như trang chủ phòng gym. */
+.hero { color: #fff; background: linear-gradient(110deg, rgb(255 90 31 / 30%) 0%, transparent 50%), linear-gradient(180deg, #1d1d22 0%, var(--dark) 100%); }
+.hero-inner { max-width: var(--content-width); margin: 0 auto; padding: 44px 24px 40px; text-align: center; }
+.hero h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.2rem); }
+.hero h1::after { content: ''; display: block; width: 72px; height: 4px; margin: 12px auto 0; background: var(--accent); }
+.hero p { max-width: 640px; margin: 12px auto 0; color: #c4c4cc; }
+
+main { flex: 1; width: 100%; max-width: var(--content-width); margin: 32px auto; padding: 0 24px; }
+.site-footer { padding: 24px; background: var(--dark); color: #a1a1aa; font-size: .85rem; text-align: center; }
+
+/* ===== 4. Thẻ nội dung ===== */
+.auth-card, .status-card { padding: 28px; margin: 0 0 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: 0 4px 16px rgb(17 17 20 / 6%); }
+.auth-card h2 { margin-top: 0; padding-left: 12px; border-left: 4px solid var(--accent); }
+.auth-card small { display: block; overflow-wrap: anywhere; margin-bottom: 12px; }
+.status-card { padding: 16px 20px; }
 .status-card h3 { margin: 0; }
 .status-card p { margin-bottom: 0; }
-.status-card.success { border-left: 5px solid #23734b; }
-.status-card.error { border-left: 5px solid #bd3434; }
+.status-card.success { border-left: 4px solid var(--success); }
+.status-card.error { border-left: 4px solid var(--danger); }
 .status-card small { display: block; margin-top: 10px; overflow-wrap: anywhere; }
-button { padding: 10px 18px; border: 0; border-radius: 6px; background: #234a77; color: white; font: inherit; cursor: pointer; }
-button:disabled { opacity: .6; cursor: wait; }
-button:focus-visible { outline: 3px solid #548bc5; outline-offset: 3px; }
-nav { display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
-a { color: #234a77; }
-.auth-card { padding: 28px; border: 1px solid #c7d2de; border-radius: 10px; background: white; }
-.auth-card h2 { margin-top: 0; }
-form { max-width: 540px; }
-label { display: block; margin: 20px 0 8px; font-weight: 600; }
-input { box-sizing: border-box; min-width: 0; width: 100%; padding: 12px; font: inherit; border: 1px solid #8c9fb1; border-radius: 6px; }
-input:focus-visible, a:focus-visible { outline: 3px solid #548bc5; outline-offset: 3px; }
-input[aria-invalid="true"] { border-color: #a92525; }
+
+/* Trang chính theo vai trò: thông tin dạng lưới, các chức năng là thẻ bấm được. */
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+.info-grid dt { margin: 0; color: var(--muted); font-size: .8rem; text-transform: uppercase; }
+.info-grid dd { margin: 0 0 8px; font-weight: 600; }
+.quick-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 24px; }
+.quick-links a { display: flex; align-items: center; justify-content: space-between; min-height: 72px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); color: var(--text); font-family: var(--font-heading); text-transform: uppercase; letter-spacing: .5px; transition: border-color .15s, transform .15s; }
+.quick-links a::after { content: '→'; color: var(--accent); }
+.quick-links a:hover { border-color: var(--accent); text-decoration: none; transform: translateY(-2px); }
+
+/* ===== 5. Nút ===== */
+/* Nút cỡ vừa: chữ 14px (.875rem), đệm 8px x 16px; trong bảng và thanh menu nhỏ hơn một chút. */
+button { padding: 8px 16px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-family: inherit; font-size: .875rem; font-weight: 600; line-height: 1.4; cursor: pointer; transition: background .15s; }
+/* Nút đứng cạnh nhau (trong bảng, hàng thao tác) luôn cách nhau 8px, xuống dòng cũng không dính vào nhau. */
+button { margin: 4px 8px 4px 0; }
+button:hover:not(:disabled) { background: var(--accent-hover); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.secondary { color: var(--text); background: var(--surface); border: 1px solid #cfd3da; }
+.secondary:hover:not(:disabled) { background: var(--surface-2); border-color: var(--accent); color: var(--accent); }
+/* Trong khung có sẵn khoảng cách (gap) thì bỏ margin để khỏi cách đôi. */
+.site-header nav button, .password-field button, .user-actions button, .shift-item-actions button, .quick-links button { margin: 0; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid rgb(255 90 31 / 60%); outline-offset: 2px; }
+
+/* ===== 6. Form ===== */
+/* Form trải hết bề rộng thẻ cho cân đối; riêng trang đăng nhập/đăng ký/quên/đặt lại/đổi mật khẩu là thẻ hẹp nằm giữa trang. */
+form { max-width: none; }
+.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+.auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"] { max-width: 520px; margin-left: auto; margin-right: auto; }
+form > button { margin-top: 24px; }
+label { display: block; margin: 18px 0 6px; color: var(--muted); font-size: .85rem; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+input, select, textarea { width: 100%; min-width: 0; padding: 9px 12px; font-family: inherit; font-size: .9375rem; color: var(--text); background: #fff; border: 1px solid #cfd3da; border-radius: 6px; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input[type="radio"], input[type="checkbox"] { width: auto; accent-color: var(--accent); }
+textarea { min-height: 100px; resize: vertical; }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
+fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .password-field { display: flex; gap: 8px; align-items: stretch; }
 .password-field input { flex: 1; }
-.secondary { color: #234a77; background: #e9eff6; }
-form > button { margin-top: 24px; }
-.field-error, .form-error { color: #a92525; }
-.field-error { margin: 8px 0; }
-.form-error { margin-top: 20px; padding: 12px; background: #fff4f3; border-radius: 6px; }
+.field-error, .form-error { color: #b91c1c; }
+.field-error { margin: 6px 0; font-size: .9rem; }
+.form-error { margin-top: 20px; padding: 12px 14px; border-left: 4px solid var(--danger); border-radius: 6px; background: #fef2f2; }
 .form-error p { margin: 0 0 4px; }
-.auth-card small { display: block; overflow-wrap: anywhere; margin-bottom: 12px; }
 dt { font-weight: 600; margin-top: 12px; }
 dd { margin: 4px 0; overflow-wrap: anywhere; }
-select { box-sizing: border-box; width: 100%; padding: 12px; font: inherit; color: inherit; background: white; border: 1px solid #8c9fb1; border-radius: 6px; }
-select:focus-visible { outline: 3px solid #548bc5; outline-offset: 3px; }
-select[aria-invalid="true"] { border-color: #a92525; }
-fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
+
+/* ===== 7. Bảng, bộ lọc, thông báo ===== */
 .user-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 20px 0; }
 .user-actions label { margin: 0; }
 .user-actions select { width: auto; }
 .users-filter { margin: 24px 0; }
 .users-filter-row { display: flex; flex-wrap: wrap; gap: 16px; }
 .users-filter-row > div { flex: 1; min-width: 160px; }
-.users-table-wrap { overflow-x: auto; }
-.users-table { width: 100%; border-collapse: collapse; background: white; text-align: left; }
-.users-table caption { text-align: left; font-weight: 600; padding: 12px 0; }
-.users-table th, .users-table td { padding: 12px; border-bottom: 1px solid #c7d2de; vertical-align: top; overflow-wrap: anywhere; }
-.users-table button { white-space: nowrap; }
+.users-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.users-table { width: 100%; border-collapse: collapse; background: var(--surface); text-align: left; }
+.users-table caption { padding: 12px 14px; font-family: var(--font-heading); text-align: left; text-transform: uppercase; }
+.users-table th { padding: 12px 14px; background: var(--surface-2); color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .4px; }
+.users-table td { padding: 12px 14px; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
+.users-table tbody tr:hover { background: #fff7f3; }
+.users-table button { padding: 6px 12px; font-size: .8125rem; white-space: nowrap; }
+.site-header nav button { padding: 7px 14px; font-size: .8125rem; }
 .user-details { font-size: .9rem; }
-.user-notice { padding: 12px; border-left: 4px solid #23734b; background: #edf8f0; overflow-wrap: anywhere; }
-@media (max-width: 600px) { main { margin: 24px auto; padding: 20px; } }
+.user-notice { padding: 12px 14px; border-left: 4px solid var(--success); border-radius: 6px; background: #f0fdf4; overflow-wrap: anywhere; }
+
+/* Hộp thoại (US-09, US-10). */
+.account-status-dialog { width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); color: inherit; background: var(--surface); overflow-wrap: anywhere; }
+.account-status-dialog::backdrop { background: rgb(0 0 0 / 70%); }
+.account-status-confirm { display: flex; gap: 10px; align-items: flex-start; }
+.account-status-confirm input { flex-shrink: 0; margin-top: 4px; }
+
+/* Tạo hồ sơ hội viên (US-13, US-14). */
+.member-create-page { overflow-wrap: anywhere; }
+.member-create-page fieldset { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); }
+.member-create-page fieldset button { margin-top: 16px; }
+.member-create-page input[type="radio"], .member-create-page input[type="checkbox"] { margin-right: 8px; }
+.member-create-page select, .member-create-page textarea { display: block; }
+
+/* US-47: inbox thông báo. Chuỗi dài không có dấu cách (URL, mã giao dịch) được ngắt dòng để không tràn khung/màn hình. */
+.notification-inbox { overflow-wrap: anywhere; }
+.notification-inbox ul { list-style: none; padding: 0; }
+.notification-inbox li button { width: 100%; margin-bottom: 8px; text-align: left; }
+/* Giữ xuống dòng của body như người gửi viết. */
+.notification-body { white-space: pre-wrap; }
+
+/* Thẻ gói tập (US-17) và khối nhỏ trong trang lịch PT (US-27, US-64). */
+.membership-card, .quota, .slots, .pt-confirm { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius); background: var(--surface-2); }
+.filters, .pt-filter, .trainees-search { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.filters > *, .pt-filter > *, .trainees-search > * { flex: 1; min-width: 160px; }
+
+/* ===== 8. US-24, US-25: trang /trainer/shifts – lịch tuần dạng 7 cột như cuốn lịch ===== */
+/* Chỉ trang ca làm việc được rộng hơn để đủ chỗ cho 7 cột. */
+main:has(.shifts-page) { max-width: 1240px; }
+/* 7 cột, mỗi cột tối thiểu 140px; màn hình hẹp thì cuộn ngang trong khung lịch, trang không bị vỡ. */
+.shift-week { display: grid; grid-template-columns: repeat(7, minmax(140px, 1fr)); gap: 8px; overflow-x: auto; margin-top: 20px; padding-bottom: 8px; }
+.shift-day { min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.shift-day h3 { margin: 0 0 8px; font-size: .95rem; text-align: center; color: var(--accent); }
+.shift-day ul { list-style: none; margin: 0; padding: 0; }
+.shift-empty { margin: 0; color: var(--muted); font-size: .85rem; text-align: center; }
+/* Mỗi ca: giờ, địa điểm, trạng thái xếp dọc; các nút ở dòng dưới. Màu viền trái cho biết trạng thái ca. */
+.shift-item { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; padding: 8px; border: 1px solid var(--border); border-left: 4px solid var(--muted); border-radius: 6px; background: var(--surface); font-size: .85rem; overflow-wrap: anywhere; }
+.shift-time { font-weight: 600; }
+.shift-confirmed { border-left-color: var(--success); }
+.shift-cancelled { border-left-color: var(--danger); }
+.shift-completed { border-left-color: #3b82f6; }
+.shift-item-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.shift-item-actions button { padding: 4px 8px; font-size: .8rem; }
+
+/* ===== 9. US-26: trang lịch lớp miễn phí công khai – lưới thẻ lớp ===== */
+.class-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; list-style: none; margin: 20px 0 0; padding: 0; }
+.class-list > li { padding: 18px; border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: var(--radius); background: var(--surface-2); transition: transform .15s; }
+.class-list > li:hover { transform: translateY(-3px); }
+.class-detail { display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.session-ended { align-self: flex-start; padding: 2px 8px; border-radius: 999px; background: #e4e4e7; color: #52525b; font-size: .75rem; text-transform: uppercase; }
+
+/* US-31: danh mục gói tập. */
+.plan-benefits { white-space: pre-wrap; }
+
+/* ===== 10. Màn hình nhỏ (điện thoại) ===== */
+@media (max-width: 600px) {
+  .site-header-inner, .hero-inner { padding-left: 16px; padding-right: 16px; }
+  main { margin: 20px auto; padding: 0 16px; }
+  .auth-card { padding: 20px; }
+  .site-header nav a { padding: 6px 10px; }
+}
+
+/* ===== 11. Icon trong nút (components/Icon.tsx) ===== */
+/* Icon và chữ (nếu có) nằm trên một hàng, cách nhau 6px, căn giữa theo chiều dọc. */
+.icon-label { display: inline-flex; gap: 6px; align-items: center; vertical-align: middle; }
+.icon-label svg { flex-shrink: 0; }
+/* Nút chỉ có icon: đệm đều 4 phía cho thành ô vuông gọn. */
+button:has(> .icon-label > .sr-only) { padding: 8px 10px; line-height: 0; }
+/* Ẩn chữ khỏi màn hình nhưng trình đọc màn hình và test vẫn đọc được (kỹ thuật "screen-reader only"). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ===== 12. Thanh công cụ một hàng (bộ lọc tài khoản, chọn tuần + bộ môn ở lịch lớp) ===== */
+/* Các ô nằm cùng hàng, đáy thẳng nhau; hết chỗ thì tự xuống dòng thay vì mỗi ô một dòng. */
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 20px 0; }
+.toolbar > div { flex: 1 1 160px; min-width: 0; }
+.toolbar > .toolbar-search { flex: 2 1 260px; }
+.toolbar > .toolbar-select { flex: 0 1 280px; margin-left: auto; }
+/* Nhãn không xuống dòng; dài quá thì cắt bằng dấu "…". */
+.toolbar label { margin-top: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Nút trong thanh cao bằng ô nhập để đáy thẳng hàng. */
+.toolbar > button { min-height: 42px; margin: 0; white-space: nowrap; }
+.toolbar > .week-picker { flex: 0 0 auto; margin: 0; }
+.week-picker > span { min-width: 110px; font-weight: 600; text-align: center; }
+
+/* ===== 13. Thẻ đăng nhập / đăng ký / quên, đặt lại, đổi mật khẩu: tiêu đề và chữ căn giữa ===== */
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) { text-align: center; }
+/* Tiêu đề căn giữa: bỏ vạch cam bên trái, thay bằng gạch cam ngắn bên dưới. */
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) h2 { padding-left: 0; border-left: 0; }
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) h2::after { content: ''; display: block; width: 48px; height: 3px; margin: 10px auto 0; background: var(--accent); }
+/* Ô nhập và nhãn trong form vẫn căn trái cho dễ đọc; nút gửi trải hết bề ngang. */
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) form { margin-bottom: 16px; text-align: left; }
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) form > button[type="submit"] { width: 100%; margin-right: 0; padding: 11px 16px; }
+/* Form tra cứu lịch PT dùng nhãn bọc ô nhập (<label>Từ ngày <input/></label>): mỗi nhãn là một ô của thanh. */
+/* Nhãn bọc ô nhập: xếp dọc (chữ trên, ô dưới) và không cắt chữ, nếu không ô ngày bị ẩn mất. */
+.toolbar > label { display: flex; flex: 1 1 160px; flex-direction: column; min-width: 0; margin: 0; overflow: visible; white-space: normal; }
+.toolbar > label > input, .toolbar > label > select { margin-top: 6px; }
+/* Dòng gợi ý chiếm nguyên một hàng riêng bên dưới. */
+.toolbar > .hint { flex-basis: 100%; margin: 0; font-size: .85rem; }
+
+/* ===== 14. Đầu trang: tiêu đề bên trái, nút/link hành động bên phải ===== */
+.page-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.page-head h2 { margin: 0; }
+/* Link trông như nút (dùng cho "Tạo hồ sơ hội viên"). */
+.button-link { display: inline-block; padding: 8px 16px; border-radius: 6px; background: var(--accent); color: #fff; font-size: .875rem; font-weight: 600; }
+.button-link:hover { background: var(--accent-hover); color: #fff; text-decoration: none; }
+
+/* ===== 15. Trang chính theo vai trò: gọn, nhỏ ===== */
+.role-home h2 { font-size: 1.3rem; }
+.role-home p { margin: 6px 0; }
+/* "Đăng nhập thành công." thành nhãn nhỏ màu xanh. */
+.role-home p[role="status"] { display: inline-block; padding: 2px 10px; border-radius: 999px; background: #f0fdf4; color: #15803d; font-size: .8rem; font-weight: 600; }
+.role-home .quick-links { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 16px; }
+.role-home .quick-links a { min-height: 0; padding: 12px 14px; font-size: .85rem; }

@@ -4,6 +4,7 @@ import { ApiError, apiClient } from '../../api/client';
 import { rolePaths } from '../auth/auth.routes';
 import type { RoleCode } from '../auth/auth.types';
 import { profileApi, type Profile } from './profile.api';
+import { Icon } from '../../components/Icon';
 
 interface Draft { fullName: string; phone: string; email: string; birthDate: string; address: string }
 
@@ -106,7 +107,7 @@ export function ProfilePage({ role }: { role: RoleCode }) {
 
   if (loadError) return <section className="auth-card" aria-labelledby="profile-title"><h2 id="profile-title">Thông tin tài khoản</h2>
     <p role="alert">{loadError.message}</p>{loadError.requestId && <small>Mã tra cứu: {loadError.requestId}</small>}
-    <button type="button" onClick={() => void load()}>Thử lại</button></section>;
+    <button type="button" onClick={() => void load()}><Icon name="retry" label="Thử lại" /></button></section>;
   if (!profile || !draft) return <section className="auth-card" aria-busy="true"><p role="status">Đang tải thông tin tài khoản…</p></section>;
 
   return <section className="auth-card" aria-labelledby="profile-title">
@@ -125,7 +126,7 @@ export function ProfilePage({ role }: { role: RoleCode }) {
       {error && <div className="form-error" role="alert"><p>{error.message}</p>
         {error.requestId && <small>Mã tra cứu: {error.requestId}</small>}
         {error.status === undefined && <><p>Chưa xác nhận được kết quả lưu. Hãy tải lại để xem dữ liệu thực tế trước khi sửa tiếp.</p>
-          <button type="button" onClick={() => void load()}>Tải lại</button></>}
+          <button type="button" onClick={() => void load()}><Icon name="retry" label="Tải lại" /></button></>}
         {error.code === 'VERSION_CONFLICT' && <>
           <p>Bản nháp đang được giữ lại. Tải bản mới sẽ thay toàn bộ dữ liệu chưa lưu.</p>
           {!confirmReload ? <button type="button" onClick={() => setConfirmReload(true)}>Tải bản mới</button> : <>

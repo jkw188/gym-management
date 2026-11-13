@@ -18,6 +18,11 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { OperationsModule } from './modules/operations/operations.module';
+import { ShiftsModule } from './modules/shifts/shifts.module';
+import { PublicSessionsModule } from './modules/public-sessions/public-sessions.module';
+import { SalesModule } from './modules/sales/sales.module';
+import { PlansModule } from './modules/plans/plans.module';
+import { TraineesModule } from './modules/trainees/trainees.module';
 
 @Module({
   imports: [
@@ -39,6 +44,11 @@ import { OperationsModule } from './modules/operations/operations.module';
     NotificationsModule,
     ReportsModule,
     OperationsModule,
+    ShiftsModule,
+    PublicSessionsModule,
+    SalesModule,
+    PlansModule,
+    TraineesModule,
   ],
 })
 export class AppModule {}

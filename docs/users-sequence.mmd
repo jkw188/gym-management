@@ -75,4 +75,98 @@ sequenceDiagram
         end
     end
     Note over Guard,DB: Request sau đọc auth_version mới: access/refresh cũ bị 401 nếu định danh đã đổi.
-    Note over UI,DB: DB lỗi: 503 SERVICE_UNAVAILABLE và requestId an toàn. Không có DELETE; khóa/mở khóa US-07, đổi role US-08.
+    Note over UI,DB: DB lỗi: 503 SERVICE_UNAVAILABLE và requestId an toàn. Không có DELETE; đổi role qua API thuộc US-08.
+
+    participant Security as AccountSecurityService (UsersModule)
+    participant Runner as TransactionRunner
+    participant State as MongoDB security_state
+    participant Audit as MongoDB security_events
+    Admin->>UI: Chọn khóa/mở khóa, GET chi tiết mới nhất
+    UI->>Admin: Trạng thái hiện tại, lý do 10–500 ký tự, xác nhận và cảnh báo self-lock
+    UI->>Guard: PATCH /api/users/:id/status {status,version,reason}
+    Guard->>Controller: Principal ADMIN hiện hành + claims nội bộ + requestId
+    Controller->>Security: changeStatus(principal,id,input,requestId)
+    Security->>Runner: run(callback(session))
+    Runner->>State: BEGIN snapshot/majority; inc revision của account-administration
+    alt Thiếu document khóa
+        State-->>Runner: Không match
+        Runner-->>UI: Abort; 503 SECURITY_STATE_NOT_READY
+    else Có khóa chung
+        Security->>DB: Cùng session: đọc lại actor, session, auth_version và role ADMIN
+        Security->>DB: Đọc target + version + role
+        alt Actor/phiên không còn hợp lệ hoặc version cũ
+            Security-->>Runner: 401/403 hoặc 409 VERSION_CONFLICT; abort
+        else Version đúng và trạng thái đã là đích
+            Security-->>Runner: changed=false, không ghi account hoặc audit
+            Runner-->>UI: Commit; 200 UserDto hiện tại
+        else Có thay đổi
+            Security->>DB: Đếm Admin ACTIVE thực tế trong cùng session nếu target là Admin ACTIVE
+            alt Là Admin ACTIVE cuối cùng bị khóa
+                Security-->>Runner: 409 LAST_ACTIVE_ADMIN; abort
+            else Thỏa bất biến
+                Security->>DB: CAS _id/version; set status; inc version/auth_version; updated_at
+                Security->>Audit: Insert LOCK/UNLOCK + before/after + actor/target/reason/requestId
+                alt Audit hoặc trước commit lỗi
+                    Runner-->>UI: Rollback; 503, không cập nhật UI lạc quan
+                else Commit thành công
+                    Runner->>DB: COMMIT cùng account, audit, revision
+                    Runner-->>UI: 200 {user,changed:true,reauthenticationRequired}
+                    alt Self-lock
+                        UI->>UI: Xóa phiên trong memory, chuyển Guest/login, không refresh
+                    else Account khác
+                        UI->>UI: Hiển thị trạng thái từ server và tải lại list
+                    end
+                end
+            end
+        end
+    end
+    Note over Runner,State: Driver retry transient/unknown commit tối đa 10 giây; lỗi nghiệp vụ không retry.
+    Note over Security,State: US-08 changeRole dùng cùng service/khóa; không count-then-update ngoài transaction.
+    Note over UI,DB: 409 hoặc mất response/503: chặn submit, GET đối chiếu rồi xác nhận lại; không tự replay PATCH. GET 401 về login.
+    Note over Security,Audit: Không sửa trainers/membership/booking/orders; audit không lưu token/hash, không có API sửa/xóa.
+
+    participant Access as AccessController + AccessCatalogService
+    Admin->>UI: Phân quyền account đã có (US-08 / UC-29)
+    UI->>Guard: GET /api/access/roles và GET /api/users/:id
+    Guard->>Access: ADMIN hiện hành; đọc catalog cố định cùng roles của US-06
+    Access->>DB: Kiểm index unique, role, permission và mapping theo access.policy.ts
+    alt Catalog thiếu hoặc lệch
+        Access-->>UI: 503 PERMISSION_CATALOG_NOT_READY, không seed trong request
+    else Catalog đúng
+        Access-->>UI: Bốn role, quyền sắp theo code
+        UI->>Admin: Ma trận, role/version hiện tại; chọn một role và lý do; xác nhận thu hồi phiên
+        UI->>Guard: PATCH /api/users/:id/role {roleCode,version,reason}
+        Guard->>Controller: Principal từ DB; không tin role/permission client
+        Controller->>Security: changeRole(principal,id,input,requestId)
+        Security->>Runner: Cùng transaction snapshot/majority của US-07
+        Runner->>State: Ghi revision khóa account-administration
+        Security->>DB: Cùng session: kiểm lại actor/session, target/version và role đích
+        alt Version cũ hoặc thiếu role đích
+            Security-->>Runner: Abort; 409 VERSION_CONFLICT hoặc ROLE_NOT_CONFIGURED
+        else Role không đổi
+            Runner-->>UI: 200 changed=false; không tăng account version/auth_version, không audit
+        else Có thay đổi
+            Security->>DB: Cùng session: đọc members/trainers.account_id
+            alt Có profile liên kết
+                Security-->>Runner: Abort; 409 ROLE_IN_USE, không sửa profile
+            else Không có profile
+                Security->>DB: Kiểm số Admin ACTIVE thực tế nếu hạ Admin ACTIVE
+                alt Admin ACTIVE cuối cùng
+                    Security-->>Runner: Abort; 409 LAST_ACTIVE_ADMIN
+                else Hợp lệ
+                    Security->>DB: CAS role_id/version; tăng version/auth_version; updated_at; giữ status
+                    Security->>Audit: CHANGE_ROLE; before/after chỉ roleCode; actor/target/reason/requestId
+                    Runner->>DB: Commit account/audit/revision hoặc rollback toàn bộ
+                    Runner-->>UI: 200 {user,changed:true,reauthenticationRequired}
+                    alt Tự hạ quyền
+                        UI->>UI: Xóa auth/cache và về login, không refresh
+                    else Account khác
+                        UI->>UI: Áp dụng UserDto rồi tải lại list
+                    end
+                end
+            end
+        end
+    end
+    Note over Guard,DB: Mọi token cũ của target bị 401 sau commit; login mới lấy role mới. LOCKED giữ LOCKED.
+    Note over UI,Runner: 409 giữ lựa chọn/lý do; tải lại + xác nhận mới. Mất response/503: tra account hoặc login lại, không tự replay.
+    Note over Security,State: US-09/23 tạo/link profile phải phối hợp cùng khóa và transaction; role không tự tạo profile/membership.

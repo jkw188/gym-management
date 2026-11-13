@@ -7,7 +7,7 @@ import { PasswordService } from '../../common/security/password.service';
 import { ROLE_CODES } from '../users/schemas/role.schema';
 import { UsersService } from '../users/users.service';
 import { AuthSessionsRepository } from './auth-sessions.repository';
-import { AccessClaims, AuthPrincipal, AuthResponse } from './auth.types';
+import { ACCESS_CONTEXT, AccessClaims, AuthPrincipal, AuthResponse } from './auth.types';
 import { ChangePasswordLimiter } from './change-password-limiter.service';
 import { AuthSession } from './schemas/auth-session.schema';
 
@@ -75,8 +75,25 @@ export class AuthService implements OnModuleInit {
   }
 
   async validateAccess(claims: unknown): Promise<AuthPrincipal> {
-    const { sub, sid, av } = parseAccessClaims(claims);
-    return this.current(await this.sessions.findById(sid), sub, av);
+    const { sub, sid, av, exp } = parseAccessClaims(claims);
+    const user = await this.current(await this.sessions.findById(sid), sub, av);
+    Object.defineProperty(user, ACCESS_CONTEXT, { value: { sessionId: sid, authVersion: av, expiresAt: exp } });
+    return user;
+  }
+
+  // EN-03 bước 3: socket không đi qua Passport, nên kiểm access token ở đây theo đúng điều kiện của JwtStrategy
+  // (HS256, issuer, audience, hết hạn) rồi kiểm phiên/account như HTTP (AUTH-F06). Token sai hoặc hết hạn thì 401.
+  async validateAccessToken(token: unknown): Promise<AuthPrincipal> {
+    if (typeof token !== 'string') throw unauthorized();
+    let claims: unknown;
+    try {
+      claims = await this.jwt.verifyAsync(token, { algorithms: ['HS256'], clockTolerance: 0,
+        issuer: this.config.getOrThrow<string>('jwtIssuer'), audience: this.config.getOrThrow<string>('jwtAudience') });
+    } catch {
+      throw unauthorized();
+    }
+    // Lỗi DB khi đọc phiên không bị đổi thành 401: để nơi gọi tự chặn (không fail-open).
+    return this.validateAccess(claims);
   }
 
   async refresh(token: unknown) {

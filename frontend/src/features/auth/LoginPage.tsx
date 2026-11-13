@@ -4,6 +4,7 @@ import { ApiError } from '../../api/client';
 import { AuthChecking } from './AuthRoutes';
 import { useAuth } from './AuthProvider';
 import { resolveReturnTo } from './auth.routes';
+import { Icon } from '../../components/Icon';
 
 export function LoginPage() {
   const auth = useAuth();
@@ -42,6 +43,7 @@ export function LoginPage() {
 
   return <section className="auth-card" aria-labelledby="login-title">
     <h2 id="login-title">Đăng nhập</h2><p>Dùng số điện thoại và mật khẩu của tài khoản phòng Gym.</p>
+    {params.get('reason') === 'registered' && <p role="status">Đã tạo tài khoản. Vui lòng đăng nhập bằng số điện thoại và mật khẩu vừa đăng ký.</p>}
     {params.get('reason') === 'identity-changed' && <p role="status">Đã lưu thông tin tài khoản. Vui lòng đăng nhập lại bằng thông tin mới.</p>}
     {params.get('reason') === 'password-changed' && <p role="status">Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.</p>}
     {params.get('reason') === 'password-unconfirmed' && <p role="status">Chưa xác nhận được mật khẩu đã đổi hay chưa. Hãy thử đăng nhập bằng mật khẩu mới, nếu không được thì dùng mật khẩu cũ.</p>}
@@ -56,11 +58,12 @@ export function LoginPage() {
       <div className="password-field"><input id="password" name="password" type={visible ? 'text' : 'password'} autoComplete="current-password"
         value={password} onChange={event => setPassword(event.target.value)} disabled={pending} aria-invalid={!!fields.password}
         aria-describedby={fields.password ? 'password-error' : undefined} required />
-        <button type="button" className="secondary" onClick={() => setVisible(value => !value)} aria-controls="password" aria-pressed={visible} disabled={pending}>{visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}</button></div>
+        <button type="button" className="secondary" onClick={() => setVisible(value => !value)} aria-controls="password" aria-pressed={visible} disabled={pending}><Icon name={visible ? 'eyeOff' : 'eye'} label={visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} /></button></div>
       {fields.password && <p id="password-error" className="field-error" role="alert">{fields.password}</p>}
       {error && <div className="form-error" role="alert"><p>{error}</p>{requestId && <small>Mã tra cứu: {requestId}</small>}</div>}
       <button type="submit" disabled={pending}>{pending ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
     </form>
     <Link to="/forgot-password">Quên mật khẩu?</Link>
+    <p>Chưa có tài khoản? <Link to="/register">Đăng ký tài khoản</Link></p>
   </section>;
 }

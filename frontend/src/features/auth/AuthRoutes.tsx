@@ -2,13 +2,15 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-d
 import { useAuth } from './AuthProvider';
 import { roleNames, rolePaths } from './auth.routes';
 import type { RoleCode } from './auth.types';
+import { NotificationBell } from '../notifications/NotificationBell';
+import { Icon } from '../../components/Icon';
 
 export function AuthChecking() {
   const auth = useAuth();
   return <section className="auth-card" aria-live="polite" aria-busy={!auth.error}>
     <h2>{auth.error ? 'Chưa thể khôi phục phiên' : 'Đang kiểm tra phiên đăng nhập…'}</h2>
     {auth.error && <><p role="alert">{auth.error}</p>{auth.requestId && <small>Mã tra cứu: {auth.requestId}</small>}
-      <button type="button" onClick={() => void auth.retry()}>Thử lại</button></>}
+      <button type="button" onClick={() => void auth.retry()}><Icon name="retry" label="Thử lại" /></button></>}
   </section>;
 }
 
@@ -22,7 +24,7 @@ export function LogoutButton() {
   const auth = useAuth();
   const logout = useLogoutAction();
   if (auth.status !== 'authenticated') return null;
-  return <button type="button" onClick={() => void logout()}>Đăng xuất</button>;
+  return <button type="button" onClick={() => void logout()}><Icon name="logout" label="Đăng xuất" showLabel /></button>;
 }
 
 export function LogoutPending() {
@@ -31,7 +33,7 @@ export function LogoutPending() {
   return <section className="auth-card" aria-live="polite" aria-busy={!auth.error}>
     <h2>{auth.error ? 'Chưa xác nhận đăng xuất' : 'Đang đăng xuất…'}</h2>
     {auth.error && <><p role="alert">{auth.error}</p>{auth.requestId && <small>Mã tra cứu: {auth.requestId}</small>}
-      <button type="button" onClick={() => void logout()}>Thử lại</button></>}
+      <button type="button" onClick={() => void logout()}><Icon name="retry" label="Thử lại" /></button></>}
   </section>;
 }
 
@@ -56,13 +58,46 @@ export function HomeRedirect() {
 
 export function RoleShell({ role }: { role: RoleCode }) {
   const { user } = useAuth();
-  return <section className="auth-card"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
+  return <section className="auth-card role-home"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
     <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
-    <dl><dt>Số điện thoại</dt><dd>{user?.phone}</dd><dt>Vai trò</dt><dd>{roleNames[role]}</dd>
-      {user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
+    {/* Trang chính chỉ có lời chào và các chức năng; thông tin tài khoản nằm ở trang riêng (thẻ "Thông tin tài khoản"). */}
+    <div className="quick-links">
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
+    {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
+    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
+    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}
+    {/* US-29: tra cứu và hủy hỗ trợ lịch PT. */}
+    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/pt-bookings`}>Tra cứu lịch PT</Link>}
+    {role === 'TRAINER' && <Link to="/trainer/shifts">Ca làm việc</Link>}
+    {/* US-64: PT xem buổi dạy của mình và xác nhận buổi đã dạy. */}
+    {role === 'TRAINER' && <Link to="/trainer/bookings">Buổi dạy của tôi</Link>}
+    {/* US-30: PT tra cứu học viên có buổi với mình. */}
+    {role === 'TRAINER' && <Link to="/trainer/trainees">Học viên của tôi</Link>}
+    {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
+    {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
+    {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
+    {role === 'MEMBER' && <Link to="/member/pt-bookings">Lịch PT của tôi</Link>}
+    {/* Admin/Staff xem thông tin ở trang /account (chỉ đọc); Member/PT dùng trang /profile có sẵn (sửa được). */}
+    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/account`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
-    {role === 'STAFF' && <p>Các chức năng quản lý cho vai trò này sẽ được bổ sung sau.</p>}
+    </div>
   </section>;
+}
+
+// Trang riêng hiện thông tin tài khoản đang đăng nhập (Admin/Staff), lấy từ phiên đăng nhập nên không gọi API.
+export function AccountInfoPage({ role }: { role: RoleCode }) {
+  const { user } = useAuth();
+  return <section className="auth-card"><h2>Thông tin tài khoản</h2>
+    <dl className="info-grid"><dt>Họ tên</dt><dd>{user?.fullName}</dd><dt>Số điện thoại</dt><dd>{user?.phone}</dd>
+      <dt>Vai trò</dt><dd>{roleNames[role]}</dd>{user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
+    <Link to={rolePaths[role]}>← Về trang chính</Link>
+  </section>;
+}
+
+// US-47: chuông thông báo nằm trên thanh điều hướng chung nên mọi trang của member đều thấy; role khác không hiện.
+export function MemberNotificationBell() {
+  const auth = useAuth();
+  if (auth.status !== 'authenticated' || auth.user?.roleCode !== 'MEMBER') return null;
+  return <NotificationBell />;
 }
