@@ -216,7 +216,8 @@ export function ServicesPage() {
     {detailLoading && <p role="status">Đang tải chi tiết...</p>}
 
     {selected && <section aria-label="Chi tiết dịch vụ" className="auth-card">
-      <h3 ref={detailHeading} tabIndex={-1}>{selected.name}</h3>
+      {/* Trang có h1 "Gói dịch vụ" nên tiêu đề vùng chi tiết là h2, không nhảy bậc. */}
+      <h2 ref={detailHeading} tabIndex={-1}>{selected.name}</h2>
       <dl className="class-detail">
         <dt>Mã gói</dt><dd>{selected.code}</dd>
         <dt>Giá</dt><dd>{formatVnd(selected.price)}</dd>
