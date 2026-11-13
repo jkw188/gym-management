@@ -75,7 +75,8 @@ main { flex: 1; width: 100%; max-width: var(--content-width); margin: 32px auto;
 .quick-links a:hover { border-color: var(--accent); text-decoration: none; transform: translateY(-2px); }
 
 /* ===== 5. Nút ===== */
-button { padding: 10px 20px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; transition: background .15s; }
+/* Nút cỡ vừa: chữ 14px (.875rem), đệm 8px x 16px; trong bảng và thanh menu nhỏ hơn một chút. */
+button { padding: 8px 16px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-family: inherit; font-size: .875rem; font-weight: 600; line-height: 1.4; cursor: pointer; transition: background .15s; }
 /* Nút đứng cạnh nhau (trong bảng, hàng thao tác) luôn cách nhau 8px, xuống dòng cũng không dính vào nhau. */
 button { margin: 4px 8px 4px 0; }
 button:hover:not(:disabled) { background: var(--accent-hover); }
@@ -93,7 +94,7 @@ form { max-width: none; }
 .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"] { max-width: 520px; margin-left: auto; margin-right: auto; }
 form > button { margin-top: 24px; }
 label { display: block; margin: 18px 0 6px; color: var(--muted); font-size: .85rem; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
-input, select, textarea { width: 100%; min-width: 0; padding: 12px; font: inherit; color: var(--text); background: #fff; border: 1px solid #cfd3da; border-radius: 6px; }
+input, select, textarea { width: 100%; min-width: 0; padding: 9px 12px; font-family: inherit; font-size: .9375rem; color: var(--text); background: #fff; border: 1px solid #cfd3da; border-radius: 6px; }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 input[type="radio"], input[type="checkbox"] { width: auto; accent-color: var(--accent); }
 textarea { min-height: 100px; resize: vertical; }
@@ -121,7 +122,8 @@ dd { margin: 4px 0; overflow-wrap: anywhere; }
 .users-table th { padding: 12px 14px; background: var(--surface-2); color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .4px; }
 .users-table td { padding: 12px 14px; border-top: 1px solid var(--border); vertical-align: top; overflow-wrap: anywhere; }
 .users-table tbody tr:hover { background: #fff7f3; }
-.users-table button { white-space: nowrap; }
+.users-table button { padding: 6px 12px; font-size: .8125rem; white-space: nowrap; }
+.site-header nav button { padding: 7px 14px; font-size: .8125rem; }
 .user-details { font-size: .9rem; }
 .user-notice { padding: 12px 14px; border-left: 4px solid var(--success); border-radius: 6px; background: #f0fdf4; overflow-wrap: anywhere; }
 
