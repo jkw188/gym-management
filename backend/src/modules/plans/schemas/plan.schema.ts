@@ -33,3 +33,6 @@ export const PlanSchema = new Schema<Plan>({
 PlanSchema.index({ id: 1 }, { unique: true, name: 'plans_id_unique' });
 PlanSchema.index({ code: 1 }, { unique: true, name: 'plans_code_unique', collation: { locale: 'simple' } });
 PlanSchema.index({ created_at: -1, _id: -1 }, { name: 'plans_created_id' });
+// US-13-TC07: danh mục public lọc status+kind, sắp name rồi _id. Collation 'vi' phải giống câu query
+// trong CatalogRepository thì MongoDB mới dùng index để sắp, không phải quét và sắp lại cả collection.
+PlanSchema.index({ status: 1, kind: 1, name: 1, _id: 1 }, { name: 'plans_status_kind_name_id', collation: { locale: 'vi' } });
