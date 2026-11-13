@@ -614,4 +614,71 @@ describe('US-13 bước 2: lọc nhanh, đang tải và bàn phím', () => {
       expect(screen.getByLabelText(label)).toBeDefined();
     }
   });
+
+  it('US-13-TC12: đang chờ GET chi tiết thì có role="status" báo "Đang tải", xong thì hiện chi tiết', async () => {
+    const slow = deferred<Response>();
+    await renderApp(fakeServer({ detail: () => slow.promise }));
+
+    await userEvent.click(within(await planItem('PT 10 buổi')).getByRole('button', { name: 'Xem chi tiết' }));
+
+    expect((await screen.findByRole('status')).textContent).toMatch(/Đang tải/);
+    slow.resolve(json(ptPlan));
+    expect(await detailRegion()).toBeDefined();
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+  });
+});
+
+// =====================================================================
+// US-13 bước 3 – TC06 phía giao diện: lỗi 400 do dữ liệu lọc sai
+// Hợp đồng (tester đặt, cần sinh viên xác nhận): 400 VALIDATION_ERROR hiện lý do trong error.details,
+// KHÔNG có nút "Thử lại" (gửi lại y nguyên vẫn sai); nút "Thử lại" chỉ dành cho lỗi mạng/5xx (TC11).
+// =====================================================================
+describe('US-13 bước 3: lỗi 400 khi lọc sai', () => {
+  const minOverMax = () => json({
+    error: { code: 'VALIDATION_ERROR', message: 'Dữ liệu không hợp lệ', details: [{ field: 'minPrice', message: 'minPrice không được lớn hơn maxPrice' }] },
+    requestId: 'req-400',
+  }, 400);
+
+  it('US-13-TC06: nhập "Giá từ" lớn hơn "Giá đến" mà backend trả 400 thì hiện lý do cụ thể trong details', async () => {
+    const fetcher = fakeServer({ list: query => query.has('minPrice') && query.has('maxPrice') ? minOverMax() : json(pageOf([gymPlan, ptPlan])) });
+    await renderApp(fetcher);
+    await planItem('Gym 1 tháng');
+
+    await userEvent.type(screen.getByLabelText('Giá từ (VND)'), '3000000');
+    await userEvent.type(screen.getByLabelText('Giá đến (VND)'), '500000');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('minPrice không được lớn hơn maxPrice');
+  });
+
+  it('US-13-TC06: lỗi 400 KHÔNG có nút "Thử lại" và không hiện danh sách cũ hay "Không tìm thấy dịch vụ phù hợp"', async () => {
+    const fetcher = fakeServer({ list: query => query.has('minPrice') && query.has('maxPrice') ? minOverMax() : json(pageOf([gymPlan, ptPlan])) });
+    await renderApp(fetcher);
+    await planItem('Gym 1 tháng');
+
+    await userEvent.type(screen.getByLabelText('Giá từ (VND)'), '3000000');
+    await userEvent.type(screen.getByLabelText('Giá đến (VND)'), '500000');
+
+    await screen.findByRole('alert');
+    expect(screen.queryByRole('button', { name: 'Thử lại' })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Danh sách dịch vụ' })).toBeNull();
+    expect(screen.queryByText('Không tìm thấy dịch vụ phù hợp')).toBeNull();
+  });
+
+  it('US-13-TC06: sửa lại giá cho đúng thì lỗi biến mất và danh sách hiện lại', async () => {
+    const fetcher = fakeServer({
+      list: query => query.has('minPrice') && query.has('maxPrice') && BigInt(query.get('minPrice')!) > BigInt(query.get('maxPrice')!)
+        ? minOverMax() : json(pageOf([gymPlan])),
+    });
+    await renderApp(fetcher);
+    await planItem('Gym 1 tháng');
+    await userEvent.type(screen.getByLabelText('Giá từ (VND)'), '3000000');
+    await userEvent.type(screen.getByLabelText('Giá đến (VND)'), '500000');
+    await screen.findByRole('alert');
+
+    await userEvent.clear(screen.getByLabelText('Giá từ (VND)'));
+
+    expect(await planItem('Gym 1 tháng')).toBeDefined();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

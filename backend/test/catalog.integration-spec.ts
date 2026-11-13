@@ -1,5 +1,6 @@
-// Tầng kiểm thử backend (Jest + MongoDB replica set thật trong bộ nhớ): US-13 bước 1.
-// Kiểm tra API public GET /api/catalog/plans và GET /api/catalog/plans/:id (TC01, TC02, TC04, TC05, TC07, TC08, TC09 phần backend).
+// Tầng kiểm thử backend (Jest + MongoDB replica set thật trong bộ nhớ): US-13 bước 1 và bước 3.
+// Bước 1: API public GET /api/catalog/plans và GET /api/catalog/plans/:id (TC01, TC02, TC04, TC05, TC07, TC08, TC09 phần backend).
+// Bước 3: public route không mở API quản trị (TC03), validation query (TC06), index + collation sắp tên (TC07, mục 2).
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -397,5 +398,267 @@ describe('US-13 bước 1: API public danh mục gói', () => {
 
     expect(detail.body.error.code).toBe('PLAN_NOT_FOUND');
     expect(list.body.items).toEqual([]);
+  });
+
+  // =====================================================================
+  // US-13 bước 3: public decorator không mở endpoint quản trị (TC03),
+  // validation query (TC06, F03), index plans(status,kind,name,_id) và collation sắp tên (mục 2).
+  // =====================================================================
+
+  // Đọc lại một gói thô trong DB để so trước/sau (không qua API).
+  const rawPlan = (id: string) => connection.db!.collection('plans').findOne({ _id: new ObjectId(id) });
+  const expectValidation400 = (res: request.Response) => {
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('VALIDATION_ERROR');
+  };
+  const sameKey = (a: Record<string, unknown>, b: Record<string, number>) => JSON.stringify(a) === JSON.stringify(b);
+  const PUBLIC_INDEX_KEY = { status: 1, kind: 1, name: 1, _id: 1 };
+
+  // ---------- US-13-TC03: public route không có lệnh ghi; API quản trị vẫn đòi ADMIN ----------
+  describe('US-13 bước 3: TC03 public route không mở API quản trị', () => {
+    const editBody = { version: 0, price: '1', status: 'INACTIVE' };
+
+    it('US-13-TC03: POST /api/catalog/plans không tồn tại (404), không tạo gói', async () => {
+      const res = await request(app.getHttpServer()).post('/api/catalog/plans').set('Origin', origin)
+        .send({ code: 'HACK1', name: 'Gói giả', kind: 'GYM', durationDays: 30, sessionsQuota: 0, price: '1', benefits: 'x' });
+
+      expect(res.status).toBe(404);
+      expect(await connection.db!.collection('plans').countDocuments()).toBe(0);
+    });
+
+    it('US-13-TC03: PATCH /api/catalog/plans/:id không tồn tại (404), giá/trạng thái gói không đổi', async () => {
+      const id = await insertPlan({ code: 'GYM1M', name: 'Gym 1 tháng', price: '500000' });
+
+      const res = await request(app.getHttpServer()).patch(`/api/catalog/plans/${id}`).set('Origin', origin).send(editBody);
+
+      expect(res.status).toBe(404);
+      const plan = await rawPlan(id);
+      expect(plan!.price.toString()).toBe('500000');
+      expect(plan!.status).toBe('ACTIVE');
+    });
+
+    it('US-13-TC03: PUT và DELETE /api/catalog/plans/:id không tồn tại (404), gói vẫn còn', async () => {
+      const id = await insertPlan({ code: 'GYM1M', name: 'Gym 1 tháng' });
+
+      const put = await request(app.getHttpServer()).put(`/api/catalog/plans/${id}`).set('Origin', origin).send(editBody);
+      const del = await request(app.getHttpServer()).delete(`/api/catalog/plans/${id}`).set('Origin', origin);
+
+      expect(put.status).toBe(404);
+      expect(del.status).toBe(404);
+      expect(await rawPlan(id)).not.toBeNull();
+    });
+
+    it('US-13-TC03: Guest (không token) gọi GET /api/admin/plans bị 401, không xem được gói INACTIVE qua đường quản trị', async () => {
+      await insertPlan({ code: 'OLD1', name: 'Gói cũ', status: 'INACTIVE' });
+
+      const res = await request(app.getHttpServer()).get('/api/admin/plans').set('Origin', origin);
+
+      expect(res.status).toBe(401);
+      expect(JSON.stringify(res.body)).not.toContain('OLD1');
+    });
+
+    it('US-13-TC03: Guest gọi POST /api/admin/plans bị 401, không tạo gói', async () => {
+      const res = await request(app.getHttpServer()).post('/api/admin/plans').set('Origin', origin)
+        .send({ code: 'HACK2', name: 'Gói giả', kind: 'GYM', durationDays: 30, sessionsQuota: 0, price: '1', benefits: 'x' });
+
+      expect(res.status).toBe(401);
+      expect(await connection.db!.collection('plans').countDocuments()).toBe(0);
+    });
+
+    it('US-13-TC03: Guest gọi PATCH /api/admin/plans/:id bị 401, gói không đổi', async () => {
+      const id = await insertPlan({ code: 'GYM1M', name: 'Gym 1 tháng', price: '500000' });
+
+      const res = await request(app.getHttpServer()).patch(`/api/admin/plans/${id}`).set('Origin', origin).send(editBody);
+
+      expect(res.status).toBe(401);
+      const plan = await rawPlan(id);
+      expect(plan!.price.toString()).toBe('500000');
+      expect(plan!.status).toBe('ACTIVE');
+    });
+
+    it('US-13-TC03: Member có token gọi POST/PATCH /api/admin/plans bị 403, không tạo/sửa gói', async () => {
+      const token = await loginAs('MEMBER', '0900000301');
+      const id = await insertPlan({ code: 'GYM1M', name: 'Gym 1 tháng', price: '500000' });
+
+      const create = await request(app.getHttpServer()).post('/api/admin/plans').set('Origin', origin).set('Authorization', `Bearer ${token}`)
+        .send({ code: 'HACK3', name: 'Gói giả', kind: 'GYM', durationDays: 30, sessionsQuota: 0, price: '1', benefits: 'x' });
+      const edit = await request(app.getHttpServer()).patch(`/api/admin/plans/${id}`).set('Origin', origin).set('Authorization', `Bearer ${token}`)
+        .send(editBody);
+
+      expect(create.status).toBe(403);
+      expect(edit.status).toBe(403);
+      expect(await connection.db!.collection('plans').countDocuments()).toBe(1);
+      const plan = await rawPlan(id);
+      expect(plan!.price.toString()).toBe('500000');
+      expect(plan!.status).toBe('ACTIVE');
+    });
+
+    it('US-13-TC03: Member gọi GET /api/admin/plans bị 403 (public chỉ mở /api/catalog, không mở đường quản trị)', async () => {
+      const token = await loginAs('MEMBER', '0900000302');
+
+      const res = await request(app.getHttpServer()).get('/api/admin/plans').set('Origin', origin).set('Authorization', `Bearer ${token}`);
+
+      expect(res.status).toBe(403);
+    });
+  });
+
+  // ---------- US-13-TC06 và F03: query sai trả 400 VALIDATION_ERROR ----------
+  describe('US-13 bước 3: TC06 validation query', () => {
+    beforeEach(async () => {
+      await insertPlan({ code: 'GYM1M', name: 'Gym 1 tháng', price: '500000' });
+    });
+
+    it('US-13-TC06: minPrice âm "-1" trả 400 VALIDATION_ERROR', async () => {
+      expectValidation400(await listPlans({ minPrice: '-1' }));
+    });
+
+    it('US-13-TC06: maxPrice âm "-500000" trả 400 VALIDATION_ERROR', async () => {
+      expectValidation400(await listPlans({ maxPrice: '-500000' }));
+    });
+
+    it('US-13-TC06: giá lẻ "1.5" và "500000.00" trả 400 VALIDATION_ERROR', async () => {
+      expectValidation400(await listPlans({ minPrice: '1.5' }));
+      expectValidation400(await listPlans({ maxPrice: '500000.00' }));
+    });
+
+    it('US-13-TC06: giá dạng exponent "1e6" và "5E5" trả 400 VALIDATION_ERROR', async () => {
+      expectValidation400(await listPlans({ minPrice: '1e6' }));
+      expectValidation400(await listPlans({ maxPrice: '5E5' }));
+    });
+
+    it('US-13-TC06: giá không phải số ("abc", rỗng, có khoảng trắng) trả 400 VALIDATION_ERROR', async () => {
+      expectValidation400(await listPlans({ minPrice: 'abc' }));
+      expectValidation400(await listPlans({ minPrice: '' }));
+      expectValidation400(await listPlans({ maxPrice: ' 500000' }));
+    });
+
+    it('US-13-TC06: giá vượt 999999999999 (13 chữ số) trả 400; đúng 999999999999 thì 200', async () => {
+      expectValidation400(await listPlans({ maxPrice: '1000000000000' }));
+      await listPlans({ maxPrice: '999999999999' }).expect(200);
+    });
+
+    it('US-13-TC06: minPrice > maxPrice trả 400 VALIDATION_ERROR', async () => {
+      expectValidation400(await listPlans({ minPrice: '3000000', maxPrice: '500000' }));
+    });
+
+    it('US-13-TC06: min > max phải so theo số, không so chuỗi ("9" < "10" về giá trị) → minPrice=9, maxPrice=10 được 200', async () => {
+      await listPlans({ minPrice: '9', maxPrice: '10' }).expect(200);
+      expectValidation400(await listPlans({ minPrice: '10', maxPrice: '9' }));
+    });
+
+    it('US-13-TC06: minPrice = maxPrice (ca biên) được 200 và trả gói đúng giá đó', async () => {
+      const res = await listPlans({ minPrice: '500000', maxPrice: '500000' }).expect(200);
+      expect(codesOf(res.body)).toEqual(['GYM1M']);
+    });
+
+    it('US-13-TC06: limit=101 trả 400; limit=100 (đúng ngưỡng) được 200', async () => {
+      expectValidation400(await listPlans({ limit: '101' }));
+      const ok = await listPlans({ limit: '100' }).expect(200);
+      expect(ok.body.limit).toBe(100);
+    });
+
+    it('US-13-TC06: limit=0, limit âm, limit lẻ, limit chữ trả 400', async () => {
+      expectValidation400(await listPlans({ limit: '0' }));
+      expectValidation400(await listPlans({ limit: '-1' }));
+      expectValidation400(await listPlans({ limit: '1.5' }));
+      expectValidation400(await listPlans({ limit: 'abc' }));
+    });
+
+    it('US-13-TC06: page=0, page âm, page chữ trả 400', async () => {
+      expectValidation400(await listPlans({ page: '0' }));
+      expectValidation400(await listPlans({ page: '-1' }));
+      expectValidation400(await listPlans({ page: 'abc' }));
+    });
+
+    it('US-13-TC06: kind ngoài GYM/PT ("YOGA", "gym" chữ thường, rỗng) trả 400', async () => {
+      expectValidation400(await listPlans({ kind: 'YOGA' }));
+      expectValidation400(await listPlans({ kind: 'gym' }));
+      expectValidation400(await listPlans({ kind: '' }));
+    });
+
+    it('US-13-TC06: q dài 121 ký tự trả 400; đúng 120 ký tự được 200', async () => {
+      expectValidation400(await listPlans({ q: 'a'.repeat(121) }));
+      await listPlans({ q: 'a'.repeat(120) }).expect(200);
+    });
+
+    it('US-13-TC06: gửi status=INACTIVE (filter ngoài allowlist) trả 400, không lộ gói ngừng bán', async () => {
+      await insertPlan({ code: 'OLD1', name: 'Gói cũ', status: 'INACTIVE' });
+
+      const res = await listPlans({ status: 'INACTIVE' });
+
+      expectValidation400(res);
+      expect(JSON.stringify(res.body)).not.toContain('OLD1');
+    });
+
+    it('US-13-TC06: filter lạ (sort, createdBy, $where) trả 400, không chạy query tùy ý', async () => {
+      expectValidation400(await listPlans({ sort: '-price' }));
+      expectValidation400(await listPlans({ createdBy: new ObjectId().toHexString() }));
+      expectValidation400(await listPlans({ $where: '1' }));
+    });
+
+    it('US-13-TC06: gửi nhiều giá trị cho cùng một tham số (kind=GYM&kind=PT) trả 400', async () => {
+      const res = await request(app.getHttpServer()).get('/api/catalog/plans?kind=GYM&kind=PT').set('Origin', origin);
+      expectValidation400(res);
+    });
+  });
+
+  // ---------- Mục 2: index và collation sắp tên ----------
+  describe('US-13 bước 3: index plans(status,kind,name,_id) và sắp tên theo collation', () => {
+    // autoIndex chạy nền: đợi mọi model tạo xong index trước khi kiểm.
+    const plansIndexes = async () => {
+      await Promise.all(Object.values(connection.models).map(model => model.init()));
+      return connection.db!.collection('plans').indexes();
+    };
+
+    it('US-13-TC07: collection plans có index (status, kind, name, _id) để lọc/sắp danh mục public', async () => {
+      const index = (await plansIndexes()).find(item => sameKey(item.key, PUBLIC_INDEX_KEY));
+
+      expect(index).toBeDefined();
+    });
+
+    it('US-13-TC07: index (status, kind, name, _id) dùng cùng collation tiếng Việt với câu sắp danh mục', async () => {
+      const index = (await plansIndexes()).find(item => sameKey(item.key, PUBLIC_INDEX_KEY));
+
+      expect(index?.collation?.locale).toBe('vi');
+    });
+
+    it('US-13-TC07: câu lọc status+kind, sắp name rồi _id với collation vi dùng index (IXSCAN), không quét toàn bộ', async () => {
+      await plansIndexes();
+      for (let i = 0; i < 5; i += 1) await insertPlan({ code: `GYM${i}X`, name: `Gym ${i}` });
+
+      const explain = await connection.db!.collection('plans')
+        .find({ status: 'ACTIVE', kind: 'GYM' }).sort({ name: 1, _id: 1 }).collation({ locale: 'vi' }).explain('queryPlanner');
+      const plan = JSON.stringify(explain.queryPlanner.winningPlan);
+
+      expect(plan).toContain('IXSCAN');
+      expect(plan).not.toContain('COLLSCAN');
+      expect(plan).not.toMatch(/"stage":"SORT"/);
+    });
+
+    it('US-13-TC07: sắp tên theo thứ tự chữ cái tiếng Việt: Ăn, Bơi, Đạp, gym (chữ thường), Yoga – không theo mã byte', async () => {
+      await insertPlan({ code: 'YOGA1', name: 'Yoga 1 tháng' });
+      await insertPlan({ code: 'GYMLOW', name: 'gym tự do' });
+      await insertPlan({ code: 'ANKIENG', name: 'Ăn kiêng PT', kind: 'PT' });
+      await insertPlan({ code: 'BOI1', name: 'Bơi 1 tháng' });
+      await insertPlan({ code: 'DAPXE', name: 'Đạp xe 1 tháng' });
+
+      const res = await listPlans().expect(200);
+
+      expect(codesOf(res.body)).toEqual(['ANKIENG', 'BOI1', 'DAPXE', 'GYMLOW', 'YOGA1']);
+    });
+
+    it('US-13-TC07: sắp theo collation vẫn đúng khi lọc kind và phân trang (trang 2 nối tiếp trang 1)', async () => {
+      for (const [code, name] of [['YOGA1', 'Yoga'], ['GYMLOW', 'gym'], ['ANK', 'Ăn kiêng'], ['BOI1', 'Bơi'], ['DAP', 'Đạp xe']]) {
+        await insertPlan({ code, name });
+      }
+
+      const first = await listPlans({ kind: 'GYM', limit: '2', page: '1' }).expect(200);
+      const second = await listPlans({ kind: 'GYM', limit: '2', page: '2' }).expect(200);
+      const third = await listPlans({ kind: 'GYM', limit: '2', page: '3' }).expect(200);
+
+      expect([...codesOf(first.body), ...codesOf(second.body), ...codesOf(third.body)]).toEqual(['ANK', 'BOI1', 'DAP', 'GYMLOW', 'YOGA1']);
+      expect(first.body.total).toBe(5);
+      expect(first.body.totalPages).toBe(3);
+    });
   });
 });
