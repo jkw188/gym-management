@@ -68,12 +68,15 @@ describe('US-13 bước 1: API public danh mục gói', () => {
   });
 
   // Ghi thẳng một gói vào collection plans theo schema US-12 mục 2 (DB snake_case, price Decimal128).
-  // Ghi trực tiếp để test không phụ thuộc API quản trị US-12 (chưa có).
+  // Ghi trực tiếp để test không phụ thuộc API quản trị US-12. Schema US-12 bắt buộc field id = _id (unique index plans_id_unique).
   async function insertPlan(input: PlanInput): Promise<string> {
     const now = input.createdAt ?? new Date();
     const kind = input.kind ?? 'GYM';
     const adminId = new ObjectId();
+    const planId = new ObjectId();
     const result = await connection.db!.collection('plans').insertOne({
+      _id: planId,
+      id: planId,
       code: input.code,
       name: input.name,
       kind,
