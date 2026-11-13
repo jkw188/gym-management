@@ -164,7 +164,8 @@ function timeStateOf(startDate: string, endDate: string, today: string): TimeSta
 // US-17-F03, US-17-TC07: số buổi PT còn đặt được = quota − đã dùng − đang giữ chỗ, không nhỏ hơn 0.
 // used đã gồm phần mang sang khi nâng cấp, nên chỉ dùng số của chính gói này, không cộng các gói cũ.
 // Gói GYM có quota 0 nên luôn ra 0; giao diện dựa vào kind để hiện "không áp dụng" thay vì "hết buổi".
-function availableSessions(quota: number, used: number, reserved: number): number {
+// US-30-F03: export để học viên của PT dùng CHUNG một công thức, không viết lại.
+export function availableSessions(quota: number, used: number, reserved: number): number {
   return Math.max(quota - used - reserved, 0);
 }
 

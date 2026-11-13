@@ -70,6 +70,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'TRAINER' && <Link to="/trainer/shifts">Ca làm việc</Link>}
     {/* US-64: PT xem buổi dạy của mình và xác nhận buổi đã dạy. */}
     {role === 'TRAINER' && <Link to="/trainer/bookings">Buổi dạy của tôi</Link>}
+    {/* US-30: PT tra cứu học viên có buổi với mình. */}
+    {role === 'TRAINER' && <Link to="/trainer/trainees">Học viên của tôi</Link>}
     {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
     {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
     {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
