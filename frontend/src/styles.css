@@ -224,7 +224,8 @@ button:has(> .icon-label > .sr-only) { padding: 8px 10px; line-height: 0; }
 :is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
   .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) form > button[type="submit"] { width: 100%; margin-right: 0; padding: 11px 16px; }
 /* Form tra cứu lịch PT dùng nhãn bọc ô nhập (<label>Từ ngày <input/></label>): mỗi nhãn là một ô của thanh. */
-.toolbar > label { flex: 1 1 160px; min-width: 0; margin: 0; }
+/* Nhãn bọc ô nhập: xếp dọc (chữ trên, ô dưới) và không cắt chữ, nếu không ô ngày bị ẩn mất. */
+.toolbar > label { display: flex; flex: 1 1 160px; flex-direction: column; min-width: 0; margin: 0; overflow: visible; white-space: normal; }
 .toolbar > label > input, .toolbar > label > select { margin-top: 6px; }
 /* Dòng gợi ý chiếm nguyên một hàng riêng bên dưới. */
 .toolbar > .hint { flex-basis: 100%; margin: 0; font-size: .85rem; }
