@@ -32,7 +32,8 @@ const databaseName = 'gym_management_test_us30_detail';
 const password = 'MậtKhẩuUS-30-123';
 const base = '/api/me/trainees';
 const DETAIL_FIELDS = ['fullName', 'hasUpcoming', 'memberCode', 'memberId'];
-const MEMBERSHIP_FIELDS = ['available', 'endDate', 'id', 'kind', 'quota', 'reserved', 'sessionsUsed', 'startDate', 'storedStatus'];
+// Spec 1.1 (13/11): thêm quotaInvalid.
+const MEMBERSHIP_FIELDS = ['available', 'endDate', 'id', 'kind', 'quota', 'quotaInvalid', 'reserved', 'sessionsUsed', 'startDate', 'storedStatus'];
 
 type Auth = { accessToken: string };
 type Pt = Auth & { trainerId: ObjectId };
@@ -431,7 +432,7 @@ describe('US-30 bước 2: hồ sơ, lịch và gói liên quan của học viê
       const response = await memberships(ptA, an).expect(200);
 
       expect(membershipOf(response.body, shared)).toMatchObject({
-        id: shared.toHexString(), kind: 'PT', storedStatus: 'ACTIVE', quota: 10, sessionsUsed: 3, reserved: 4, available: 3,
+        id: shared.toHexString(), kind: 'PT', storedStatus: 'ACTIVE', quota: 10, sessionsUsed: 3, reserved: 4, available: 3, quotaInvalid: false,
       });
       const text = JSON.stringify(response.body);
       expect(text).not.toContain('PT Hai Bi Mat');
@@ -463,6 +464,35 @@ describe('US-30 bước 2: hồ sơ, lịch và gói liên quan của học viê
       await memberships(pt, an).expect(200);
 
       expect(await db().collection('memberships').findOne({ _id: membershipId })).toEqual(before);
+    });
+
+    // Spec 1.1 bảng Quota: quota − used − reserved < 0 → available=0, quotaInvalid=true, GET không sửa dữ liệu.
+    it('US-30-TC06: quota âm (quota 10, used 9, BOOKED 3) → available=0, quotaInvalid=true, GET không sửa DB', async () => {
+      const pt = await trainer();
+      const an = await trainee();
+      const membershipId = await insertMembership(an.memberId, { quota: 10, used: 9 });
+      for (const day of [1, 2, 3]) await insertBooking(an, pt.trainerId, at(day), 'BOOKED', { membershipId });
+      const before = await db().collection('memberships').findOne({ _id: membershipId });
+      const bookingsBefore = await db().collection('pt_bookings').find({ membership_id: membershipId }).toArray();
+
+      const response = await memberships(pt, an).expect(200);
+
+      expect(membershipOf(response.body, membershipId)).toMatchObject({
+        quota: 10, sessionsUsed: 9, reserved: 3, available: 0, quotaInvalid: true,
+      });
+      expect(await db().collection('memberships').findOne({ _id: membershipId })).toEqual(before);
+      expect(await db().collection('pt_bookings').find({ membership_id: membershipId }).toArray()).toEqual(bookingsBefore);
+    });
+
+    it('US-30-TC06: vừa hết buổi đúng 0 (quota 10, used 7, BOOKED 3) → available=0, quotaInvalid=false', async () => {
+      const pt = await trainer();
+      const an = await trainee();
+      const membershipId = await insertMembership(an.memberId, { quota: 10, used: 7 });
+      for (const day of [1, 2, 3]) await insertBooking(an, pt.trainerId, at(day), 'BOOKED', { membershipId });
+
+      const response = await memberships(pt, an).expect(200);
+
+      expect(membershipOf(response.body, membershipId)).toMatchObject({ available: 0, quotaInvalid: false });
     });
   });
 
