@@ -23,6 +23,7 @@ import { SupportPtBookingsPage } from './features/pt-bookings/SupportPtBookingsP
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
 import { PlansPage } from './features/plans/PlansPage';
+import { TraineesPage } from './features/trainees/TraineesPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider><main><h1>Gym Management</h1><p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p>
@@ -59,7 +60,9 @@ export default function App() {
         {/* US-24: lịch tuần và ca nháp của PT. */}
         <Route path="/trainer/shifts" element={<ShiftsPage />} />
         {/* US-64 bước 4: PT xem buổi dạy và xác nhận buổi đã dạy; chỉ TRAINER. */}
-        <Route path="/trainer/bookings" element={<TrainerBookingsPage />} /></Route>
+        <Route path="/trainer/bookings" element={<TrainerBookingsPage />} />
+        {/* US-30 bước 3: PT tra cứu học viên có buổi với mình; chỉ TRAINER. */}
+        <Route path="/trainer/trainees" element={<TraineesPage />} /></Route>
       {(Object.entries(rolePaths) as [RoleCode, string][]).map(([role, path]) => <Route key={role} element={<ProtectedRoute role={role} />}>
         <Route path={path} element={<RoleShell role={role} />} /></Route>)}
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
