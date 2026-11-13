@@ -20,6 +20,8 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Api
 type ListParams = { q: string; page: number };
 // Ba phần chi tiết của một học viên, tải cùng lúc.
 type DetailData = { detail: TraineeDetail; bookings: TraineeBooking[]; memberships: TraineeMembershipPage };
+// Lỗi tải chi tiết: retryMemberId có khi lỗi tạm thời (mạng/503) để "Thử lại" đúng học viên đó; 404 thì không có.
+type DetailError = { text: string; retryMemberId?: string } | null;
 
 export function TraineesPage() {
   // US-30-TC12: đổi account/đăng xuất → key đổi → React bỏ toàn bộ state của account cũ (danh sách, chi tiết) và dựng lại từ đầu.
@@ -39,7 +41,7 @@ function TraineesContent() {
 
   const [detail, setDetail] = useState<DetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState('');
+  const [detailError, setDetailError] = useState<DetailError>(null);
   // Kết quả tải cũ về muộn (đã tìm/mở học viên khác) thì bỏ qua.
   const latestList = useRef(0);
   const latestDetail = useRef(0);
@@ -67,7 +69,7 @@ function TraineesContent() {
     const loadNumber = ++latestDetail.current;
     // Xóa ngay chi tiết của học viên trước để không hiện nhầm lịch/gói.
     setDetail(null);
-    setDetailError('');
+    setDetailError(null);
     setDetailLoading(true);
     try {
       const [profile, bookings, memberships] = await Promise.all([
@@ -76,12 +78,21 @@ function TraineesContent() {
       if (loadNumber === latestDetail.current) setDetail({ detail: profile, bookings: bookings.items, memberships });
     } catch (error) {
       if (loadNumber !== latestDetail.current) return;
-      setDetailError(error instanceof ApiError && error.status === 404
-        ? 'Không tìm thấy học viên hoặc bạn không còn buổi tập với học viên này.'
-        : errorMessage(error, 'Không tải được chi tiết học viên.'));
+      if (error instanceof ApiError && error.status === 404) {
+        // US-30-TC09: quan hệ đã hết → báo không tìm thấy, thử lại cũng không ra nên không có nút "Thử lại".
+        setDetailError({ text: 'Không tìm thấy học viên hoặc bạn không còn buổi tập với học viên này.' });
+      } else {
+        // US-30-TC12: lỗi mạng/503 là lỗi tạm thời → nhớ học viên đang mở để "Thử lại" gọi lại đúng người đó.
+        setDetailError({ text: errorMessage(error, 'Không tải được chi tiết học viên.'), retryMemberId: memberId });
+      }
     } finally {
       if (loadNumber === latestDetail.current) setDetailLoading(false);
     }
+  }
+
+  // US-30-TC12: "Thử lại" ở phần chi tiết tải lại đúng học viên vừa lỗi.
+  function retryDetail() {
+    if (detailError?.retryMemberId) void openDetail(detailError.retryMemberId);
   }
 
   return <>
@@ -114,7 +125,10 @@ function TraineesContent() {
     </section>
 
     {detailLoading && <p>Đang tải chi tiết học viên...</p>}
-    {detailError && <p role="alert">{detailError}</p>}
+    {detailError && <div role="alert">
+      <p>{detailError.text}</p>
+      {detailError.retryMemberId && <button type="button" onClick={retryDetail}>Thử lại</button>}
+    </div>}
     {detail && <TraineeDetailView data={detail} />}
   </>;
 }
