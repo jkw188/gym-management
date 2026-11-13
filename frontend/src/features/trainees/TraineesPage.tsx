@@ -6,6 +6,7 @@ import { formatAsOf, formatDate, formatRange, STATUS_LABELS } from '../pt-bookin
 import {
   traineesApi, type MembershipStoredStatus, type TraineeBooking, type TraineeDetail, type TraineeListPage, type TraineeMembershipPage,
 } from './trainees.api';
+import { Icon } from '../../components/Icon';
 
 // US-30 mục 2 (UI): gói cũ và gói hiện tại có nhãn trạng thái riêng.
 const MEMBERSHIP_STATUS_LABELS: Record<MembershipStoredStatus, string> = {
@@ -99,14 +100,14 @@ function TraineesContent() {
     <form onSubmit={search} className="trainees-search">
       <label htmlFor="trainee-search">Tìm học viên</label>
       <input id="trainee-search" value={searchText} maxLength={120} onChange={event => setSearchText(event.target.value)} />
-      <button type="submit">Tìm</button>
+      <button type="submit"><Icon name="search" label="Tìm" /></button>
     </form>
 
     <section aria-labelledby="trainee-list-title">
       <h3 id="trainee-list-title">Danh sách học viên</h3>
       {listError && <div role="alert">
         <p>{listError}</p>
-        <button type="button" onClick={() => setParams({ ...params })}>Thử lại</button>
+        <button type="button" onClick={() => setParams({ ...params })}><Icon name="retry" label="Thử lại" /></button>
       </div>}
       {!list && !listError && <p>Đang tải danh sách học viên...</p>}
       {/* US-30-TC04: account PT chưa có hồ sơ PT là trạng thái bình thường, không phải lỗi. */}
@@ -120,14 +121,14 @@ function TraineesContent() {
         <p>{item.nextBookingAt ? `Buổi sắp tới: ${formatAsOf(item.nextBookingAt)}` : 'Chưa có buổi sắp tới'}</p>
         <button type="button" onClick={() => void openDetail(item.memberId)}>Xem chi tiết</button>
       </article>)}
-      {list && list.page > 1 && <button type="button" onClick={() => setParams({ ...params, page: params.page - 1 })}>Trang trước</button>}
-      {list && list.totalPages > list.page && <button type="button" onClick={() => setParams({ ...params, page: params.page + 1 })}>Trang sau</button>}
+      {list && list.page > 1 && <button type="button" onClick={() => setParams({ ...params, page: params.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
+      {list && list.totalPages > list.page && <button type="button" onClick={() => setParams({ ...params, page: params.page + 1 })}><Icon name="next" label="Trang sau" /></button>}
     </section>
 
     {detailLoading && <p>Đang tải chi tiết học viên...</p>}
     {detailError && <div role="alert">
       <p>{detailError.text}</p>
-      {detailError.retryMemberId && <button type="button" onClick={retryDetail}>Thử lại</button>}
+      {detailError.retryMemberId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
     </div>}
     {detail && <TraineeDetailView data={detail} />}
   </>;

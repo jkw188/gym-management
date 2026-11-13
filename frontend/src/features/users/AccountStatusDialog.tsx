@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, apiClient } from '../../api/client';
 import { usersApi, type ChangeStatusResult, type UserAccount } from './users.api';
+import { Icon } from '../../components/Icon';
 
 interface Props {
   id: string; ownAccount: boolean; onClose: () => void;
@@ -91,8 +92,8 @@ export function AccountStatusDialog({ id, ownAccount, onClose, onSaved, onUnauth
       </form>
     </>}
     <div className="user-actions">
-      <button ref={initialFocus} type="button" disabled={pending || loading} onClick={() => void reload()}>Tải lại trạng thái</button>
-      <button type="button" className="secondary" disabled={pending} onClick={onClose}>Đóng</button>
+      <button ref={initialFocus} type="button" disabled={pending || loading} onClick={() => void reload()}><Icon name="retry" label="Tải lại trạng thái" showLabel /></button>
+      <button type="button" className="secondary" disabled={pending} onClick={onClose}><Icon name="close" label="Đóng" /></button>
     </div>
   </dialog>;
 }

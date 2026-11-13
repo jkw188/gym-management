@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { usersApi, type UserAccount, type UserRole, type UpdateUserInput } from './users.api';
 import type { RoleCode } from '../auth/auth.types';
+import { Icon } from '../../components/Icon';
 
 interface Props {
   account?: UserAccount; roles: UserRole[]; onClose: () => void;
@@ -94,7 +95,7 @@ export function UserForm({ account, roles, onClose, onSaved, onReload }: Props) 
         </>}
       </div>}
       <div className="user-actions"><button type="submit" disabled={pending || error?.code === 'VERSION_CONFLICT' || (!account && !roles.length)}>{pending ? 'Đang lưu…' : account ? 'Lưu thay đổi' : 'Tạo tài khoản'}</button>
-        <button type="button" className="secondary" disabled={pending} onClick={onClose}>Đóng</button></div>
+        <button type="button" className="secondary" disabled={pending} onClick={onClose}><Icon name="close" label="Đóng" /></button></div>
     </form>
   </section>;
 }

@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { membersApi, type LinkCandidate, type LinkInput, type LinkResult, type Member, type MemberInput, type MemberOperation } from './members.api';
+import { Icon } from '../../components/Icon';
 
 type Intent = { operation: 'MEMBER_CREATE'; key: string; input: MemberInput } |
   { operation: 'MEMBER_LINK'; key: string; memberId: string; input: LinkInput };
@@ -108,7 +109,7 @@ export function NewMemberPage() {
       {!member.accountId && <section aria-label="Liên kết tài khoản"><h3>Liên kết tài khoản sau đối chiếu</h3>
         <form onSubmit={search}><fieldset disabled={frozen}><legend>Tìm tài khoản</legend>
           <label>Số điện thoại tài khoản<input required type="tel" value={searchPhone} onChange={e => { setSearchPhone(e.target.value); setCandidates(null); setSelectedId(''); setConfirmed(false); }} /></label>
-          <button type="submit">Tìm chính xác số điện thoại</button>
+          <button type="submit"><Icon name="search" label="Tìm chính xác số điện thoại" showLabel /></button>
         </fieldset></form>
         {candidates?.length === 0 && <p>Không tìm thấy tài khoản MEMBER đang hoạt động.</p>}
         {!!candidates?.length && <form onSubmit={link}><fieldset disabled={frozen}><legend>Đối chiếu trực tiếp tại quầy</legend>

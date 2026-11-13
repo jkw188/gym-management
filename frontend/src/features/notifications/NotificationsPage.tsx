@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { inboxApi, type InboxDetail, type InboxPage, type ReadState } from './inbox.api';
 import { announceInboxChanged, useAccountId, useReloadSignals } from './inbox-signals';
+import { Icon } from '../../components/Icon';
 
 const PAGE_SIZE = 20;
 
@@ -109,7 +110,7 @@ export function NotificationsPage() {
     </div>
 
     {loading && <p>Đang tải…</p>}
-    {listError && <div role="alert">{listError} <button type="button" onClick={() => void loadList()}>Thử lại</button></div>}
+    {listError && <div role="alert">{listError} <button type="button" onClick={() => void loadList()}><Icon name="retry" label="Thử lại" /></button></div>}
     {actionError && <p role="alert">{actionError}</p>}
 
     {data && data.items.length === 0 && !listError && <p>Chưa có thông báo nào.</p>}
@@ -123,9 +124,9 @@ export function NotificationsPage() {
     </ul>}
 
     {data && data.totalPages > 0 && <nav aria-label="Phân trang thông báo">
-      <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber(pageNumber - 1)}>Trang trước</button>
+      <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber(pageNumber - 1)}><Icon name="prev" label="Trang trước" /></button>
       <span> Trang {data.page}/{data.totalPages} </span>
-      <button type="button" disabled={pageNumber >= data.totalPages} onClick={() => setPageNumber(pageNumber + 1)}>Trang sau</button>
+      <button type="button" disabled={pageNumber >= data.totalPages} onClick={() => setPageNumber(pageNumber + 1)}><Icon name="next" label="Trang sau" /></button>
     </nav>}
 
     {selected && <article aria-label="Chi tiết thông báo">

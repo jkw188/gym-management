@@ -1,7 +1,8 @@
+// Tầng giao diện – khung chung: thanh menu, banner, vùng nội dung <main>, chân trang và khai báo mọi route.
 import { FoundationStatus } from './features/foundation/FoundationStatus';
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
-import { HomeRedirect, LogoutButton, MemberNotificationBell, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
+import { AccountInfoPage, HomeRedirect, LogoutButton, MemberNotificationBell, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
@@ -26,8 +27,17 @@ import { PlansPage } from './features/plans/PlansPage';
 import { TraineesPage } from './features/trainees/TraineesPage';
 
 export default function App() {
-  return <BrowserRouter><AuthProvider><main><h1>Gym Management</h1><p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p>
-    <nav aria-label="Điều hướng chính"><Link to="/">Trang chính</Link><Link to="/health">Kiểm tra nền tảng</Link><Link to="/classes">Lịch lớp</Link><MemberNotificationBell /><LogoutButton /></nav>
+  return <BrowserRouter><AuthProvider>
+    {/* Thanh trên cùng: logo bên trái, menu bên phải. NavLink tự thêm class "active" cho trang đang mở. */}
+    <header className="site-header"><div className="site-header-inner">
+      <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">GM</span>Gym Management</Link>
+      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink>
+        <NavLink to="/health">Kiểm tra nền tảng</NavLink><MemberNotificationBell /><LogoutButton /></nav>
+    </div></header>
+    {/* Dải banner tối dưới thanh menu: tiêu đề lớn và khẩu hiệu. */}
+    <section className="hero"><div className="hero-inner"><h1>Gym Management</h1>
+      <p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p></div></section>
+    <main>
     <Routes><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/health" element={<FoundationStatus />} />
@@ -36,6 +46,9 @@ export default function App() {
       {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
+      {/* Trang riêng xem thông tin tài khoản của Admin/Staff (trước đây hiện ngay trên trang chính). */}
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/account" element={<AccountInfoPage role="ADMIN" />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/account" element={<AccountInfoPage role="STAFF" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>
@@ -67,5 +80,7 @@ export default function App() {
         <Route path={path} element={<RoleShell role={role} />} /></Route>)}
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
     </Routes>
-  </main></AuthProvider></BrowserRouter>;
+    </main>
+    <footer className="site-footer">© 2026 Gym Management – Nhóm 02</footer>
+  </AuthProvider></BrowserRouter>;
 }

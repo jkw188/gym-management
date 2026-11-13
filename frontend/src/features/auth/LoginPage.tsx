@@ -4,6 +4,7 @@ import { ApiError } from '../../api/client';
 import { AuthChecking } from './AuthRoutes';
 import { useAuth } from './AuthProvider';
 import { resolveReturnTo } from './auth.routes';
+import { Icon } from '../../components/Icon';
 
 export function LoginPage() {
   const auth = useAuth();
@@ -57,7 +58,7 @@ export function LoginPage() {
       <div className="password-field"><input id="password" name="password" type={visible ? 'text' : 'password'} autoComplete="current-password"
         value={password} onChange={event => setPassword(event.target.value)} disabled={pending} aria-invalid={!!fields.password}
         aria-describedby={fields.password ? 'password-error' : undefined} required />
-        <button type="button" className="secondary" onClick={() => setVisible(value => !value)} aria-controls="password" aria-pressed={visible} disabled={pending}>{visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}</button></div>
+        <button type="button" className="secondary" onClick={() => setVisible(value => !value)} aria-controls="password" aria-pressed={visible} disabled={pending}><Icon name={visible ? 'eyeOff' : 'eye'} label={visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} /></button></div>
       {fields.password && <p id="password-error" className="field-error" role="alert">{fields.password}</p>}
       {error && <div className="form-error" role="alert"><p>{error}</p>{requestId && <small>Mã tra cứu: {requestId}</small>}</div>}
       <button type="submit" disabled={pending}>{pending ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
