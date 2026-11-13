@@ -2,7 +2,7 @@
 // Chỉ đọc: không tạo giao dịch, không cấp gói, không giữ giá (US-13-F04).
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { ApplicationError } from '../../common/errors/application-error';
+import { ApplicationError, invalidField } from '../../common/errors/application-error';
 import { CatalogPlanQueryDto } from './catalog.dto';
 import { toPublicPlan } from './catalog.mapper';
 import { CatalogRepository } from './catalog.repository';
@@ -16,6 +16,10 @@ export class CatalogService {
 
   // GET /api/catalog/plans
   async list(query: CatalogPlanQueryDto): Promise<PublicPlanPage> {
+    // US-13-TC06: minPrice > maxPrice → 400. So bằng BigInt vì so chuỗi sẽ sai ("9" > "10").
+    if (query.minPrice !== undefined && query.maxPrice !== undefined && BigInt(query.minPrice) > BigInt(query.maxPrice)) {
+      invalidField('minPrice', 'minPrice không được lớn hơn maxPrice');
+    }
     // US-13-TC05: q bỏ khoảng trắng đầu/cuối; q rỗng thì không lọc theo từ khóa.
     const keyword = query.q?.trim() || undefined;
     const { items, total } = await this.repository.findPage({

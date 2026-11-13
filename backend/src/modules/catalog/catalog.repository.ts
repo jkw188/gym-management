@@ -9,6 +9,10 @@ import { CatalogPlanFilter } from './catalog.types';
 // Projection allowlist ngay backend (US-13 mục 2): không đọc guard_revision, created_by, updated_by.
 const PUBLIC_FIELDS = '_id code name kind duration_days session_quota price benefits version';
 
+// US-13 mục 2: sắp tên theo thứ tự chữ cái tiếng Việt (không theo mã byte, nên chữ hoa/có dấu không bị dồn sai chỗ).
+// Index plans(status,kind,name,_id) ở bước 3 phải dùng cùng collation này thì MongoDB mới dùng được index để sắp.
+const NAME_COLLATION = { locale: 'vi' };
+
 // Thêm "\" trước ký tự đặc biệt để từ khóa được tìm đúng nguyên văn, không chạy regex của client (US-13-TC08).
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -40,9 +44,9 @@ export class CatalogRepository {
   async findPage(filter: CatalogPlanFilter, page: number, limit: number): Promise<{ items: Plan[]; total: number }> {
     const query = this.toQuery(filter);
     const [items, total] = await Promise.all([
-      this.plans.find(query).select(PUBLIC_FIELDS).sort({ name: 1, _id: 1 })
+      this.plans.find(query).select(PUBLIC_FIELDS).collation(NAME_COLLATION).sort({ name: 1, _id: 1 })
         .skip((page - 1) * limit).limit(limit).lean<Plan[]>().exec(),
-      this.plans.countDocuments(query).exec(),
+      this.plans.countDocuments(query).collation(NAME_COLLATION).exec(),
     ]);
     return { items, total };
   }
