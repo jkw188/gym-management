@@ -121,11 +121,14 @@ export class TraineeQueryService {
       if (!membership || !sale) continue;
       const transaction = transactions.find(item => item._id.equals(sale.transaction_id));
       const reserved = reservedCounts.get(id.toHexString()) ?? 0;
+      const quota = Number(sale.sessions_snapshot);
+      const used = Number(membership.sessions_used);
       items.push(toTraineeMembershipItem(membership, sale, {
         kind: transaction?.kind,
         reserved,
         // US-30-TC10: chỉ dùng used của chính gói này, không cộng used của gói SUPERSEDED (cùng công thức US-17).
-        available: availableSessions(Number(sale.sessions_snapshot), Number(membership.sessions_used), reserved),
+        available: availableSessions(quota, used, reserved),
+        quotaInvalid: isQuotaInvalid(quota, used, reserved),
       }));
     }
     return items;
@@ -154,6 +157,13 @@ export class TraineeQueryService {
       completedStatus: COMPLETED_STATUS,
     };
   }
+}
+
+// US-30 spec mục 2 (bảng Quota): quota − used − reserved < 0 là dữ liệu bất thường, cần vận hành đối chiếu.
+// availableSessions vẫn trả 0 như US-17; cờ này giúp PT phân biệt "hết buổi thật" với "dữ liệu sai".
+// Chỉ báo, KHÔNG sửa used hay booking trong GET.
+function isQuotaInvalid(quota: number, used: number, reserved: number): boolean {
+  return quota - used - reserved < 0;
 }
 
 // US-30-TC03: memberId sai định dạng là dữ liệu sai → 400; đúng định dạng mà không có quan hệ → 404.

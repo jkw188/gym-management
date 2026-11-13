@@ -62,7 +62,10 @@ export interface TraineeMembershipItem {
   sessionsUsed: number;
   // Số buổi BOOKED của TOÀN gói, gồm cả buổi với PT khác (US-30-TC06).
   reserved: number;
+  // Không nhỏ hơn 0 (cùng công thức US-17).
   available: number;
+  // true khi quota − sessionsUsed − reserved < 0: dữ liệu bất thường cần vận hành kiểm tra; GET không tự sửa (spec mục 2, bảng Quota).
+  quotaInvalid: boolean;
 }
 
 // Khuôn trang chung của spec mục 2: {items, page, limit, total, totalPages}.

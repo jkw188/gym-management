@@ -46,6 +46,7 @@ export interface MembershipQuota {
   kind?: TransactionKind;
   reserved: number;
   available: number;
+  quotaInvalid: boolean;
 }
 
 // US-30-TC06, TC10: một gói liên quan; quota theo snapshot của sale đã bán, sessionsUsed của chính gói này.
@@ -60,5 +61,6 @@ export function toTraineeMembershipItem(membership: Membership, sale: ServiceSal
     sessionsUsed: Number(membership.sessions_used),
     reserved: quota.reserved,
     available: quota.available,
+    quotaInvalid: quota.quotaInvalid,
   };
 }
