@@ -2,7 +2,7 @@
 import { FoundationStatus } from './features/foundation/FoundationStatus';
 import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
-import { HomeRedirect, LogoutButton, MemberNotificationBell, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
+import { AccountInfoPage, HomeRedirect, LogoutButton, MemberNotificationBell, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
@@ -46,6 +46,9 @@ export default function App() {
       {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
+      {/* Trang riêng xem thông tin tài khoản của Admin/Staff (trước đây hiện ngay trên trang chính). */}
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/account" element={<AccountInfoPage role="ADMIN" />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/account" element={<AccountInfoPage role="STAFF" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>

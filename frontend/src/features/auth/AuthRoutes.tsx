@@ -59,9 +59,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
   const { user } = useAuth();
   return <section className="auth-card"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
     <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
-    <dl className="info-grid"><dt>Số điện thoại</dt><dd>{user?.phone}</dd><dt>Vai trò</dt><dd>{roleNames[role]}</dd>
-      {user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
-    {/* Các chức năng của vai trò hiện dạng lưới thẻ để bấm nhanh. */}
+    {/* Trang chính chỉ có lời chào và các chức năng; thông tin tài khoản nằm ở trang riêng (thẻ "Thông tin tài khoản"). */}
     <div className="quick-links">
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
     {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
@@ -78,9 +76,21 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
     {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
     {role === 'MEMBER' && <Link to="/member/pt-bookings">Lịch PT của tôi</Link>}
+    {/* Admin/Staff xem thông tin ở trang /account (chỉ đọc); Member/PT dùng trang /profile có sẵn (sửa được). */}
+    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/account`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
     </div>
+  </section>;
+}
+
+// Trang riêng hiện thông tin tài khoản đang đăng nhập (Admin/Staff), lấy từ phiên đăng nhập nên không gọi API.
+export function AccountInfoPage({ role }: { role: RoleCode }) {
+  const { user } = useAuth();
+  return <section className="auth-card"><h2>Thông tin tài khoản</h2>
+    <dl className="info-grid"><dt>Họ tên</dt><dd>{user?.fullName}</dd><dt>Số điện thoại</dt><dd>{user?.phone}</dd>
+      <dt>Vai trò</dt><dd>{roleNames[role]}</dd>{user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
+    <Link to={rolePaths[role]}>← Về trang chính</Link>
   </section>;
 }
 
