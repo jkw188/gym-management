@@ -10,6 +10,7 @@ import {
   type PtAvailability, type PtBookingStatus, type PtSlot, type PtTrainer, type SlotReason,
 } from './pt-bookings.api';
 import { formatAsOf, formatDate, formatRange, STATUS_LABELS } from './pt-booking-format';
+import { Icon } from '../../components/Icon';
 
 // US-27-TC12: giải thích vì sao slot chưa đặt được.
 const REASON_LABELS: Record<SlotReason, string> = {
@@ -289,7 +290,7 @@ export function PtBookingsPage() {
       </div>
       <p className="hint">Để trống ngày thì xem tuần hiện tại (từ thứ Hai).</p>
       {bookingsError
-        ? <div role="alert"><p>{bookingsError}</p><button type="button" onClick={() => void loadBookings()}>Thử lại</button></div>
+        ? <div role="alert"><p>{bookingsError}</p><button type="button" onClick={() => void loadBookings()}><Icon name="retry" label="Thử lại" /></button></div>
         : !bookings ? <p>Đang tải lịch…</p>
           : bookings.memberLinked && bookings.items.length === 0 ? <p>Không có buổi PT nào trong khoảng này.</p>
             : <>
@@ -297,10 +298,10 @@ export function PtBookingsPage() {
               {/* Lịch có phân trang: chỉ chuyển trang, không dùng số buổi đang thấy để suy ra quota. */}
               {bookings.totalPages > 1 && <p>
                 <button type="button" disabled={filter.page <= 1}
-                  onClick={() => setFilter(current => ({ ...current, page: current.page - 1 }))}>Trang trước</button>
+                  onClick={() => setFilter(current => ({ ...current, page: current.page - 1 }))}><Icon name="prev" label="Trang trước" /></button>
                 {' '}Trang {filter.page}/{bookings.totalPages} ({bookings.total} buổi){' '}
                 <button type="button" disabled={filter.page >= bookings.totalPages}
-                  onClick={() => setFilter(current => ({ ...current, page: current.page + 1 }))}>Trang sau</button>
+                  onClick={() => setFilter(current => ({ ...current, page: current.page + 1 }))}><Icon name="next" label="Trang sau" /></button>
               </p>}
             </>}
 
@@ -316,7 +317,7 @@ export function PtBookingsPage() {
         <p className="hint">Lý do dài từ 10 đến 500 ký tự.</p>
         {/* US-29-TC06: lý do không hợp lệ hoặc đang gửi thì khóa nút (không gửi kép). */}
         <button type="button" disabled={cancelling || !isValidCancelReason(cancelReason)} onClick={() => void submitCancel()}>Xác nhận hủy</button>
-        {' '}<button type="button" disabled={cancelling} onClick={() => setCancelTarget(null)}>Đóng</button>
+        {' '}<button type="button" disabled={cancelling} onClick={() => setCancelTarget(null)}><Icon name="close" label="Đóng" /></button>
       </section>}
       {cancelSuccess && <p role="status">{cancelSuccess}</p>}
       {cancelError && <p role="alert">{cancelError}</p>}
@@ -325,7 +326,7 @@ export function PtBookingsPage() {
     <section aria-labelledby="pt-book-panel">
       <h3 id="pt-book-panel">Đặt lịch PT</h3>
       {baseError
-        ? <div role="alert"><p>{baseError}</p><button type="button" onClick={() => void loadBase()}>Thử lại</button></div>
+        ? <div role="alert"><p>{baseError}</p><button type="button" onClick={() => void loadBase()}><Icon name="retry" label="Thử lại" /></button></div>
         : <>
           {/* US-28-TC10: đang gửi đặt lịch thì khóa PT/ngày/gói và các slot, để bảng xác nhận và key giữ đúng dữ liệu đã gửi;
               lỗi mạng/503 thì Member vẫn bấm lại "Xác nhận đặt" với đúng key cũ. */}
@@ -351,7 +352,7 @@ export function PtBookingsPage() {
           </div>}
 
           {availabilityError && <div role="alert"><p>{availabilityError}</p>
-            <button type="button" onClick={() => void loadAvailability()}>Thử lại</button></div>}
+            <button type="button" onClick={() => void loadAvailability()}><Icon name="retry" label="Thử lại" /></button></div>}
           {availability && <div className="slots">
             {/* US-27-TC09: giờ trống chỉ để tham khảo, server kiểm lại khi đặt. */}
             <p>Giờ trống (cập nhật lúc {formatAsOf(availability.asOf)}). Xem giờ không giữ chỗ.</p>
@@ -377,12 +378,12 @@ export function PtBookingsPage() {
             </ul>
             {/* US-28-TC10: đang gửi thì khóa nút để không gửi kép. */}
             <button type="button" disabled={submitting} onClick={() => void submitBooking()}>Xác nhận đặt</button>
-            {' '}<button type="button" disabled={submitting} onClick={() => setConfirmSlot(null)}>Đóng</button>
+            {' '}<button type="button" disabled={submitting} onClick={() => setConfirmSlot(null)}><Icon name="close" label="Đóng" /></button>
           </section>}
           {bookSuccess && <p role="status">{bookSuccess}</p>}
           {bookError && <p role="alert">{bookError}</p>}
 
-          <button type="button" onClick={() => void refreshAll()}>Tải lại lịch, giờ trống và số buổi</button>
+          <button type="button" onClick={() => void refreshAll()}><Icon name="retry" label="Tải lại lịch, giờ trống và số buổi" showLabel /></button>
         </>}
     </section>
   </section>;

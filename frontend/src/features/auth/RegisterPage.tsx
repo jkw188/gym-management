@@ -5,6 +5,7 @@ import { useAuth } from './AuthProvider';
 import { AuthChecking, LogoutPending } from './AuthRoutes';
 import { rolePaths } from './auth.routes';
 import { registrationApi } from './registration.api';
+import { Icon } from '../../components/Icon';
 
 const fieldOrder = ['fullName', 'phone', 'email', 'password', 'confirmPassword'];
 
@@ -81,7 +82,7 @@ export function RegisterPage() {
         <div className="password-field"><input {...attributes('password')} type={visible ? 'text' : 'password'} autoComplete="new-password"
           value={password} onChange={event => setPassword(event.target.value)} />
           <button type="button" className="secondary" aria-controls="register-password register-confirmPassword" aria-pressed={visible}
-            onClick={() => setVisible(value => !value)}>{visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}</button></div>{fieldError('password')}
+            onClick={() => setVisible(value => !value)}><Icon name={visible ? 'eyeOff' : 'eye'} label={visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'} /></button></div>{fieldError('password')}
         <label htmlFor="register-confirmPassword">Xác nhận mật khẩu</label>
         <input {...attributes('confirmPassword')} type={visible ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword}
           onChange={event => setConfirmPassword(event.target.value)} />{fieldError('confirmPassword')}

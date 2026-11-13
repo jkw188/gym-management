@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { membersApi, type MemberListItem, type MemberPage, type MembershipState, type ServiceKind } from './members.api';
 import { MemberEntitlements, MemberReadTime, membershipStateNames } from './MemberEntitlements';
+import { Icon } from '../../components/Icon';
 
 export function MembersPage() {
   const { pathname } = useLocation();
@@ -49,7 +50,7 @@ export function MembersPage() {
       {Object.entries(membershipStateNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
     </select>
     {loading && <p role="status">Đang tải hội viên…</p>}
-    {error && <div role="alert"><p>{error}</p><button type="button" onClick={() => change(() => setReload(value => value + 1))}>Thử lại</button></div>}
+    {error && <div role="alert"><p>{error}</p><button type="button" onClick={() => change(() => setReload(value => value + 1))}><Icon name="retry" label="Thử lại" /></button></div>}
     {data && <><MemberReadTime time={data} />
       {data.items.length === 0 ? <p>Không tìm thấy hội viên phù hợp.</p> : <ul aria-label="Danh sách hội viên">
         {data.items.map(member => <li key={member.id}>
@@ -59,9 +60,9 @@ export function MembersPage() {
         </li>)}
       </ul>}
       <div className="user-actions">
-        <button type="button" disabled={page <= 1} onClick={() => change(() => setPage(value => value - 1))}>Trang trước</button>
+        <button type="button" disabled={page <= 1} onClick={() => change(() => setPage(value => value - 1))}><Icon name="prev" label="Trang trước" /></button>
         <span>Trang {data.page}/{data.totalPages} · {data.total} hội viên</span>
-        <button type="button" disabled={page >= data.totalPages} onClick={() => change(() => setPage(value => value + 1))}>Trang sau</button>
+        <button type="button" disabled={page >= data.totalPages} onClick={() => change(() => setPage(value => value + 1))}><Icon name="next" label="Trang sau" /></button>
       </div>
     </>}
   </section>;

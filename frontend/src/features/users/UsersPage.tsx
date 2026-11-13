@@ -8,6 +8,7 @@ import { UserForm } from './UserForm';
 import { AccountStatusDialog } from './AccountStatusDialog';
 import { AccountRoleDialog } from './AccountRoleDialog';
 import { usersApi, type UserAccount, type UserRole, type UsersPage as PageData, type UsersQuery } from './users.api';
+import { Icon } from '../../components/Icon';
 
 type Editor = { mode: 'create' } | { mode: 'edit'; id: string; account?: UserAccount; error?: string };
 
@@ -119,22 +120,22 @@ export function UsersPage() {
       }} />}
     {notice && <p role="status" className="user-notice">{notice}</p>}
     <div className="user-actions"><button type="button" disabled={!!editor || !!statusTarget || !!roleTarget || rolesLoading || !!rolesError || !roles.length} onClick={() => setEditor({ mode: 'create' })}>Tạo tài khoản mới</button>
-      <button type="button" className="secondary" disabled={loading} onClick={() => setRevision(value => value + 1)}>Tải lại danh sách</button></div>
+      <button type="button" className="secondary" disabled={loading} onClick={() => setRevision(value => value + 1)}><Icon name="retry" label="Tải lại danh sách" showLabel /></button></div>
     {rolesLoading && <p role="status">Đang tải vai trò…</p>}
-    {rolesError && <div role="alert" className="form-error">{rolesError} <button type="button" onClick={() => setRolesRevision(value => value + 1)}>Tải lại vai trò</button></div>}
+    {rolesError && <div role="alert" className="form-error">{rolesError} <button type="button" onClick={() => setRolesRevision(value => value + 1)}><Icon name="retry" label="Tải lại vai trò" showLabel /></button></div>}
     {!rolesLoading && !rolesError && !roles.length && <p role="alert">Chưa có vai trò. Cần chạy seed trước khi tạo tài khoản.</p>}
     {editor?.mode === 'create' && <UserForm roles={roles} onClose={() => setEditor(null)} onSaved={saved} onReload={() => {}} />}
     {editor?.mode === 'edit' && (editor.account ? <UserForm key={`${editor.id}-${editor.account.version}`} account={editor.account} roles={roles}
       onClose={() => setEditor(null)} onSaved={saved} onReload={() => void edit(editor.id)} /> : <section className="status-card">
-      {editor.error ? <><p role="alert">{editor.error}</p><button type="button" onClick={() => void edit(editor.id)}>Tải lại chi tiết</button></> : <p role="status">Đang tải thông tin tài khoản…</p>}
-      <button type="button" className="secondary" onClick={() => { detailRequest.current?.abort(); setEditor(null); }}>Đóng</button></section>)}
+      {editor.error ? <><p role="alert">{editor.error}</p><button type="button" onClick={() => void edit(editor.id)}><Icon name="retry" label="Tải lại chi tiết" showLabel /></button></> : <p role="status">Đang tải thông tin tài khoản…</p>}
+      <button type="button" className="secondary" onClick={() => { detailRequest.current?.abort(); setEditor(null); }}><Icon name="close" label="Đóng" /></button></section>)}
     <form className="users-filter" onSubmit={filter}>
       <label htmlFor="users-search">Tìm tên, email hoặc số điện thoại</label><input id="users-search" value={q} maxLength={120} onChange={event => setQ(event.target.value)} />
       <div className="users-filter-row"><div><label htmlFor="users-role">Lọc vai trò</label><select id="users-role" value={roleCode} onChange={event => setRoleCode(event.target.value)}>
         <option value="">Tất cả vai trò</option>{(Object.keys(roleNames) as RoleCode[]).map(code => <option key={code} value={code}>{roleNames[code]}</option>)}
       </select></div><div><label htmlFor="users-status">Lọc trạng thái</label><select id="users-status" value={status} onChange={event => setStatus(event.target.value)}>
         <option value="">Tất cả trạng thái</option><option value="ACTIVE">Hoạt động</option><option value="LOCKED">Đã khóa</option>
-      </select></div></div><button type="submit">Áp dụng bộ lọc</button>
+      </select></div></div><button type="submit"><Icon name="filter" label="Áp dụng bộ lọc" showLabel /></button>
     </form>
     {loading && <p role="status">Đang tải danh sách…</p>}
     {error && <p className="form-error" role="alert">{error} Hãy dùng nút tải lại danh sách.</p>}
@@ -149,9 +150,9 @@ export function UsersPage() {
             <button type="button" className="secondary" disabled={!!editor || !!statusTarget || !!roleTarget} aria-label={`Phân quyền ${account.fullName}`} onClick={() => setRoleTarget(account.id)}>Phân quyền</button></td></tr>)}</tbody>
       </table></div> : <p>Không có tài khoản phù hợp.</p>}
       <div className="user-actions" aria-label="Phân trang">
-        <button type="button" disabled={loading || query.page <= 1} onClick={() => setQuery(current => ({ ...current, page: current.page - 1 }))}>Trang trước</button>
+        <button type="button" disabled={loading || query.page <= 1} onClick={() => setQuery(current => ({ ...current, page: current.page - 1 }))}><Icon name="prev" label="Trang trước" /></button>
         <span>Trang {data.page} / {data.totalPages}</span>
-        <button type="button" disabled={loading || query.page >= data.totalPages} onClick={() => setQuery(current => ({ ...current, page: current.page + 1 }))}>Trang sau</button>
+        <button type="button" disabled={loading || query.page >= data.totalPages} onClick={() => setQuery(current => ({ ...current, page: current.page + 1 }))}><Icon name="next" label="Trang sau" /></button>
         <label htmlFor="users-limit">Mỗi trang</label><select id="users-limit" value={query.limit} onChange={event => setQuery(current => ({ ...current, page: 1, limit: Number(event.target.value) }))}>
           {[20, 50, 100].map(limit => <option key={limit} value={limit}>{limit}</option>)}</select>
       </div>

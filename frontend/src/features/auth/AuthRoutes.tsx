@@ -3,13 +3,14 @@ import { useAuth } from './AuthProvider';
 import { roleNames, rolePaths } from './auth.routes';
 import type { RoleCode } from './auth.types';
 import { NotificationBell } from '../notifications/NotificationBell';
+import { Icon } from '../../components/Icon';
 
 export function AuthChecking() {
   const auth = useAuth();
   return <section className="auth-card" aria-live="polite" aria-busy={!auth.error}>
     <h2>{auth.error ? 'Chưa thể khôi phục phiên' : 'Đang kiểm tra phiên đăng nhập…'}</h2>
     {auth.error && <><p role="alert">{auth.error}</p>{auth.requestId && <small>Mã tra cứu: {auth.requestId}</small>}
-      <button type="button" onClick={() => void auth.retry()}>Thử lại</button></>}
+      <button type="button" onClick={() => void auth.retry()}><Icon name="retry" label="Thử lại" /></button></>}
   </section>;
 }
 
@@ -23,7 +24,7 @@ export function LogoutButton() {
   const auth = useAuth();
   const logout = useLogoutAction();
   if (auth.status !== 'authenticated') return null;
-  return <button type="button" onClick={() => void logout()}>Đăng xuất</button>;
+  return <button type="button" onClick={() => void logout()}><Icon name="logout" label="Đăng xuất" showLabel /></button>;
 }
 
 export function LogoutPending() {
@@ -32,7 +33,7 @@ export function LogoutPending() {
   return <section className="auth-card" aria-live="polite" aria-busy={!auth.error}>
     <h2>{auth.error ? 'Chưa xác nhận đăng xuất' : 'Đang đăng xuất…'}</h2>
     {auth.error && <><p role="alert">{auth.error}</p>{auth.requestId && <small>Mã tra cứu: {auth.requestId}</small>}
-      <button type="button" onClick={() => void logout()}>Thử lại</button></>}
+      <button type="button" onClick={() => void logout()}><Icon name="retry" label="Thử lại" /></button></>}
   </section>;
 }
 

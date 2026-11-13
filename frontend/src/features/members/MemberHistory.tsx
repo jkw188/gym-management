@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { membersApi, type MemberMembership, type MemberPage, type MemberTransaction } from './members.api';
 import { MemberReadTime, membershipStateNames } from './MemberEntitlements';
+import { Icon } from '../../components/Icon';
 
 const transactionStatusNames = { PENDING: 'Chờ thanh toán / chưa cấp gói', SETTLED: 'Đã đối chiếu giao dịch', CANCELLED: 'Đã hủy' };
 const storedStatusNames = { ACTIVE: 'Đang được ghi nhận', SUPERSEDED: 'Đã được thay thế', CANCELLED: 'Đã hủy' };
@@ -50,10 +51,10 @@ function HistoryPage({ id, tab }: { id: string; tab: 'memberships' | 'transactio
         <p>{item.paymentId ? `Khoản thu đã xác nhận: ${item.paymentId}` : 'Chưa có khoản thu đã xác nhận.'}</p>
         <p>{item.invoiceId ? `Mã chứng từ: ${item.invoiceId}` : 'Chưa có chứng từ.'}</p>
       </li>)}</ul>
-      <div className="user-actions"><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Lịch sử trước</button>
+      <div className="user-actions"><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}><Icon name="prev" label="Lịch sử trước" /></button>
         <span>Trang {data.page}/{data.totalPages} · {data.total} bản ghi</span>
-        <button type="button" disabled={page >= data.totalPages} onClick={() => setPage(value => value + 1)}>Lịch sử sau</button>
-        <button type="button" onClick={() => setReload(value => value + 1)}>Tải lại lịch sử</button></div>
+        <button type="button" disabled={page >= data.totalPages} onClick={() => setPage(value => value + 1)}><Icon name="next" label="Lịch sử sau" /></button>
+        <button type="button" onClick={() => setReload(value => value + 1)}><Icon name="retry" label="Tải lại lịch sử" showLabel /></button></div>
     </>}
   </div>;
 }

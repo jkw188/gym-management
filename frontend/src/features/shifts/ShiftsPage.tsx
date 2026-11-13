@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError } from '../../api/client';
 import { addDays, dayLabel, mondayOf, previewSlots, toVietnamIso, vietnamDate, vietnamTime } from './shift-time';
 import { shiftsApi, type Shift, type ShiftDetail, type ShiftPage, type ShiftStatus } from './shifts.api';
+import { Icon } from '../../components/Icon';
 
 // US-24-TC12: nhãn trạng thái rõ ràng cho PT.
 const STATUS_LABELS: Record<ShiftStatus, string> = {
@@ -270,14 +271,14 @@ export function ShiftsPage() {
     {notice && <p role="status" className="user-notice">{notice}</p>}
 
     <div className="user-actions" role="group" aria-label="Chọn tuần">
-      <button type="button" className="secondary" onClick={() => setWeekStart(addDays(weekStart, -7))}>Tuần trước</button>
+      <button type="button" className="secondary" onClick={() => setWeekStart(addDays(weekStart, -7))}><Icon name="prev" label="Tuần trước" /></button>
       <span>{dayLabel(weekStart, 0)} – {dayLabel(weekEnd, 6)}</span>
-      <button type="button" className="secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}>Tuần sau</button>
+      <button type="button" className="secondary" onClick={() => setWeekStart(addDays(weekStart, 7))}><Icon name="next" label="Tuần sau" /></button>
     </div>
 
     {loading && <p>Đang tải lịch ca…</p>}
     {listError && <div className="form-error" role="alert"><p>{listError}</p>
-      <button type="button" onClick={() => void loadList()}>Thử lại</button></div>}
+      <button type="button" onClick={() => void loadList()}><Icon name="retry" label="Thử lại" /></button></div>}
 
     {/* US-24-TC02: account TRAINER chưa liên kết hồ sơ PT thì không cho thêm ca. */}
     {data && !data.profileLinked && <p>Tài khoản của bạn chưa có hồ sơ PT. Hãy liên hệ quản trị viên để được tạo hồ sơ trước khi khai báo ca.</p>}
@@ -295,7 +296,7 @@ export function ShiftsPage() {
         {isOutcomeUnknown(confirmError) && <p>Chưa xác nhận được kết quả. Bấm "Công bố ca" lần nữa để gửi lại đúng yêu cầu này.</p>}
         {needsReload(confirmError) && <>
           <p>Ca đã được thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.</p>
-          <button type="button" onClick={reloadAfterConfirmError}>Tải lại ca</button>
+          <button type="button" onClick={reloadAfterConfirmError}><Icon name="retry" label="Tải lại ca" showLabel /></button>
         </>}
       </div>}
 
@@ -306,7 +307,7 @@ export function ShiftsPage() {
 
         {!cancelState.detail && !cancelState.loadError && <p>Đang tải thông tin ca…</p>}
         {cancelState.loadError && <div className="form-error" role="alert"><p>{cancelState.loadError}</p>
-          <button type="button" onClick={() => void openCancel(cancelState.shift)}>Thử lại</button></div>}
+          <button type="button" onClick={() => void openCancel(cancelState.shift)}><Icon name="retry" label="Thử lại" /></button></div>}
 
         {cancelState.detail && <form onSubmit={submitCancel} noValidate aria-busy={cancelling}>
           {/* US-25-TC12: còn lịch đặt thì không cho gửi, chỉ hướng dẫn xử lý từng lịch. */}
@@ -327,13 +328,13 @@ export function ShiftsPage() {
             {isOutcomeUnknown(cancelError) && <p>Chưa xác nhận được kết quả. Bấm "Xác nhận hủy ca" để gửi lại đúng yêu cầu này.</p>}
             {needsReload(cancelError) && <>
               <p>Ca đã được thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.</p>
-              <button type="button" onClick={reloadAfterCancelError}>Tải lại ca</button>
+              <button type="button" onClick={reloadAfterCancelError}><Icon name="retry" label="Tải lại ca" showLabel /></button>
             </>}
           </div>}
 
           <div className="user-actions">
             <button type="submit" disabled={cancelling || bookedCount > 0}>{cancelling ? 'Đang hủy…' : 'Xác nhận hủy ca'}</button>
-            <button type="button" className="secondary" onClick={closeCancel} disabled={cancelling}>Đóng</button>
+            <button type="button" className="secondary" onClick={closeCancel} disabled={cancelling}><Icon name="close" label="Đóng" /></button>
           </div>
         </form>}
       </div>}
@@ -368,13 +369,13 @@ export function ShiftsPage() {
           {formError.status === undefined && <p>Chưa xác nhận được kết quả. Bấm "Lưu ca nháp" để gửi lại đúng yêu cầu này.</p>}
           {formError.code === 'VERSION_CONFLICT' && <>
             <p>Ca đã được thay đổi ở nơi khác. Tải lại để xem dữ liệu mới nhất.</p>
-            <button type="button" onClick={reloadAfterConflict}>Tải lại ca</button>
+            <button type="button" onClick={reloadAfterConflict}><Icon name="retry" label="Tải lại ca" showLabel /></button>
           </>}
         </div>}
 
         <div className="user-actions">
           <button type="submit" disabled={submitting}>{submitting ? 'Đang lưu…' : 'Lưu ca nháp'}</button>
-          <button type="button" className="secondary" onClick={closeForm} disabled={submitting}>Đóng</button>
+          <button type="button" className="secondary" onClick={closeForm} disabled={submitting}><Icon name="close" label="Đóng" /></button>
         </div>
       </form>}
 

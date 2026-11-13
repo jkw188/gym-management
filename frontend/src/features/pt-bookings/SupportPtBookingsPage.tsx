@@ -7,6 +7,7 @@ import {
   isValidCancelReason, ptBookingsApi, type CancelBookingInput, type PtBookingStatus, type SupportFilter, type SupportPtBooking,
   type SupportPtBookingPage,
 } from './pt-bookings.api';
+import { Icon } from '../../components/Icon';
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError && error.message ? error.message : fallback);
 
@@ -134,14 +135,14 @@ export function SupportPtBookingsPage() {
         <option value="COMPLETED">Đã hoàn thành</option>
         <option value="CANCELLED">Đã hủy</option>
       </select></label>
-      <button type="submit">Tìm</button>
+      <button type="submit"><Icon name="search" label="Tìm" /></button>
       <p className="hint">Để trống ngày thì xem tuần hiện tại (từ thứ Hai). Tối đa 31 ngày mỗi lần.</p>
     </form>
 
     <section aria-labelledby="support-results">
       <h3 id="support-results">Kết quả</h3>
       {resultsError
-        ? <div role="alert"><p>{resultsError}</p><button type="button" onClick={() => void loadResults()}>Thử lại</button></div>
+        ? <div role="alert"><p>{resultsError}</p><button type="button" onClick={() => void loadResults()}><Icon name="retry" label="Thử lại" /></button></div>
         : !results ? <p>Đang tải…</p>
           : results.items.length === 0 ? <p>Không có buổi PT nào trong khoảng này.</p>
             : <>
@@ -154,10 +155,10 @@ export function SupportPtBookingsPage() {
               </article>)}
               {results.totalPages > 1 && <p>
                 <button type="button" disabled={applied.page <= 1}
-                  onClick={() => setApplied(current => ({ ...current, page: current.page - 1 }))}>Trang trước</button>
+                  onClick={() => setApplied(current => ({ ...current, page: current.page - 1 }))}><Icon name="prev" label="Trang trước" /></button>
                 {' '}Trang {applied.page}/{results.totalPages} ({results.total} buổi){' '}
                 <button type="button" disabled={applied.page >= results.totalPages}
-                  onClick={() => setApplied(current => ({ ...current, page: current.page + 1 }))}>Trang sau</button>
+                  onClick={() => setApplied(current => ({ ...current, page: current.page + 1 }))}><Icon name="next" label="Trang sau" /></button>
               </p>}
             </>}
     </section>
@@ -165,7 +166,7 @@ export function SupportPtBookingsPage() {
     {detailId && <section aria-labelledby="support-detail">
       <h3 id="support-detail">Chi tiết lịch PT</h3>
       {detailError
-        ? <div role="alert"><p>{detailError}</p><button type="button" onClick={() => void loadDetail()}>Thử lại</button></div>
+        ? <div role="alert"><p>{detailError}</p><button type="button" onClick={() => void loadDetail()}><Icon name="retry" label="Thử lại" /></button></div>
         : !detail ? <p>Đang tải chi tiết…</p>
           : <>
             <ul>
@@ -182,7 +183,7 @@ export function SupportPtBookingsPage() {
               <p className="hint">Lý do dài từ 10 đến 500 ký tự, được lưu vào lịch sử thao tác.</p>
               {/* US-29-TC06, TC09: lý do không hợp lệ hoặc đang gửi thì khóa nút. */}
               <button type="button" disabled={cancelling || !isValidCancelReason(reason)} onClick={() => void submitCancel()}>Xác nhận hủy</button>
-              {' '}<button type="button" disabled={cancelling} onClick={() => setCancelOpen(false)}>Đóng</button>
+              {' '}<button type="button" disabled={cancelling} onClick={() => setCancelOpen(false)}><Icon name="close" label="Đóng" /></button>
             </div>}
           </>}
     </section>}

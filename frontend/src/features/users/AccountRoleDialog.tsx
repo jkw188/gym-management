@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import type { RoleCode } from '../auth/auth.types';
 import { usersApi, type AccessRole, type ChangeStatusResult, type UserAccount } from './users.api';
+import { Icon } from '../../components/Icon';
 
 interface Props {
   id: string; ownAccount: boolean; onClose: () => void;
@@ -105,8 +106,8 @@ export function AccountRoleDialog({ id, ownAccount, onClose, onSaved, onUnauthen
       </form>
     </>}
     <div className="user-actions">
-      <button ref={initialFocus} type="button" disabled={loading || pending} onClick={() => void reload()}>Tải lại tài khoản và quyền</button>
-      <button type="button" className="secondary" disabled={pending} onClick={onClose}>Đóng</button>
+      <button ref={initialFocus} type="button" disabled={loading || pending} onClick={() => void reload()}><Icon name="retry" label="Tải lại tài khoản và quyền" showLabel /></button>
+      <button type="button" className="secondary" disabled={pending} onClick={onClose}><Icon name="close" label="Đóng" /></button>
     </div>
   </dialog>;
 }

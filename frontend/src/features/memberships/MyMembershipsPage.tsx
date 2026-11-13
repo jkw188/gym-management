@@ -7,6 +7,7 @@ import {
   membershipsApi, type MyInvoice, type MyMembership, type MyServiceSale, type MyTransaction, type SaleOperation,
   type TransactionStatus,
 } from './memberships.api';
+import { Icon } from '../../components/Icon';
 
 // membershipsTotal/salesTotal là total server trả về, để biết còn bản ghi chưa tải (US-17-TC10).
 interface PageData {
@@ -151,7 +152,7 @@ export function MyMembershipsPage() {
     <h2>Gói tập của tôi</h2>
 
     {loading && <p>Đang tải…</p>}
-    {loadError && <div role="alert">{loadError} <button type="button" onClick={() => void load()}>Thử lại</button></div>}
+    {loadError && <div role="alert">{loadError} <button type="button" onClick={() => void load()}><Icon name="retry" label="Thử lại" /></button></div>}
 
     {/* US-17-F01, TC12: chưa liên kết là trạng thái bình thường, hướng dẫn ra quầy, không phải lỗi. */}
     {data && !data.memberLinked && <p>
