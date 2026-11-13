@@ -129,13 +129,14 @@ export function UsersPage() {
       onClose={() => setEditor(null)} onSaved={saved} onReload={() => void edit(editor.id)} /> : <section className="status-card">
       {editor.error ? <><p role="alert">{editor.error}</p><button type="button" onClick={() => void edit(editor.id)}><Icon name="retry" label="Tải lại chi tiết" showLabel /></button></> : <p role="status">Đang tải thông tin tài khoản…</p>}
       <button type="button" className="secondary" onClick={() => { detailRequest.current?.abort(); setEditor(null); }}><Icon name="close" label="Đóng" /></button></section>)}
-    <form className="users-filter" onSubmit={filter}>
-      <label htmlFor="users-search">Tìm tên, email hoặc số điện thoại</label><input id="users-search" value={q} maxLength={120} onChange={event => setQ(event.target.value)} />
-      <div className="users-filter-row"><div><label htmlFor="users-role">Lọc vai trò</label><select id="users-role" value={roleCode} onChange={event => setRoleCode(event.target.value)}>
+    {/* Thanh lọc gọn trên một hàng: ô tìm rộng hơn, hai ô chọn và nút lọc; màn hình hẹp thì tự xuống dòng. */}
+    <form className="users-filter toolbar" onSubmit={filter}>
+      <div className="toolbar-search"><label htmlFor="users-search">Tìm tên, email hoặc số điện thoại</label><input id="users-search" value={q} maxLength={120} onChange={event => setQ(event.target.value)} /></div>
+      <div><label htmlFor="users-role">Lọc vai trò</label><select id="users-role" value={roleCode} onChange={event => setRoleCode(event.target.value)}>
         <option value="">Tất cả vai trò</option>{(Object.keys(roleNames) as RoleCode[]).map(code => <option key={code} value={code}>{roleNames[code]}</option>)}
       </select></div><div><label htmlFor="users-status">Lọc trạng thái</label><select id="users-status" value={status} onChange={event => setStatus(event.target.value)}>
         <option value="">Tất cả trạng thái</option><option value="ACTIVE">Hoạt động</option><option value="LOCKED">Đã khóa</option>
-      </select></div></div><button type="submit"><Icon name="filter" label="Áp dụng bộ lọc" showLabel /></button>
+      </select></div><button type="submit"><Icon name="filter" label="Áp dụng bộ lọc" showLabel /></button>
     </form>
     {loading && <p role="status">Đang tải danh sách…</p>}
     {error && <p className="form-error" role="alert">{error} Hãy dùng nút tải lại danh sách.</p>}

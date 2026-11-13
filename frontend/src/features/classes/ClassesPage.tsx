@@ -116,17 +116,21 @@ export function ClassesPage() {
     <h2>Lịch lớp miễn phí</h2>
     <p>Lịch tham khảo công khai, không cần đăng ký chỗ.</p>
 
-    <div className="user-actions" role="group" aria-label="Chọn tuần">
-      <button type="button" className="secondary" onClick={() => changeWeek(-7)}><Icon name="prev" label="Tuần trước" /></button>
-      <span>{shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}</span>
-      <button type="button" className="secondary" onClick={() => changeWeek(7)}><Icon name="next" label="Tuần sau" /></button>
+    {/* Chọn tuần và bộ môn nằm chung một hàng. */}
+    <div className="toolbar">
+      <div className="user-actions week-picker" role="group" aria-label="Chọn tuần">
+        <button type="button" className="secondary" onClick={() => changeWeek(-7)}><Icon name="prev" label="Tuần trước" /></button>
+        <span>{shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}</span>
+        <button type="button" className="secondary" onClick={() => changeWeek(7)}><Icon name="next" label="Tuần sau" /></button>
+      </div>
+      <div className="toolbar-select">
+        <label htmlFor="class-subject">Bộ môn</label>
+        <select id="class-subject" value={subjectCode} onChange={event => changeSubject(event.target.value)}>
+          <option value="">Tất cả bộ môn</option>
+          {subjects.map(subject => <option key={subject.code} value={subject.code}>{subject.label}</option>)}
+        </select>
+      </div>
     </div>
-
-    <label htmlFor="class-subject">Bộ môn</label>
-    <select id="class-subject" value={subjectCode} onChange={event => changeSubject(event.target.value)}>
-      <option value="">Tất cả bộ môn</option>
-      {subjects.map(subject => <option key={subject.code} value={subject.code}>{subject.label}</option>)}
-    </select>
 
     {notice && <p className="form-error" role="alert">{notice}</p>}
 

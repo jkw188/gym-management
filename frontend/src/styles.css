@@ -196,3 +196,30 @@ main:has(.shifts-page) { max-width: 1240px; }
 button:has(> .icon-label > .sr-only) { padding: 8px 10px; line-height: 0; }
 /* Ẩn chữ khỏi màn hình nhưng trình đọc màn hình và test vẫn đọc được (kỹ thuật "screen-reader only"). */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ===== 12. Thanh công cụ một hàng (bộ lọc tài khoản, chọn tuần + bộ môn ở lịch lớp) ===== */
+/* Các ô nằm cùng hàng, đáy thẳng nhau; hết chỗ thì tự xuống dòng thay vì mỗi ô một dòng. */
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; margin: 20px 0; }
+.toolbar > div { flex: 1 1 160px; min-width: 0; }
+.toolbar > .toolbar-search { flex: 2 1 260px; }
+.toolbar > .toolbar-select { flex: 0 1 280px; margin-left: auto; }
+/* Nhãn không xuống dòng; dài quá thì cắt bằng dấu "…". */
+.toolbar label { margin-top: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Nút trong thanh cao bằng ô nhập để đáy thẳng hàng. */
+.toolbar > button { min-height: 42px; margin: 0; white-space: nowrap; }
+.toolbar > .week-picker { flex: 0 0 auto; margin: 0; }
+.week-picker > span { min-width: 110px; font-weight: 600; text-align: center; }
+
+/* ===== 13. Thẻ đăng nhập / đăng ký / quên, đặt lại, đổi mật khẩu: tiêu đề và chữ căn giữa ===== */
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) { text-align: center; }
+/* Tiêu đề căn giữa: bỏ vạch cam bên trái, thay bằng gạch cam ngắn bên dưới. */
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) h2 { padding-left: 0; border-left: 0; }
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) h2::after { content: ''; display: block; width: 48px; height: 3px; margin: 10px auto 0; background: var(--accent); }
+/* Ô nhập và nhãn trong form vẫn căn trái cho dễ đọc; nút gửi trải hết bề ngang. */
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) form { margin-bottom: 16px; text-align: left; }
+:is(.auth-card[aria-labelledby="login-title"], .auth-card[aria-labelledby="register-title"], .auth-card[aria-labelledby="forgot-title"],
+  .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"]) form > button[type="submit"] { width: 100%; margin-right: 0; padding: 11px 16px; }
