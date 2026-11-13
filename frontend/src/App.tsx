@@ -17,6 +17,7 @@ import { UsersPage } from './features/users/UsersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
 import { TrainerBookingsPage } from './features/pt-bookings/TrainerBookingsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
+import { ServicesPage } from './features/services/ServicesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
 import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
 import { PtBookingsPage } from './features/pt-bookings/PtBookingsPage';
@@ -31,7 +32,7 @@ export default function App() {
     {/* Thanh trên cùng: logo bên trái, menu bên phải. NavLink tự thêm class "active" cho trang đang mở. */}
     <header className="site-header"><div className="site-header-inner">
       <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">GM</span>Gym Management</Link>
-      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink>
+      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink>
         <NavLink to="/health">Kiểm tra nền tảng</NavLink><MemberNotificationBell /><LogoutButton /></nav>
     </div></header>
     {/* Dải banner tối dưới thanh menu: tiêu đề lớn và khẩu hiệu. */}
@@ -43,6 +44,8 @@ export default function App() {
       <Route path="/health" element={<FoundationStatus />} />
       {/* US-26: lịch lớp miễn phí công khai, KHÔNG bọc ProtectedRoute nên Guest xem được. */}
       <Route path="/classes" element={<ClassesPage />} />
+      {/* US-13: danh mục gói GYM/PT công khai, KHÔNG bọc ProtectedRoute nên Guest xem được. */}
+      <Route path="/services" element={<ServicesPage />} />
       {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>
