@@ -6,7 +6,20 @@ import { Icon } from '../../components/Icon';
 import { formatVnd } from '../plans/plans.api';
 import { servicesApi, type PublicPlan, type PublicPlanPage } from './services.api';
 
-const errorText = (error: unknown, fallback: string) => (error instanceof ApiError ? error.message : fallback);
+// US-13-TC06: lỗi 400 để câu chung "Dữ liệu không hợp lệ" ở message, lý do cụ thể nằm trong details
+// (vd "minPrice không được lớn hơn maxPrice") – có details thì hiện details.
+function errorText(error: unknown, fallback: string): string {
+  if (!(error instanceof ApiError)) return fallback;
+  if (error.details && error.details.length > 0) return error.details.map(detail => detail.message).join('. ');
+  return error.message;
+}
+
+// US-13-TC11: chỉ lỗi mạng (không có status) và lỗi server 5xx (vd 503) mới nên "Thử lại".
+// Lỗi 4xx là dữ liệu gửi lên sai, gửi lại y nguyên vẫn sai.
+function canRetry(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  return error.status === undefined || error.status >= 500;
+}
 
 // Ô giá chỉ giữ chữ số, để luôn gửi chuỗi số nguyên VND (EN-02).
 const digitsOnly = (text: string) => text.replace(/\D/g, '');
@@ -31,8 +44,12 @@ export function ServicesPage() {
   const [data, setData] = useState<PublicPlanPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
+  // Lỗi hiện tại có nên cho bấm "Thử lại" không.
+  const [listRetry, setListRetry] = useState(false);
   const [notice, setNotice] = useState('');
   const [selected, setSelected] = useState<PublicPlan | null>(null);
+  // Đang chờ GET chi tiết: hiện "Đang tải chi tiết..." để người dùng biết đã bấm.
+  const [detailLoading, setDetailLoading] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
 
   // Số lượt mở chi tiết: tăng mỗi lần mở/đóng/đổi bộ lọc để bỏ kết quả chi tiết về muộn.
@@ -65,7 +82,11 @@ export function ServicesPage() {
     setData(null);
     servicesApi.list({ kind, q, minPrice, maxPrice, page })
       .then(result => { if (!ignore) setData(result); })
-      .catch(error => { if (!ignore) setListError(errorText(error, 'Không tải được danh mục dịch vụ.')); })
+      .catch(error => {
+        if (ignore) return;
+        setListError(errorText(error, 'Không tải được danh mục dịch vụ.'));
+        setListRetry(canRetry(error));
+      })
       .finally(() => { if (!ignore) setLoading(false); });
     return () => { ignore = true; };
   }, [kind, q, minPrice, maxPrice, page, reloadCount]);
@@ -75,11 +96,17 @@ export function ServicesPage() {
     if (selected) detailHeading.current?.focus();
   }, [selected]);
 
+  // Đóng chi tiết đang mở hoặc đang tải; tăng số lượt để kết quả chi tiết về sau bị bỏ.
+  function stopDetail() {
+    detailRound.current += 1;
+    setSelected(null);
+    setDetailLoading(false);
+  }
+
   // US-13-TC07: đổi bộ lọc thì về trang 1, đóng chi tiết và xóa thông báo cũ.
   function startNewFilter() {
-    detailRound.current += 1;
+    stopDetail();
     setPage(1);
-    setSelected(null);
     setNotice('');
   }
 
@@ -89,19 +116,18 @@ export function ServicesPage() {
   }
 
   function changePage(nextPage: number) {
-    detailRound.current += 1;
-    setSelected(null);
+    stopDetail();
     setPage(nextPage);
   }
 
   // US-13-TC09: "Xem chi tiết" luôn hỏi lại server, không dùng bản trong danh sách hay bản đã xem trước.
   async function openDetail(id: string) {
-    detailRound.current += 1;
+    // Không giữ chi tiết gói cũ trong lúc chờ gói mới.
+    stopDetail();
     const round = detailRound.current;
     setNotice('');
     setShowGuide(false);
-    // Không giữ chi tiết gói cũ trong lúc chờ gói mới.
-    setSelected(null);
+    setDetailLoading(true);
     try {
       const plan = await servicesApi.detail(id);
       if (round !== detailRound.current) return;
@@ -115,14 +141,16 @@ export function ServicesPage() {
       } else {
         setNotice(errorText(error, 'Không tải được chi tiết dịch vụ.'));
       }
+    } finally {
+      // Chỉ tắt "Đang tải chi tiết..." nếu đây vẫn là lượt mới nhất.
+      if (round === detailRound.current) setDetailLoading(false);
     }
   }
 
   // US-13-TC12: đóng chi tiết thì focus về nút "Xem chi tiết" của gói vừa xem.
   function closeDetail() {
     const planId = selected?.id;
-    detailRound.current += 1;
-    setSelected(null);
+    stopDetail();
     if (planId) detailButtons.current.get(planId)?.focus();
   }
 
@@ -154,9 +182,10 @@ export function ServicesPage() {
 
     {loading && <p>Đang tải danh mục...</p>}
 
-    {/* US-13-TC11: lỗi DB/mạng có nút thử lại, giữ nguyên bộ lọc; không hiện danh mục rỗng hay giá 0. */}
+    {/* US-13-TC11: lỗi DB/mạng có nút thử lại, giữ nguyên bộ lọc; không hiện danh mục rỗng hay giá 0.
+        US-13-TC06: lỗi 400 (vd giá từ > giá đến) chỉ hiện lý do, không có nút thử lại. */}
     {listError && <div className="form-error" role="alert"><p>{listError}</p>
-      <button type="button" onClick={() => setReloadCount(count => count + 1)}><Icon name="retry" label="Thử lại" /></button></div>}
+      {listRetry && <button type="button" onClick={() => setReloadCount(count => count + 1)}><Icon name="retry" label="Thử lại" /></button>}</div>}
 
     {/* US-13-TC07: không có kết quả. */}
     {data && data.items.length === 0 && <p>Không tìm thấy dịch vụ phù hợp</p>}
@@ -182,6 +211,9 @@ export function ServicesPage() {
       <span>Trang {data.page}/{data.totalPages}</span>
       {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => changePage(page + 1)}><Icon name="next" label="Trang sau" /></button>}
     </div>}
+
+    {/* US-13-F05: đang chờ GET chi tiết thì báo để người dùng biết đã bấm. */}
+    {detailLoading && <p role="status">Đang tải chi tiết...</p>}
 
     {selected && <section aria-label="Chi tiết dịch vụ" className="auth-card">
       <h3 ref={detailHeading} tabIndex={-1}>{selected.name}</h3>
