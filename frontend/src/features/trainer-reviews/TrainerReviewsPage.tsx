@@ -51,6 +51,8 @@ function TrainerReviewsContent() {
   // Bộ lọc đã tạo ra danh sách đang hiển thị. Bộ lọc mới bị 400 thì danh sách cũ vẫn giữ, nên nút trang và
   // tải lại khi có mạng phải dùng bộ lọc này, không dùng bộ lọc sai.
   const shownFilter = useRef<TrainerReviewFilter>(INITIAL_FILTER);
+  // true khi lần tải gần nhất bị 400 (bộ lọc sai); false khi tải được hoặc lỗi mạng/503 (bộ lọc vẫn đúng).
+  const lastFilterRejected = useRef(false);
 
   const [detail, setDetail] = useState<TrainerReview | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -71,6 +73,7 @@ function TrainerReviewsContent() {
         if (loadNumber !== latestList.current) return;
         setList(page);
         shownFilter.current = filter;
+        lastFilterRejected.current = false;
         setLoading(false);
       },
       error => {
@@ -79,20 +82,23 @@ function TrainerReviewsContent() {
         // US-31-TC08: 400 là bộ lọc sai (kỳ sai, quá 366 ngày…) → báo lý do cạnh bộ lọc để người dùng sửa.
         // Giữ danh sách và tổng quan của bộ lọc trước (có ghi chú), không xóa trắng màn hình.
         if (error instanceof ApiError && error.status === 400) {
+          lastFilterRejected.current = true;
           setFilterError(filterErrorText(error));
           return;
         }
         // US-31-TC11: lỗi mạng/503 → bỏ dữ liệu, hiện lỗi kèm "Thử lại", KHÔNG hiện như "Chưa có đánh giá".
+        lastFilterRejected.current = false;
         setList(null);
         setListError(errorMessage(error, 'Không tải được danh sách đánh giá.'));
       },
     );
   }, [filter]);
 
-  // US-31-TC11 (spec 1.4): trình duyệt có mạng lại (sự kiện 'online') → tải lại danh sách theo bộ lọc đang hiển thị.
+  // US-31-TC11 (spec 1.4): trình duyệt có mạng lại (sự kiện 'online') → tải lại danh sách theo bộ lọc HIỆN TẠI
+  // (bộ lọc vừa bấm "Lọc", giống nút "Thử lại"). Riêng khi bộ lọc đó bị 400 thì gửi lại vẫn sai → tải lại bộ lọc đang hiển thị.
   // Tạo object mới cùng giá trị để effect ở trên chạy lại. Rời trang thì gỡ listener để không gọi API nữa.
   useEffect(() => {
-    const reload = () => setFilter({ ...shownFilter.current });
+    const reload = () => setFilter(current => ({ ...(lastFilterRejected.current ? shownFilter.current : current) }));
     window.addEventListener('online', reload);
     return () => window.removeEventListener('online', reload);
   }, []);
