@@ -188,7 +188,7 @@ describe('US-65 bước 3: Member gửi và xem đánh giá buổi PT trên tran
     expect(radios).toHaveLength(5);
     for (let star = 1; star <= 5; star += 1) {
       // Mỗi mức có nhãn chữ sau con số (ví dụ "4 sao – Tốt"), không chỉ "4 sao".
-      expect(within(form).getByRole('radio', { name: new RegExp(`^${star} sao\s*\S.*\p{L}`, 'u') })).toBeDefined();
+      expect(within(form).getByRole('radio', { name: new RegExp(`^${star} sao\\s*\\S.*\\p{L}`, 'u') })).toBeDefined();
     }
     expect(within(form).getByLabelText(/Nhận xét/)).toBeDefined();
     await userEvent.click(button(form, 'Đóng'));
