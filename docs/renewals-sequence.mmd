@@ -1,0 +1,48 @@
+sequenceDiagram
+  actor Staff as Staff/Admin
+  participant UI as Member history / Renewal panel
+  participant API as RenewalsController
+  participant Renewal as RenewalService
+  participant Command as Idempotency / TransactionRunner
+  participant DB as MongoDB replica set
+  participant Settlement as Settlement / SaleActivation
+  participant Event as Notifications EN-03
+  Staff->>UI: Chọn kỳ nguồn, xem trước
+  UI->>API: POST /service-renewals/preview
+  API->>Renewal: preview(memberId, previousSaleId, planVersion)
+  Renewal->>DB: Snapshot: source SETTLED/ACTIVE, tail, live plan, pending
+  Renewal-->>UI: Ngày dự kiến + giá hiện hành, không giữ giá
+  Staff->>UI: Xác nhận tạo gia hạn
+  UI->>API: POST /service-renewals + SALE_RENEW key
+  API->>Renewal: create(actor, DTO, key, COUNTER)
+  Note over Renewal,Command: US-19 ownership adapter gọi cùng create với SELF_SERVICE
+  Renewal->>Command: execute SALE_RENEW, hash actor/member/source/version/channel
+  Command->>DB: Đọc kết quả cùng key trước
+  alt Đã commit cùng payload
+    DB-->>UI: Replay nguyên kết quả
+  else Chưa có kết quả
+    Renewal->>DB: Khóa plan rồi member, kiểm lại source/tail/plan/pending
+    Renewal->>DB: Insert transaction PENDING + RENEW_V1 snapshots
+    alt Giá bằng 0
+      Renewal->>Renewal: activateWithinSession, tính ngày từ nguồn và hôm nay VN
+      Renewal->>DB: Membership mới used0, invoice0, SETTLED
+      Renewal->>Event: Persist SERVICE_SALE_SETTLED, recipient/outbox cùng session
+    else Có phí
+      Note over Renewal,DB: Chưa có membership mới; nguồn và quota/booking cũ giữ nguyên
+    end
+    Command->>DB: Lưu operation result, commit
+    API-->>UI: 201 SaleResult
+  end
+  opt Gia hạn có phí
+    Staff->>Settlement: Preview rồi confirm-payment + PAYMENT_CONFIRM key
+    Settlement->>DB: Khóa member rồi transaction, kiểm lại nghĩa vụ
+    Settlement->>DB: Payment đủ tiền + invoice cùng session
+    Settlement->>Renewal: Dispatch RENEW activateWithinSession
+    Renewal->>DB: Kiểm lại source/tail, snapshots, pending và payment
+    Renewal->>DB: Chốt actual dates, membership mới sessions_used=0
+    Settlement->>DB: SETTLED + operation result
+    Settlement->>Event: SERVICE_SALE_SETTLED: RENEW + kỳ mới, recipient cố định
+    DB-->>UI: Commit / rollback toàn bộ
+  end
+  Note over Renewal,DB: Không lấy khóa plan live tại settlement; không sửa kỳ nguồn
+  Note over UI,Command: Mất response giữ key; lookup404 không tạo key mới; 409 không tự chọn nguồn khác

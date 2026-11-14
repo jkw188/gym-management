@@ -3,6 +3,7 @@
 import { Schema, Types } from 'mongoose';
 
 export type SaleOperation = 'REGISTER' | 'RENEW' | 'UPGRADE';
+export type SaleChannel = 'COUNTER' | 'SELF_SERVICE';
 
 export interface ServiceSale {
   _id: Types.ObjectId;
@@ -12,6 +13,8 @@ export interface ServiceSale {
   plan_id: Types.ObjectId;
   operation: SaleOperation;
   previous_sale_id?: Types.ObjectId;
+  channel: SaleChannel;
+  preferred_payment_method?: 'CASH' | 'TRANSFER';
   start_date: string;                 // YYYY-MM-DD theo giờ Việt Nam
   end_date: string;
   plan_name_snapshot: string;         // US-17-F02: hiển thị theo snapshot lúc bán, không theo gói hiện tại
@@ -33,7 +36,10 @@ export const ServiceSaleSchema = new Schema<ServiceSale>({
   member_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true },
   plan_id: { type: Schema.Types.ObjectId, required: true },
   operation: { type: String, required: true, maxlength: 20, enum: ['REGISTER', 'RENEW', 'UPGRADE'] },
-  previous_sale_id: { type: Schema.Types.ObjectId, ref: 'ServiceSale' },
+  previous_sale_id: { type: Schema.Types.ObjectId, ref: 'ServiceSale',
+    required: function () { return this.operation === 'RENEW'; } },
+  channel: { type: String, enum: ['COUNTER', 'SELF_SERVICE'], required: true, default: 'COUNTER' },
+  preferred_payment_method: { type: String, enum: ['CASH', 'TRANSFER'] },
   start_date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
   end_date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
   plan_name_snapshot: { type: String, required: true, maxlength: 120 },

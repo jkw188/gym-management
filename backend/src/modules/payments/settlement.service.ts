@@ -66,8 +66,8 @@ export class SettlementService {
         const changed = await this.repository.settle(transactionId, transaction.version ?? 0, verifiedAt, session);
         if (changed.modifiedCount !== 1) throw invalidState();
         const event = await this.notifications.persistBusinessEvent(session, {
-          eventKey: `SERVICE_SALE_SETTLED:${sale._id.toHexString()}`, title: 'Đăng ký gói thành công',
-          body: `Gói ${sale.plan_name_snapshot}: ${activated.startDate} – ${activated.endDate}. Giao dịch ${transaction.code}.`,
+          eventKey: `SERVICE_SALE_SETTLED:${sale._id.toHexString()}`, title: sale.operation === 'RENEW' ? 'Gia hạn gói thành công' : 'Đăng ký gói thành công',
+          body: `${sale.operation === 'RENEW' ? 'RENEW · ' : ''}Gói ${sale.plan_name_snapshot}: ${activated.startDate} – ${activated.endDate}. Giao dịch ${transaction.code}.`,
           memberId: transaction.member_id.toHexString(), transactionId: id.toLowerCase(), createdBy: actorId,
         }, recipientId ? [recipientId] : []);
         const result = { transactionId: transactionId.toHexString(), transactionCode: transaction.code, status: 'SETTLED',

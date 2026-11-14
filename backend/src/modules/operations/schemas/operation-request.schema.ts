@@ -7,7 +7,7 @@ import { Schema, Types } from 'mongoose';
 // PT_BOOKING_CANCEL_OWN: Member tự hủy, PT_BOOKING_CANCEL_SUPPORT: Staff/Admin hủy hỗ trợ (US-29);
 // PT_BOOKING_COMPLETE: PT xác nhận buổi đã dạy, PT_BOOKING_CORRECT: Admin xác nhận hỗ trợ/rút xác nhận (US-64).
 // PT_REVIEW_CREATE: Member gửi đánh giá buổi PT đã hoàn tất (US-65).
-export const OPERATIONS = ['SALE_REGISTER', 'SALE_CANCEL', 'PAYMENT_CONFIRM', 'MEMBER_CREATE', 'MEMBER_LINK', 'SHIFT_CREATE', 'SHIFT_UPDATE',
+export const OPERATIONS = ['SALE_REGISTER', 'SALE_RENEW', 'SALE_CANCEL', 'PAYMENT_CONFIRM', 'MEMBER_CREATE', 'MEMBER_LINK', 'SHIFT_CREATE', 'SHIFT_UPDATE',
   'SHIFT_CONFIRM', 'SHIFT_CANCEL', 'PT_BOOKING_CREATE', 'PT_BOOKING_CANCEL_OWN', 'PT_BOOKING_CANCEL_SUPPORT',
   'PT_BOOKING_COMPLETE', 'PT_BOOKING_CORRECT', 'PT_REVIEW_CREATE'] as const;
 export type Operation = (typeof OPERATIONS)[number];

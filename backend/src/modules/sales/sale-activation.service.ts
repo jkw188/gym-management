@@ -6,21 +6,16 @@ import { ServerClock, membershipEndDate } from '../../common/utils/business-date
 import { fromVndDecimal } from '../../common/utils/vnd-money';
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { SalesRepository } from './sales.repository';
-
-export interface ActivationTarget { saleId: Types.ObjectId; memberId: Types.ObjectId; transactionId: Types.ObjectId }
-export interface ActivationResult { membershipId: string; startDate: string; endDate: string }
+import { RenewalService } from './renewal.service';
+import { ActivationResult, ActivationTarget, invalidState, SaleActivation } from './sale-activation.contract';
+export { ActivationResult, ActivationTarget, invalidState, SaleActivation } from './sale-activation.contract';
 
 // US-22 can prepare verified payment/invoice after these locks via prepareSettlement, in the existing session.
 // It acquires member -> transaction once; callers must not acquire the same guards separately.
-export abstract class SaleActivation {
-  abstract activateSaleWithinSession(session: ClientSession, target: ActivationTarget,
-    prepareSettlement?: () => Promise<void>): Promise<ActivationResult>;
-}
-
 @Injectable()
 export class SaleActivationService extends SaleActivation {
   constructor(private readonly repository: SalesRepository, private readonly guards: DataGuardsService,
-    private readonly clock: ServerClock) { super(); }
+    private readonly clock: ServerClock, private readonly renewals: RenewalService) { super(); }
 
   async activateSaleWithinSession(session: ClientSession, target: ActivationTarget,
     prepareSettlement?: () => Promise<void>): Promise<ActivationResult> {
@@ -51,6 +46,7 @@ export class SaleActivationService extends SaleActivation {
   private async activateLocked(session: ClientSession, target: ActivationTarget): Promise<ActivationResult> {
     const sale = await this.repository.sales.findOne({ _id: target.saleId, member_id: target.memberId, transaction_id: target.transactionId })
       .session(session).lean().exec();
+    if (sale?.operation === 'RENEW') return this.renewals.activateWithinSession(session, target);
     if (!sale || sale.operation !== 'REGISTER' || !sale.requested_start_date || !sale.duration_days_snapshot || !sale.kind_snapshot) throw invalidState();
     const transaction = await this.repository.transactions.findById(target.transactionId).session(session).lean().exec();
     if (!transaction || transaction.kind !== sale.kind_snapshot || fromVndDecimal(sale.credit_amount) !== '0' ||
@@ -68,5 +64,3 @@ export class SaleActivationService extends SaleActivation {
     return { membershipId: id.toHexString(), startDate, endDate };
   }
 }
-
-export function invalidState() { return new ApplicationError(409, 'INVALID_TRANSACTION_STATE', 'Trạng thái giao dịch không cho phép thao tác'); }

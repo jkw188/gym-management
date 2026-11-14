@@ -15,6 +15,10 @@ import { SalesRepository } from './sales.repository';
 import { SalesService } from './sales.service';
 import { PlansModule } from '../plans/plans.module';
 import { ZeroSettlement, ZeroSettlementService } from './zero-settlement.service';
+import { SaleReader } from './sale-reader.service';
+import { RenewalService } from './renewal.service';
+import { RenewalsRepository } from './renewals.repository';
+import { RenewalsController } from './renewals.controller';
 
 @Module({
   imports: [TransactionModule, MembersDataModule, OperationsModule, NotificationsModule, PlansModule, MongooseModule.forFeature([
@@ -22,9 +26,9 @@ import { ZeroSettlement, ZeroSettlementService } from './zero-settlement.service
     { name: 'Membership', schema: MembershipSchema }, { name: 'Transaction', schema: TransactionSchema },
     { name: 'Invoice', schema: InvoiceSchema }, { name: 'Payment', schema: PaymentSchema },
   ])],
-  controllers: [SalesController],
-  providers: [SalesRepository, SalesService, SaleActivationService,
+  controllers: [SalesController, RenewalsController],
+  providers: [SalesRepository, SaleReader, SalesService, RenewalService, RenewalsRepository, SaleActivationService,
     { provide: SaleActivation, useExisting: SaleActivationService }, { provide: ZeroSettlement, useClass: ZeroSettlementService }],
-  exports: [SaleActivation, SalesRepository],
+  exports: [SaleActivation, SalesRepository, RenewalService, RenewalsRepository],
 })
 export class SalesModule {}

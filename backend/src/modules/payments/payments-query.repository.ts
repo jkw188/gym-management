@@ -12,7 +12,7 @@ import { Transaction } from './schemas/transaction.schema';
 // Allowlist at the database boundary as well as in response mapping.
 const transactionFields = { _id: 1, member_id: 1, code: 1, kind: 1, amount_due: 1, status: 1, created_at: 1,
   version: 1, settled_at: 1, cancelled_at: 1, cancel_reason: 1 };
-const saleFields = { _id: 1, transaction_id: 1, member_id: 1, plan_id: 1, operation: 1, start_date: 1, end_date: 1,
+const saleFields = { _id: 1, transaction_id: 1, member_id: 1, plan_id: 1, operation: 1, previous_sale_id: 1, channel: 1, start_date: 1, end_date: 1,
   plan_name_snapshot: 1, benefits_snapshot: 1, list_price_snapshot: 1, credit_amount: 1, sessions_snapshot: 1,
   policy_snapshot: 1, requested_start_date: 1, duration_days_snapshot: 1, kind_snapshot: 1 };
 
