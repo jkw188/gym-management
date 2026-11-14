@@ -1,0 +1,46 @@
+sequenceDiagram
+  autonumber
+  participant Staff as Staff/Admin
+  participant Guard as JWT/Role guard
+  participant API as SettlementService
+  participant Idem as IdempotencyService
+  participant Port as US14 SaleActivation
+  participant Review as US21 PaymentReview
+  participant DB as MongoDB replica set
+  participant Events as NotificationsService
+  Staff->>Guard: POST /transactions/:id/confirm-payment + UUID key + actual receipt evidence
+  Guard->>API: Current authenticated actor + validated DTO
+  API->>Idem: PAYMENT_CONFIRM, normalized input, targetId
+  Idem->>DB: Start snapshot/majority transaction; read own operation key
+  alt Same committed key/payload
+    Idem-->>Staff: Original 200 SettlementResult
+  else Different payload/target for same key
+    Idem-->>Staff: 409 IDEMPOTENCY_CONFLICT
+  else New intent
+    Idem->>API: work(session), callback may retry
+    API->>DB: Read transaction/sale to identify lock targets
+    API->>Port: activateSaleWithinSession(session, target, prepareSettlement)
+    Port->>DB: Write member.service_revision then transaction.guard_revision
+    Port->>DB: Reread PENDING transaction
+    Port->>API: prepareSettlement after locks, same session
+    API->>Review: Recheck state, snapshot, amount, account, time, reference
+    Review->>DB: Read current eligibility and reference (simple collation)
+    Review-->>API: Current canConfirm/blockingCodes
+    API->>DB: Insert payment SUCCEEDED, invoice from locked buyer snapshot
+    Note over API,DB: Unique reference and partial unique SUCCEEDED are final constraints
+    API-->>Port: Preparation complete
+    Port->>DB: Validate successful full payment, activate membership and actual sale dates
+    Port-->>API: membershipId, startDate, endDate
+    API->>DB: CAS PENDING/version to SETTLED/version+1
+    API->>Events: Persist SERVICE_SALE_SETTLED + recipient snapshot (same session)
+    Events->>DB: Notification + recipients + outbox
+    API-->>Idem: Allowlisted SettlementResult and IDs
+    Idem->>DB: Insert operation result; commit all
+    Note over API,DB: Any error rolls back payment/invoice/membership/sale dates/event/operation
+    Idem-->>Staff: 200 or structured error; unknown commit returns 503 and retains key
+  end
+  Staff->>Guard: GET /operations/PAYMENT_CONFIRM/:key after lost response
+  Guard->>Idem: Current actor/permission
+  Idem->>DB: Read own committed result
+  Idem-->>Staff: Original result or 404 (may still be running)
+  Note over Staff,DB: Retry uses the same key/input. Preview never reserves reference. CASH time is server; TRANSFER paid_at is verified receivedAt.

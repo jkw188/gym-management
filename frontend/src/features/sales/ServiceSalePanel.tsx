@@ -3,6 +3,7 @@ import { apiClient, ApiError } from '../../api/client';
 import { vietnamDate } from '../shifts/shift-time';
 import { salesApi, type PendingSales, type SaleDetail, type SaleInput, type SalePlan, type SalePreview } from './sales.api';
 import { Icon } from '../../components/Icon';
+import { Link } from 'react-router-dom';
 
 type Command = { type: 'create'; key: string; input: SaleInput } |
   { type: 'cancel'; key: string; saleId: string; input: { version: number; reason: string } };
@@ -157,7 +158,8 @@ function SaleWizard({ memberId }: { memberId: string }) {
       <p>Quyền lợi đã chốt: {result.benefits} · Quota: {result.sessions} buổi</p>
       {result.transactionStatus === 'PENDING' && <><p>Chờ thu tiền — chưa cấp gói.</p>
         <p>Kỳ dự kiến: {result.startDate} → {result.endDate}. Kỳ thực tế được xác định khi hoàn tất thu.</p>
-        <p>Chức năng xác nhận thu tiền chưa sẵn sàng. Giao dịch được lưu để xử lý tiếp.</p>
+        <p>Mở trang thanh toán và tìm mã {result.transactionCode} để đối chiếu trước khi xác nhận thu.</p>
+        <Link to={`/${apiClient.getSnapshot().user?.roleCode === 'ADMIN' ? 'admin' : 'staff'}/transactions`}>Đối chiếu thanh toán</Link>
         <button type="button" disabled={busy || !!command} onClick={() => setConfirmCancel(true)}>Hủy đăng ký chờ</button></>}
       {result.transactionStatus === 'SETTLED' && <><p>Đã hoàn tất. Kỳ thực tế: {result.startDate} → {result.endDate} (bao gồm ngày cuối).</p>
         <p>Ngày yêu cầu: {result.requestedStartDate} · Mã membership: {result.membershipId}</p>

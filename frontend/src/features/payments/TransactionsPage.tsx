@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { apiClient } from '../../api/client';
-import { paymentsApi, type TransactionDetail, type TransactionFilters, type TransactionPage } from './payments.api';
+import { paymentsApi, type SettlementResult, type TransactionDetail, type TransactionFilters, type TransactionPage } from './payments.api';
 import { PaymentReviewForm } from './PaymentReviewForm';
 import { money, paymentError, timestamp } from './payments-format';
+import { InvoiceDetails, SettlementSummary } from './InvoiceDetails';
 
 const initialFilters: TransactionFilters = { kind: '', status: 'PENDING', memberId: '', q: '', createdFrom: '', createdTo: '', page: 1 };
 const statusLabels = { PENDING: 'Chờ thu', SETTLED: 'Đã hoàn tất', CANCELLED: 'Đã hủy' };
@@ -23,6 +24,7 @@ function TransactionsContent() {
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [detailError, setDetailError] = useState('');
   const [detailRetry, setDetailRetry] = useState(0);
+  const [settlement, setSettlement] = useState<SettlementResult | null>(null);
   const sequence = useRef(0);
 
   useEffect(() => {
@@ -60,7 +62,7 @@ function TransactionsContent() {
           : <><table><thead><tr><th>Mã</th><th>Khách hàng</th><th>Loại</th><th>Phải thu</th><th>Trạng thái</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
             <tbody>{page.items.map(item => <tr key={item.id}><td>{item.code}</td><td>{item.member?.memberCode} – {item.member?.fullName ?? 'Thiếu hồ sơ'}</td>
               <td>{item.kind}</td><td>{money(item.amountDue)}</td><td>{statusLabels[item.status]}</td><td>{timestamp(item.createdAt)}</td>
-              <td><button onClick={() => { setDetail(null); setSelected(item.id); setDetailRetry(value => value + 1); }}>Chi tiết {item.code}</button></td></tr>)}</tbody></table>
+              <td><button onClick={() => { setDetail(null); setSettlement(null); setSelected(item.id); setDetailRetry(value => value + 1); }}>Chi tiết {item.code}</button></td></tr>)}</tbody></table>
             <p>Trang {page.page}/{page.totalPages} · {page.total} giao dịch</p>
             <button disabled={page.page <= 1} onClick={() => setFilters({ ...filters, page: page.page - 1 })}>Trang trước</button>{' '}
             <button disabled={page.page >= page.totalPages} onClick={() => setFilters({ ...filters, page: page.page + 1 })}>Trang sau</button></>}
@@ -78,13 +80,18 @@ function TransactionsContent() {
             <p>{item.method} · {money(item.amount)} · {item.status} · {item.reference}</p>
             {item.paidAt && <p>Thực nhận: {timestamp(item.paidAt)}</p>}{item.evidenceNote && <p>Căn cứ: {item.evidenceNote}</p>}</article>)}
           {detail.invoice && <article><h4>Chứng từ {detail.invoice.invoiceNo}</h4><p>{money(detail.invoice.totalAmount)} · {timestamp(detail.invoice.issuedAt)}</p>
-            <p>Người mua lúc lập: {detail.invoice.buyerSnapshot}</p></article>}
+            <p>Người mua lúc lập: {detail.invoice.buyerSnapshot}</p>{!settlement && <InvoiceDetails id={detail.invoice.id} />}</article>}
           {detail.membershipId && <p>ID gói hội viên: {detail.membershipId}</p>}
           {detail.transaction.status === 'PENDING' && detail.transaction.amountDue !== '0'
-            ? <PaymentReviewForm key={`${selected}:${detailRetry}`} transaction={detail.transaction} />
+            ? <PaymentReviewForm key={`${selected}:${detailRetry}`} transaction={detail.transaction} onRefresh={() => {
+              setDetailRetry(current => current + 1); setRetry(current => current + 1);
+            }} onSettled={value => {
+              setSettlement(value); setDetailRetry(current => current + 1); setRetry(current => current + 1);
+            }} />
             : <p>Giao dịch này không mở đối chiếu khoản thu mới.{detail.transaction.amountDue === '0' && ' Gói 0 đồng không cần thanh toán.'}</p>}
           <p>Dữ liệu lúc {timestamp(detail.asOf)}</p>
         </>}
     </section>}
+    {settlement && <SettlementSummary result={settlement} />}
   </section>;
 }

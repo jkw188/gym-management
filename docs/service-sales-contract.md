@@ -1,12 +1,14 @@
 # US-14 / UC-20 — Đăng ký và kích hoạt gói tại quầy
 
+Tích hợp US-22: `PaymentsModule` gọi port `SaleActivation` hiện có; prepareSettlement chạy sau khóa member→transaction và ghi payment/invoice cùng session, activation/outbox/operation cùng commit. Trang bán gói dẫn sang đối chiếu thanh toán; nhánh miễn phí nội bộ giữ nguyên. Xem [settlement-contract.md](settlement-contract.md) và test API thật `settlement.integration-spec.ts` (phần thanh toán không còn chỉ kiểm bằng fixture).
+
 Nguồn: `Requirement_US-14.docx`, phiên bản 1.0, ngày 27/10/2026 do người dùng cung cấp. Đã đối chiếu văn bản/bảng US-12/21/22 trong cùng thư mục và các đoạn hợp đồng khóa/event liên quan của EN-02/03. Bổ sung triển khai cho UC-20; không thay đổi mã F01–F06, AC01–AC04 hoặc TC01–TC16. Sơ đồ: [service-sales-sequence.mmd](service-sales-sequence.mmd).
 
 ## Phạm vi và phụ thuộc
 
 STAFF/ADMIN bán REGISTER cho hồ sơ member đã tồn tại, kể cả chưa link account. GYM/PT độc lập. Không tạo member tự động, không gia hạn/nâng cấp/hoàn tiền, không sửa sale PENDING và không tự hủy theo thời gian.
 
-Repository hiện chưa có US-12 quản trị catalog hoặc US-21/22 preview thu/xác nhận thu/chứng từ nội bộ. US-14 cung cấp schema/read catalog, API bán/hủy, hoàn tất gói miễn phí và activation port nội bộ cho US-22. Gói có phí dừng ở PENDING; UI thông báo chưa cấp gói và chưa có chức năng xác nhận thu. Không đánh dấu toàn bộ US-14 Done khi chưa nghiệm thu UI/API thu tiền thật của US-22.
+US-14 cung cấp API bán/hủy, hoàn tất gói miễn phí và activation port nội bộ. Khi tạo sale có phí, giao dịch vẫn PENDING và chưa cấp gói; US-21/22 cung cấp đối chiếu, xác nhận thu và đọc chứng từ. Chỉ sau xác nhận US-22 thành công mới SETTLED và có membership. Không suy ra nghiệm thu toàn bộ sprint từ việc đã có source hoặc test riêng của US-14.
 
 ## Hợp đồng REST
 
@@ -38,7 +40,7 @@ Các mã 409: PLAN_CHANGED, PLAN_NOT_AVAILABLE, CURRENT_SERVICE_EXISTS, PENDING_
 
 `SalesModule` export abstract port `SaleActivation`. `activateSaleWithinSession(session,{saleId,memberId,transactionId},prepareSettlement?)` nhận session đang trong transaction, không mở transaction con, tự khóa member rồi transaction và kiểm lại trạng thái/chủ thể/snapshot/điều kiện cùng kind. Callback prepareSettlement cho US-22 đọc lại dữ liệu/ghi payment và invoice SAU khi lấy khóa, trước khi activation kiểm chứng payment và cấp membership. Không acquire khóa riêng rồi gọi port lần hai.
 
-US-22 phải lưu payment SUCCEEDED đã được xác minh với amount đúng trong cùng session, qua callback prepareSettlement; port kiểm evidence và từ chối cấp gói có phí khi chưa thu. Port tạo một membership với sessions_used=0, ghi kỳ thực tế; unique service_sale_id bảo vệ cấp đôi. US-22 ghi invoice trong callback, sau đó SETTLED và persistBusinessEvent cùng session, cùng event key `SERVICE_SALE_SETTLED:<saleId>`; bất kỳ lỗi nào phải rollback toàn bộ. Không dùng HTTP nội bộ, job/socket sau commit để cấp gói. Không đổi lại snapshot theo catalog đã thay đổi/ngừng bán.
+US-22 kiểm lại căn cứ bằng PaymentReviewService rồi lưu payment SUCCEEDED với amount đúng trong cùng session, qua callback prepareSettlement; port kiểm payment và từ chối cấp gói có phí khi chưa thu đủ. Port tạo một membership với sessions_used=0, ghi kỳ thực tế; unique service_sale_id bảo vệ cấp đôi. US-22 ghi invoice trong callback, sau đó SETTLED và persistBusinessEvent cùng session, cùng event key `SERVICE_SALE_SETTLED:<saleId>`; bất kỳ lỗi nào phải rollback toàn bộ. Không dùng HTTP nội bộ, job/socket sau commit để cấp gói. Không đổi lại snapshot theo catalog đã thay đổi/ngừng bán.
 
 `ZeroSettlement` tách thành port nhận activation callback để module thu tiền tương lai có thể thay implementation mà không tạo phụ thuộc Nest vòng. Nhánh miễn phí dùng khóa của lệnh tạo và transaction mới chưa thể nhìn thấy từ session khác; không acquire khóa lần hai.
 
@@ -81,4 +83,4 @@ db.plans.insertOne({ _id: planId, id: planId, code: 'US14-GYM-TEST', name: 'Gym 
 3. Trong hồ sơ, bấm Đăng ký gói → chọn gói/ngày → Xem trước → Xác nhận. Giá có phí phải PENDING, kỳ dự kiến và không membership/payment/invoice; không báo đã kích hoạt. Mở lại từ danh sách chờ; hủy cần lý do ≥10 ký tự. Sau hủy có thể tạo lại cùng kind.
 4. Dùng hội viên khác cho gói miễn phí: phải SETTLED, có membership/chứng từ và thông báo đã lưu (NO_LINKED_ACCOUNT nếu chưa liên kết), không payment. Gói bắt đầu tương lai chưa có quyền hiện tại; làm mới hồ sơ để xem entitlement.
 5. Ngắt mạng sau gửi rồi khôi phục: dùng nút gửi lại cùng yêu cầu. Tải lại trang/mở lại panel vẫn giữ key chưa rõ kết quả. Gửi hai request khác key cho cùng member/kind chỉ một lệnh được tạo. MEMBER/TRAINER gọi trực tiếp API phải 403.
-6. Luồng paid confirmation/invoice qua UI/API thật còn chờ implementation US-21/22 (đã đọc Requirement); chưa thể nghiệm thu đầy đủ TC04/08/13/15 theo luồng thu tiền thật.
+6. Với sale có phí, mở liên kết Đối chiếu thanh toán, tìm mã giao dịch, nhập căn cứ/tiền → preview READY → xác nhận đã thực nhận → Xác nhận thu tiền. Kiểm SETTLED, một payment/invoice/membership và thông báo đã lưu; mở chứng từ để xem snapshot/kỳ actual. Test API tích hợp thật nằm trong `settlement.integration-spec.ts`; demo trình duyệt và căn cứ thực nhận cần kiểm trên môi trường thử nghiệm phù hợp.

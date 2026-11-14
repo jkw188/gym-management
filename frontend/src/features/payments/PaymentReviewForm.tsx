@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { paymentsApi, type PaymentReview, type PaymentReviewInput, type TransactionItem } from './payments.api';
+import { paymentsApi, type PaymentReview, type PaymentReviewInput, type SettlementResult, type TransactionItem } from './payments.api';
 import { money, paymentError, timestamp } from './payments-format';
+import { PaymentConfirmation } from './PaymentConfirmation';
 
 const reasons: Record<string, string> = {
   AMOUNT_MISMATCH: 'Số tiền đối chiếu phải bằng số tiền phải thu.',
@@ -12,7 +13,9 @@ const reasons: Record<string, string> = {
   CURRENT_SERVICE_EXISTS: 'Hội viên đang có gói cùng loại.', PENDING_SALE_EXISTS: 'Hội viên có giao dịch chờ khác cùng loại.',
 };
 
-export function PaymentReviewForm({ transaction }: { transaction: TransactionItem }) {
+export function PaymentReviewForm({ transaction, onSettled, onRefresh }: {
+  transaction: TransactionItem; onSettled?: (result: SettlementResult) => void; onRefresh?: () => void;
+}) {
   const [method, setMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -23,14 +26,15 @@ export function PaymentReviewForm({ transaction }: { transaction: TransactionIte
   const [result, setResult] = useState<PaymentReview | null>(null);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [confirmLocked, setConfirmLocked] = useState(false);
   const busy = useRef(false);
   function invalidate() { setResult(null); setError(''); }
+  const input: PaymentReviewInput = { method, amount, evidenceNote: note.trim(), ...(method === 'TRANSFER'
+    ? { receivingAccountCode: account, bankReference: reference.trim(), receivedAt } : {}) };
 
   async function preview() {
-    if (busy.current || !verified) return;
+    if (busy.current || !verified || confirmLocked) return;
     busy.current = true; setPending(true); setResult(null); setError('');
-    const input: PaymentReviewInput = { method, amount, evidenceNote: note.trim(), ...(method === 'TRANSFER'
-      ? { receivingAccountCode: account, bankReference: reference.trim(), receivedAt } : {}) };
     try { setResult(await paymentsApi.preview(transaction.id, input)); }
     catch (reason) { setError(paymentError(reason)); }
     finally { busy.current = false; setPending(false); }
@@ -39,7 +43,7 @@ export function PaymentReviewForm({ transaction }: { transaction: TransactionIte
   return <form aria-label="Đối chiếu khoản thu" onSubmit={event => { event.preventDefault(); void preview(); }}>
     <h4>Đối chiếu khoản thu</h4>
     <p>Phải thu theo giao dịch: <strong>{money(transaction.amountDue)}</strong></p>
-    <fieldset disabled={pending}>
+    <fieldset disabled={pending || confirmLocked}>
       <label>Phương thức <select value={method} onChange={e => { setMethod(e.target.value as 'CASH' | 'TRANSFER'); setVerified(false); invalidate(); }}>
         <option value="CASH">Tiền mặt</option><option value="TRANSFER">Chuyển khoản</option></select></label>
       <label>Số tiền đối chiếu (VND) <input required inputMode="numeric" pattern="[0-9]{1,12}" value={amount} onChange={e => { setAmount(e.target.value); invalidate(); }} /></label>
@@ -61,7 +65,11 @@ export function PaymentReviewForm({ transaction }: { transaction: TransactionIte
       {result.normalizedReference && <p>Tham chiếu chuẩn: {result.normalizedReference}</p>}
       <ul>{result.blockingCodes.map(code => <li key={code}>{reasons[code] ?? code}</li>)}</ul>
       <p>Kiểm tra lúc {timestamp(result.asOf)}. Kết quả không giữ tham chiếu và chưa xác nhận thanh toán.</p>
-      {result.canConfirm && <p>Chức năng xác nhận khoản thu và lập chứng từ chưa khả dụng.</p>}
     </div>}
+    <PaymentConfirmation transactionId={transaction.id} input={result?.canConfirm ? input : null}
+      onLockedChange={setConfirmLocked} onSettled={onSettled} onRejected={code => {
+        setResult(null);
+        if (code === 'TRANSACTION_ALREADY_SETTLED' || code === 'INVALID_TRANSACTION_STATE') onRefresh?.();
+      }} />
   </form>;
 }

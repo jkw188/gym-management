@@ -8,7 +8,7 @@ sequenceDiagram
   participant Locks as DataGuardsService
   participant DB as MongoDB replica set
   participant Worker as Outbox worker
-  Note over Service,DB: EN-02 command contract; US-21 adds read-only lookup/preview. US-22 settlement is not implemented yet.
+  Note over Service,DB: EN-02 command contract; US-21 lookup/preview is read-only. US-22 atomic settlement is detailed in settlement-sequence.mmd.
   Client->>Guard: GET /transactions or /transactions/:id (US-21)
   Guard->>Service: Current STAFF/ADMIN + allowlisted query
   Service->>DB: Read real GYM/PT transactions, sale/payment/invoice projections
