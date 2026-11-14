@@ -2,12 +2,14 @@
 // Ghi cùng transaction với lệnh hủy (US-29-F05); request_key unique để một yêu cầu chỉ có một dòng audit.
 // US-64 bước 1: thêm dòng COMPLETE (PT/Admin xác nhận đã dạy) với revision, used và version trước–sau (US-64-C04).
 // US-64 bước 3: thêm dòng REOPEN (Admin rút xác nhận sai, US-64-C02), cùng các field như COMPLETE và bắt buộc có lý do.
+// US-65 bước 2: thêm dòng REVIEW_SUBMITTED (Member gửi đánh giá); trạng thái trước–sau đều COMPLETED, KHÔNG lưu nội dung comment.
 import { Schema, Types } from 'mongoose';
 import { PT_BOOKING_STATUSES, PtBookingStatus } from './pt-booking.schema';
 
 // CANCELLED: hủy buổi (US-29). COMPLETE: xác nhận buổi đã dạy (US-64). REOPEN: Admin rút xác nhận sai (US-64-C02).
-export type BookingEventAction = 'CANCELLED' | 'COMPLETE' | 'REOPEN';
-export const BOOKING_EVENT_ACTIONS: BookingEventAction[] = ['CANCELLED', 'COMPLETE', 'REOPEN'];
+// REVIEW_SUBMITTED: Member gửi đánh giá buổi đã hoàn tất (US-65).
+export type BookingEventAction = 'CANCELLED' | 'COMPLETE' | 'REOPEN' | 'REVIEW_SUBMITTED';
+export const BOOKING_EVENT_ACTIONS: BookingEventAction[] = ['CANCELLED', 'COMPLETE', 'REOPEN', 'REVIEW_SUBMITTED'];
 // Vai trò người thao tác lúc ghi audit: Member tự hủy, Staff/Admin hủy hỗ trợ, PT xác nhận đã dạy (US-64).
 export type BookingEventActorRole = 'MEMBER' | 'STAFF' | 'ADMIN' | 'TRAINER';
 export const BOOKING_EVENT_ACTOR_ROLES: BookingEventActorRole[] = ['MEMBER', 'STAFF', 'ADMIN', 'TRAINER'];

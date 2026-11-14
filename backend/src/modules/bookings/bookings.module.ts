@@ -74,5 +74,7 @@ import { TrainerBookingsService } from './trainer-bookings.service';
     CorrectBookingService,
     // US-64 bước 4: danh sách buổi dạy của PT.
     TrainerBookingsService, TrainerBookingsRepository],
+  // US-65 bước 2: ReviewsModule dùng BookingRepository đọc booking và ghi audit REVIEW_SUBMITTED vào booking_events.
+  exports: [BookingRepository],
 })
 export class BookingsModule {}

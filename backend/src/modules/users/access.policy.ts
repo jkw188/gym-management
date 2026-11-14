@@ -47,6 +47,9 @@ export const ACCESS_POLICY = {
   'ptBookings.readTrainerOwn': { name: 'Xem buổi dạy của mình', roles: ['TRAINER'] },
   // US-30: PT tra cứu học viên có booking BOOKED/COMPLETED với mình (UI /trainer/trainees).
   'trainees.readRelated': { name: 'Xem học viên có booking với mình', roles: ['TRAINER'] },
+  // US-65: chỉ Member chủ booking gửi và xem lại đánh giá của mình; PT/Admin/Staff không viết hộ (403).
+  'ptReviews.createOwn': { name: 'Gửi đánh giá buổi PT của mình', roles: ['MEMBER'] },
+  'ptReviews.readOwn': { name: 'Xem đánh giá buổi PT của mình', roles: ['MEMBER'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
