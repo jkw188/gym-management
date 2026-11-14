@@ -287,7 +287,8 @@ describe('US-31 bước 1: PT xem đánh giá của chính mình', () => {
       expect(JSON.stringify(response.body)).not.toContain('Bí mật của PT A');
     });
 
-    it('US-31-TC02: gửi query trainerId của PT khác → 400 hoặc 404, không lộ review của PT đó', async () => {
+    // Spec bản 1.2 (sinh viên chốt 14/11): query trainerId luôn 400, kể cả khi đi kèm bộ lọc hợp lệ.
+    it('US-31-TC02: gửi query trainerId của PT khác → 400, không lộ review của PT đó', async () => {
       const ptA = await trainer('PT A');
       const ptB = await trainer('PT B');
       const an = await member('Nguyen Van An');
@@ -295,9 +296,14 @@ describe('US-31 bước 1: PT xem đánh giá của chính mình', () => {
 
       const response = await list(ptB, { trainerId: ptA.trainerId.toHexString() });
 
-      expect([400, 404]).toContain(response.status);
-      expectError(response, response.status);
+      expectError(response, 400);
       expect(JSON.stringify(response.body)).not.toContain('Bí mật của PT A');
+    });
+
+    it('US-31-TC02: gửi trainerId của chính mình kèm bộ lọc hợp lệ → vẫn 400, không bỏ qua im lặng', async () => {
+      const pt = await trainer();
+
+      expectError(await list(pt, { trainerId: pt.trainerId.toHexString(), rating: 5 }), 400);
     });
 
     it('US-31-TC02: id chi tiết sai định dạng → 400; id hợp lệ nhưng không tồn tại → 404', async () => {
