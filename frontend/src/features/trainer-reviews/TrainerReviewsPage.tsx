@@ -11,6 +11,17 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Api
 // Giờ buổi tập theo giờ Việt Nam: "09:00–10:00 18/11/2026".
 const sessionTime = (review: TrainerReview) => `${formatRange(review.booking.startAt, review.booking.endAt)} ${formatDate(review.booking.startAt)}`;
 
+// Tên hiển thị của field bộ lọc, dùng khi server báo lỗi 400 theo field.
+const FILTER_LABELS: Record<string, string> = { fromDate: 'Từ ngày', toDate: 'Đến ngày', rating: 'Điểm', page: 'Trang' };
+
+// US-31-TC08: lỗi 400 của bộ lọc → lý do cụ thể trong details (vd "Đến ngày: Chỉ xem tối đa 366 ngày mỗi lần").
+// Không có details thì dùng message chung của server.
+function filterErrorText(error: ApiError): string {
+  const details = error.details ?? [];
+  if (details.length === 0) return error.message || 'Bộ lọc không hợp lệ.';
+  return details.map(detail => (FILTER_LABELS[detail.field] ? `${FILTER_LABELS[detail.field]}: ${detail.message}` : detail.message)).join(' ');
+}
+
 // Lỗi tải chi tiết: retryReviewId có khi lỗi tạm thời (mạng/503) để "Thử lại" đúng review đó; 404 thì không có.
 type DetailError = { text: string; retryReviewId?: string } | null;
 
@@ -34,6 +45,8 @@ function TrainerReviewsContent() {
   const [filter, setFilter] = useState<TrainerReviewFilter>({ fromDate: '', toDate: '', rating: '', page: 1 });
   const [list, setList] = useState<TrainerReviewPage | null>(null);
   const [listError, setListError] = useState('');
+  // US-31-TC08: lỗi do bộ lọc người dùng nhập (400) – hiện cạnh bộ lọc, KHÔNG có "Thử lại" vì gửi lại vẫn sai.
+  const [filterError, setFilterError] = useState('');
 
   const [detail, setDetail] = useState<TrainerReview | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -47,10 +60,16 @@ function TrainerReviewsContent() {
     const loadNumber = ++latestList.current;
     setList(null);
     setListError('');
+    setFilterError('');
     trainerReviewsApi.list(filter).then(
       page => { if (loadNumber === latestList.current) setList(page); },
-      // US-31-TC11: lỗi mạng/503 hiện như lỗi kèm "Thử lại", KHÔNG hiện như "Chưa có đánh giá".
-      error => { if (loadNumber === latestList.current) setListError(errorMessage(error, 'Không tải được danh sách đánh giá.')); },
+      error => {
+        if (loadNumber !== latestList.current) return;
+        // US-31-TC08: 400 là bộ lọc sai (kỳ sai, quá 366 ngày…) → báo lý do cạnh bộ lọc để người dùng sửa.
+        if (error instanceof ApiError && error.status === 400) setFilterError(filterErrorText(error));
+        // US-31-TC11: lỗi mạng/503 hiện như lỗi kèm "Thử lại", KHÔNG hiện như "Chưa có đánh giá".
+        else setListError(errorMessage(error, 'Không tải được danh sách đánh giá.'));
+      },
     );
   }, [filter]);
 
@@ -99,6 +118,7 @@ function TrainerReviewsContent() {
         {['1', '2', '3', '4', '5'].map(value => <option key={value} value={value}>{value} sao</option>)}
       </select>
       <button type="submit"><Icon name="filter" label="Lọc" /></button>
+      {filterError && <p role="alert">{filterError}</p>}
     </form>
 
     {/* US-31-TC04: account PT chưa có hồ sơ PT là trạng thái bình thường, không phải lỗi; không hiện điểm 0. */}
@@ -119,7 +139,7 @@ function TrainerReviewsContent() {
         <p>{listError}</p>
         <button type="button" onClick={() => setFilter({ ...filter })}><Icon name="retry" label="Thử lại" /></button>
       </div>}
-      {!list && !listError && <p>Đang tải danh sách đánh giá...</p>}
+      {!list && !listError && !filterError && <p>Đang tải danh sách đánh giá...</p>}
       {/* US-31-F02: buổi chưa có review không thành dòng điểm 0; tập rỗng ghi "Chưa có đánh giá". */}
       {list?.profileLinked && list.items.length === 0 && <p>Chưa có đánh giá</p>}
       {list?.items.map(review => <article key={review.id} aria-label={`Đánh giá ${review.id}`}>
