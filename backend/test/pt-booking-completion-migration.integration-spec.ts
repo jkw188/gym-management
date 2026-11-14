@@ -86,7 +86,9 @@ describe('US-64 bước 1: migration nguồn hoàn tất qua ensure-indexes', ()
       list_price_snapshot: Decimal128.fromString('3000000'), credit_amount: Decimal128.fromString('0'), sessions_snapshot: quota,
       policy_snapshot: 'Giá niêm yết', created_at: new Date(),
     });
-    await db().collection('memberships').insertOne({ _id: membershipId, id: membershipId, service_sale_id: saleId, status: 'ACTIVE', sessions_used: used });
+    // US-14 đã khởi tạo version; suite này chỉ kiểm migration hoàn tất booking của US-64.
+    await db().collection('memberships').insertOne({ _id: membershipId, id: membershipId,
+      service_sale_id: saleId, status: 'ACTIVE', sessions_used: used, version: 0 });
     return { memberId, membershipId };
   }
 

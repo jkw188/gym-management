@@ -158,6 +158,8 @@ describe('EN-02 bước 1: TransactionRunner trên MongoDB standalone', () => {
     runner = new TransactionRunner(connection);
   }, 600000);
 
+  afterEach(() => jest.restoreAllMocks());
+
   afterAll(async () => {
     await connection?.close();
     await standalone?.stop();
@@ -165,12 +167,19 @@ describe('EN-02 bước 1: TransactionRunner trên MongoDB standalone', () => {
 
   // EN-02-TC02: standalone không đủ điều kiện, không được tự chuyển sang nhiều lệnh ghi rời.
   it('EN-02-TC02: standalone bị từ chối, callback không được chạy và không có dữ liệu nào được ghi', async () => {
+    const startSession = jest.spyOn(connection, 'startSession');
     const work = jest.fn(async () => {
       await connection.collection('payments').insertOne({ amount: 1000 });
     });
 
-    await expect(runner.run(work)).rejects.toMatchObject({ status: 503, code: 'TRANSACTIONS_NOT_SUPPORTED' });
+    // EN-02 dùng mã 503 chung như hợp đồng US-07/08; nguyên nhân standalone nằm trong message.
+    await expect(runner.run(work)).rejects.toMatchObject({
+      status: 503,
+      code: 'SERVICE_UNAVAILABLE',
+      message: expect.stringContaining('TRANSACTIONS_NOT_SUPPORTED'),
+    });
 
+    expect(startSession).not.toHaveBeenCalled();
     expect(work).not.toHaveBeenCalled();
     expect(await connection.collection('payments').countDocuments()).toBe(0);
   });
