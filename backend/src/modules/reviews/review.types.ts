@@ -36,3 +36,38 @@ export interface OwnReviewResponse {
   canReview: boolean;
   reason?: string;
 }
+
+// US-31: một dòng trainer_reviews đã nối sang buổi tập (pt_bookings) qua booking_id.
+export interface TrainerReviewRow {
+  _id: Types.ObjectId;
+  rating: number;
+  comment: string;
+  created_at: Date;
+  member_display_name_snapshot?: string;
+  booking: { _id: Types.ObjectId; start_at: Date; end_at: Date };
+}
+
+// US-31-F01: điều kiện đọc danh sách; trainerId luôn lấy từ account đang đăng nhập, không nhận từ client.
+export interface TrainerReviewFilter {
+  trainerId: Types.ObjectId;
+  // Khoảng thời điểm GỬI đánh giá [from, to) (US-31-F02), không phải giờ buổi tập.
+  from: Date;
+  to: Date;
+  limit: number;
+}
+
+// US-31 mục 2: dữ liệu PT thấy về một đánh giá – đúng 6 field, không có điện thoại/email hội viên (US-31-F03).
+export interface TrainerReviewView {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  booking: { id: string; startAt: string; endAt: string };
+  memberDisplayName: string;
+}
+
+// US-31-TC04: profileLinked=false khi account TRAINER chưa có hồ sơ PT. Bước 2 thêm phân trang và summary.
+export interface TrainerReviewListResponse {
+  profileLinked: boolean;
+  items: TrainerReviewView[];
+}
