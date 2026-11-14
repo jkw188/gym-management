@@ -30,6 +30,7 @@ const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
 const { MembershipSchema } = require('../dist/modules/memberships/schemas/membership.schema');
 const { TransactionSchema } = require('../dist/modules/payments/schemas/transaction.schema');
+const { PaymentSchema } = require('../dist/modules/payments/schemas/payment.schema');
 const { PlanPolicySchema } = require('../dist/modules/plans/schemas/plan-policy.schema');
 const { mapError } = require('../dist/common/http/http-error.filter');
 
@@ -55,6 +56,7 @@ async function run() {
       }
       await connection.model('Plan', PlanSchema).createIndexes();
       await connection.model('PlanPolicy', PlanPolicySchema).createIndexes();
+      await connection.model('Payment', PaymentSchema).createIndexes();
       const account = connection.model('Account', AccountSchema);
       const role = connection.model('Role', RoleSchema);
       await Promise.all([connection.model('Permission', PermissionSchema).createIndexes(),
