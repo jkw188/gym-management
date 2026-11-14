@@ -8,7 +8,16 @@ sequenceDiagram
   participant Locks as DataGuardsService
   participant DB as MongoDB replica set
   participant Worker as Outbox worker
-  Note over Service,DB: EN-02 integration contract. US-09/12/14/22 business APIs remain to be implemented.
+  Note over Service,DB: EN-02 command contract; US-21 adds read-only lookup/preview. US-22 settlement is not implemented yet.
+  Client->>Guard: GET /transactions or /transactions/:id (US-21)
+  Guard->>Service: Current STAFF/ADMIN + allowlisted query
+  Service->>DB: Read real GYM/PT transactions, sale/payment/invoice projections
+  Service-->>Client: Page or detail + version, asOf; no key/hash/secret
+  Client->>Guard: POST /transactions/:id/payment-preview + manual evidence (US-21)
+  Guard->>Service: Current STAFF/ADMIN + PaymentReviewDto
+  Service->>DB: Read current sale/amount/state, member eligibility, reference with simple collation
+  Service-->>Client: READY / NEEDS_REVIEW / BLOCKED; canConfirm, blockingCodes, amountDue, asOf
+  Note over Client,DB: Preview writes nothing and reserves nothing. READY is not SETTLED. Confirm must recheck under locks and unique indexes (US-22).
   Client->>Guard: Command + Bearer + UUID v4 Idempotency-Key
   Guard->>Service: Current principal, validated DTO
   Service->>Idem: execute(actorId, operation, key, normalized payload/target)

@@ -25,6 +25,6 @@ import { ZeroSettlement, ZeroSettlementService } from './zero-settlement.service
   controllers: [SalesController],
   providers: [SalesRepository, SalesService, SaleActivationService,
     { provide: SaleActivation, useExisting: SaleActivationService }, { provide: ZeroSettlement, useClass: ZeroSettlementService }],
-  exports: [SaleActivation],
+  exports: [SaleActivation, SalesRepository],
 })
 export class SalesModule {}

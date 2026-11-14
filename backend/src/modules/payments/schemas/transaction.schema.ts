@@ -45,3 +45,4 @@ export const TransactionSchema = new Schema<Transaction>({
 TransactionSchema.index({ code: 1 }, { unique: true, name: 'transactions_code_unique' });
 TransactionSchema.index({ request_key: 1 }, { unique: true, name: 'transactions_request_key_unique' });
 TransactionSchema.index({ member_id: 1, status: 1, kind: 1 }, { name: 'transactions_member_status_kind' });
+TransactionSchema.index({ status: 1, kind: 1, created_at: -1, _id: -1 }, { name: 'transactions_status_kind_created' });
