@@ -7,7 +7,6 @@ import { PlanReaderService } from './plan-reader.service';
 import { PlanPoliciesController, PlansController } from './plans.controller';
 import { PlansReader } from './plans.reader';
 import { PlansRepository } from './plans.repository';
-import { PlansReader } from './plans.reader';
 import { PlansService } from './plans.service';
 import { PlanSchema } from './schemas/plan.schema';
 import { PlanPolicySchema } from './schemas/plan-policy.schema';

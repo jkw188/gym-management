@@ -15,6 +15,10 @@ export interface Payment {
   status: PaymentStatus;
   verified_by?: Types.ObjectId;
   paid_at?: Date;
+  verified_at?: Date;
+  evidence_note?: string;
+  receiving_account_code?: string;
+  bank_reference?: string;
 }
 
 export const PaymentSchema = new Schema<Payment>({
@@ -26,4 +30,9 @@ export const PaymentSchema = new Schema<Payment>({
   status: { type: String, required: true, maxlength: 20, enum: ['PENDING', 'SUCCEEDED', 'FAILED'] },
   verified_by: { type: Schema.Types.ObjectId },
   paid_at: { type: Date },
+  verified_at: { type: Date },
+  evidence_note: { type: String, maxlength: 500 },
+  receiving_account_code: { type: String, maxlength: 40 },
+  bank_reference: { type: String, maxlength: 100 },
 }, { collection: 'payments', id: false, versionKey: false });
+PaymentSchema.index({ transaction_id: 1 }, { name: 'payments_transaction' });
