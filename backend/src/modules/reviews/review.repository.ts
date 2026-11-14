@@ -4,18 +4,19 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongodb';
 import { Connection, Model, PipelineStage, Types } from 'mongoose';
+import { PtBookingStatus } from '../bookings/schemas/pt-booking.schema';
 import { TrainerReview } from './schemas/trainer-review.schema';
 import { NewTrainerReview, ReviewMember, TrainerReviewFilter, TrainerReviewRow } from './review.types';
 
-// US-31 mục 2: nối review sang buổi tập bằng booking_id VÀ kiểm buổi đó cũng do chính PT này dạy.
-// Chỉ lấy 3 field giờ buổi; review không có buổi khớp bị $unwind bỏ đi (bước 4 bổ sung dataIssue cho nguồn mồ côi).
-function bookingStages(trainerId: Types.ObjectId): PipelineStage[] {
+// US-31 mục 2, F02: nối review sang buổi tập bằng booking_id, kiểm buổi đó do chính PT này dạy VÀ đang ở trạng thái service yêu cầu.
+// Chỉ lấy 3 field giờ buổi; review không có buổi khớp bị $unwind bỏ đi (bước 4 bổ sung dataIssue cho nguồn mồ côi/không hợp lệ).
+function bookingStages(trainerId: Types.ObjectId, bookingStatus: PtBookingStatus): PipelineStage[] {
   return [
     { $lookup: {
       from: 'pt_bookings',
       let: { bookingId: '$booking_id' },
       pipeline: [
-        { $match: { $expr: { $eq: ['$_id', '$$bookingId'] }, trainer_id: trainerId } },
+        { $match: { $expr: { $eq: ['$_id', '$$bookingId'] }, trainer_id: trainerId, status: bookingStatus } },
         { $project: { _id: 1, start_at: 1, end_at: 1 } },
       ],
       as: 'booking',
@@ -69,17 +70,19 @@ export class ReviewRepository {
     return this.reviews.aggregate<TrainerReviewRow>([
       { $match: { trainer_id: filter.trainerId, created_at: { $gte: filter.from, $lt: filter.to } } },
       { $sort: { created_at: -1, _id: -1 } },
-      ...bookingStages(filter.trainerId),
+      ...bookingStages(filter.trainerId, filter.bookingStatus),
       { $limit: filter.limit },
       TRAINER_VIEW_PROJECTION,
     ]).exec();
   }
 
-  // US-31-TC01, TC02: một đánh giá theo id, CHỈ khi thuộc PT này; của PT khác hoặc không có → null.
-  async findTrainerReviewById(trainerId: Types.ObjectId, reviewId: Types.ObjectId): Promise<TrainerReviewRow | null> {
+  // US-31-TC01, TC02, F02: một đánh giá theo id, CHỈ khi thuộc PT này và buổi đúng trạng thái; của PT khác, không có hoặc buổi sai trạng thái → null.
+  async findTrainerReviewById(
+    trainerId: Types.ObjectId, reviewId: Types.ObjectId, bookingStatus: PtBookingStatus,
+  ): Promise<TrainerReviewRow | null> {
     const [row] = await this.reviews.aggregate<TrainerReviewRow>([
       { $match: { _id: reviewId, trainer_id: trainerId } },
-      ...bookingStages(trainerId),
+      ...bookingStages(trainerId, bookingStatus),
       TRAINER_VIEW_PROJECTION,
     ]).exec();
     return row ?? null;

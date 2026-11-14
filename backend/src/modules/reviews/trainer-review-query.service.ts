@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { addCalendarDays, ServerClock } from '../../common/utils/business-date';
+import { PtBookingStatus } from '../bookings/schemas/pt-booking.schema';
 import { toTrainerReviewView } from './review.mapper';
 import { ReviewRepository } from './review.repository';
 import { TrainerReviewListResponse, TrainerReviewView } from './review.types';
@@ -12,6 +13,8 @@ import { TrainerReviewListResponse, TrainerReviewView } from './review.types';
 const DEFAULT_DAYS = 30;
 // US-31 mục 2: limit mặc định 20. Bước 2 mới cho chọn page/limit; bước này luôn trả trang đầu.
 const DEFAULT_LIMIT = 20;
+// US-31-F02: review chỉ hợp lệ khi buổi tập đang COMPLETED. Review của buổi BOOKED/CANCELLED là dữ liệu lỗi, không hiển thị.
+const VALID_BOOKING_STATUS: PtBookingStatus = 'COMPLETED';
 
 // US-31-TC02, TC04: review không có, của PT khác, hoặc PT chưa có hồ sơ đều trả CÙNG một lỗi để không lộ review nào tồn tại.
 const notFound = () => new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy đánh giá');
@@ -39,7 +42,9 @@ export class TrainerReviewQueryService {
 
     // US-31-F01: trainer_id nằm trong điều kiện truy vấn DB, không lấy hết rồi lọc ở đây.
     // US-31-TC04: chỉ đọc trainer_reviews → buổi chưa có review không thành dòng rating=0.
-    const rows = await this.reviews.findTrainerReviews({ trainerId, from, to, limit: DEFAULT_LIMIT });
+    const rows = await this.reviews.findTrainerReviews({
+      trainerId, from, to, limit: DEFAULT_LIMIT, bookingStatus: VALID_BOOKING_STATUS,
+    });
     return { profileLinked: true, items: rows.map(toTrainerReviewView) };
   }
 
@@ -49,7 +54,8 @@ export class TrainerReviewQueryService {
     // US-31 mục 2: hồ sơ PT chưa liên kết → chi tiết 404.
     if (!trainerId) throw notFound();
     // US-31-TC02: điều kiện trainer_id nằm trong truy vấn → review của PT khác trả null → 404.
-    const row = await this.reviews.findTrainerReviewById(trainerId, new Types.ObjectId(reviewId));
+    // US-31-F02: buổi không COMPLETED cũng trả null → 404, giống danh sách không hiện review đó.
+    const row = await this.reviews.findTrainerReviewById(trainerId, new Types.ObjectId(reviewId), VALID_BOOKING_STATUS);
     if (!row) throw notFound();
     return toTrainerReviewView(row);
   }

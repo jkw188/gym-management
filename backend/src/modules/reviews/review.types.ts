@@ -1,5 +1,6 @@
 // Tầng kiểu dữ liệu (US-65 bước 2): type dùng chung giữa service, repository và mapper của đánh giá buổi PT.
 import { Types } from 'mongoose';
+import { PtBookingStatus } from '../bookings/schemas/pt-booking.schema';
 
 // Dữ liệu một đánh giá mới; service đã kiểm luật, repository chỉ ghi (US-65-F04).
 export interface NewTrainerReview {
@@ -54,6 +55,8 @@ export interface TrainerReviewFilter {
   from: Date;
   to: Date;
   limit: number;
+  // US-31-F02: chỉ review của buổi ở trạng thái này mới hợp lệ (service truyền COMPLETED).
+  bookingStatus: PtBookingStatus;
 }
 
 // US-31 mục 2: dữ liệu PT thấy về một đánh giá – đúng 6 field, không có điện thoại/email hội viên (US-31-F03).
