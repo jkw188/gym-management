@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { CatalogError, catalogError } from './PlanForm';
 import { findCreatedPolicy, formatVnd, plansApi, type CatalogPage, type CatalogStatus, type Plan, type PlanPolicy } from './plans.api';
+import { Icon } from '../../components/Icon';
 
 // Search/page rather than truncating the selectable catalog to its first 100 entries.
 export function PlanPicker({ label, value, onChange }: { label: string; value: string; onChange: (id: string) => void }) {
@@ -25,8 +26,8 @@ export function PlanPicker({ label, value, onChange }: { label: string; value: s
     {loading && <p role="status">Đang tải gói…</p>}
     {!loading && !error && result?.items.length === 0 && <p>Không tìm thấy gói.</p>}
     <CatalogError error={error} />{error && <button type="button" onClick={() => setRetry(value => value + 1)}>Thử lại {label.toLowerCase()}</button>}
-    <div className="user-actions"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}>Trang trước {label.toLowerCase()}</button>
-      <span>{page} / {result?.totalPages ?? 0}</span><button type="button" disabled={loading || !result || page >= result.totalPages} onClick={() => setPage(page + 1)}>Trang sau {label.toLowerCase()}</button></div>
+    <div className="user-actions"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}><Icon name="prev" label={`Trang trước ${label.toLowerCase()}`} /></button>
+      <span>{page} / {result?.totalPages ?? 0}</span><button type="button" disabled={loading || !result || page >= result.totalPages} onClick={() => setPage(page + 1)}><Icon name="next" label={`Trang sau ${label.toLowerCase()}`} /></button></div>
   </div>;
 }
 
@@ -77,6 +78,6 @@ export function PolicyForm({ initial, onClose, onSaved }: { initial?: PlanPolicy
       {error?.code === 'VERSION_CONFLICT' && <><p>Bản nhập được giữ. Tải lại sẽ bỏ bản nhập để lấy phiên bản mới.</p><button type="button" disabled={pending} onClick={() => void lookup(true)}>Bỏ bản nhập và tải lại chính sách</button></>}
       {uncertain && <button type="button" disabled={pending} onClick={() => void lookup(false)}>Tra cứu cặp chính sách trước khi thử lại</button>}
       <div className="user-actions"><button type="submit" disabled={pending || uncertain || error?.code === 'VERSION_CONFLICT'}>{pending ? 'Đang xử lý…' : 'Lưu chính sách'}</button>
-        <button type="button" className="secondary" disabled={pending} onClick={onClose}>Đóng</button></div>
+        <button type="button" className="secondary" disabled={pending} onClick={onClose}><Icon name="close" label="Đóng" /></button></div>
     </form></section>;
 }

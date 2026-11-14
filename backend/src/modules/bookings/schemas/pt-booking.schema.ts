@@ -87,6 +87,10 @@ PtBookingSchema.index({ membership_id: 1, status: 1 }, { name: 'pt_bookings_memb
 PtBookingSchema.index({ trainer_id: 1, status: 1, start_at: 1, end_at: 1 }, { name: 'pt_bookings_trainer_status_time' });
 // US-27-F04: buổi BOOKED/COMPLETED của chính Member trên mọi PT; US-27-F05: lịch riêng của Member theo ngày.
 PtBookingSchema.index({ member_id: 1, status: 1, start_at: 1, end_at: 1 }, { name: 'pt_bookings_member_status_time' });
+// US-30 (spec mục 2): gom học viên distinct theo PT và trạng thái quan hệ BOOKED/COMPLETED.
+PtBookingSchema.index({ trainer_id: 1, status: 1, member_id: 1 }, { name: 'pt_bookings_trainer_status_member' });
+// US-30 bước 2 (spec mục 2): lịch của một học viên với chính PT, sắp startAt rồi _id.
+PtBookingSchema.index({ trainer_id: 1, member_id: 1, start_at: 1, _id: 1 }, { name: 'pt_bookings_trainer_member_time' });
 // US-28-G01 (spec mục 3): tìm booking theo ca khi ca bị hủy/sửa.
 PtBookingSchema.index({ shift_id: 1, status: 1 }, { name: 'pt_bookings_shift_status' });
 // US-28 (spec mục 3): request_key = SHA-256 của actor|operation|key theo EN-02, unique để một yêu cầu chỉ tạo một booking.

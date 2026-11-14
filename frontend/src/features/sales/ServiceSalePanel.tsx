@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiClient, ApiError } from '../../api/client';
 import { vietnamDate } from '../shifts/shift-time';
 import { salesApi, type PendingSales, type SaleDetail, type SaleInput, type SalePlan, type SalePreview } from './sales.api';
+import { Icon } from '../../components/Icon';
 
 type Command = { type: 'create'; key: string; input: SaleInput } |
   { type: 'cancel'; key: string; saleId: string; input: { version: number; reason: string } };
@@ -131,7 +132,7 @@ function SaleWizard({ memberId }: { memberId: string }) {
     </div>}
     {command && !busy && <div><p>Chưa xác định kết quả. Giữ nguyên yêu cầu để tránh tạo giao dịch trùng.</p>
       <button type="button" onClick={() => void send(command)}>Kiểm tra / gửi lại cùng yêu cầu</button></div>}
-    <button type="button" disabled={busy || !!command} onClick={() => void load()}>Tải lại danh mục và giao dịch chờ</button>
+    <button type="button" disabled={busy || !!command} onClick={() => void load()}><Icon name="retry" label="Tải lại danh mục và giao dịch chờ" showLabel /></button>
     <fieldset disabled={busy || !!command}><legend>Điều khoản đăng ký</legend>
       <label htmlFor="sale-plan">Gói đang bán</label>
       <select id="sale-plan" value={planId} onChange={event => { changeSelection(); setPlanId(event.target.value); }}>
@@ -163,7 +164,7 @@ function SaleWizard({ memberId }: { memberId: string }) {
         <p>Chứng từ: {result.invoiceNumber ?? result.invoiceId}</p>
         <p>{result.notificationState === 'NO_LINKED_ACCOUNT' ? 'Thông báo đã lưu; hội viên chưa có tài khoản nhận.' : 'Thông báo đã được lưu.'}</p></>}
       {result.transactionStatus === 'CANCELLED' && <p>Đã hủy đăng ký chờ. Lý do: {result.cancelReason}</p>}
-      <button type="button" disabled={busy || !!command} onClick={() => void openSale(result.saleId)}>Tải lại giao dịch</button>
+      <button type="button" disabled={busy || !!command} onClick={() => void openSale(result.saleId)}><Icon name="retry" label="Tải lại giao dịch" showLabel /></button>
       {confirmCancel && result.transactionStatus === 'PENDING' && <div role="dialog" aria-modal="true" aria-label="Xác nhận hủy đăng ký">
         <label htmlFor="sale-cancel-reason">Lý do hủy (10–500 ký tự)</label>
         <textarea id="sale-cancel-reason" disabled={busy || !!command} maxLength={500} value={reason} onChange={event => setReason(event.target.value)} />

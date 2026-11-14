@@ -5,6 +5,7 @@ import { membersApi, type Member, type MemberDetail } from './members.api';
 import { MemberEntitlements, MemberReadTime } from './MemberEntitlements';
 import { MemberHistory } from './MemberHistory';
 import { ServiceSalePanel } from '../sales/ServiceSalePanel';
+import { Icon } from '../../components/Icon';
 
 const fields = ['fullName', 'phone', 'birthDate', 'address'] as const;
 type Field = typeof fields[number];
@@ -142,7 +143,7 @@ function MemberProfileEditor({ id }: { id: string }) {
     {error && <div role="alert"><p>{error.message}</p>{error.requestId && <small>Mã tra cứu: {error.requestId}</small>}</div>}
     {status && <p role="status">{status}</p>}
     {stopped && <p>Đã dừng thao tác vì hồ sơ không tồn tại hoặc bạn không còn quyền truy cập.</p>}
-    {!member && !pending && !stopped && <button type="button" onClick={() => void load(false)}>Tải lại hồ sơ</button>}
+    {!member && !pending && !stopped && <button type="button" onClick={() => void load(false)}><Icon name="retry" label="Tải lại hồ sơ" showLabel /></button>}
     {member && !stopped && <>
       <dl><dt>Mã hội viên</dt><dd>{member.memberCode}</dd><dt>Liên kết tài khoản (chỉ đọc)</dt><dd>{member.accountId ?? 'Chưa liên kết'}</dd></dl>
       {detail && <><MemberEntitlements summary={detail.entitlementSummary} /><MemberReadTime time={detail} /></>}
@@ -160,7 +161,7 @@ function MemberProfileEditor({ id }: { id: string }) {
           if (blocked) { setStatus('Chưa xác định dữ liệu mới nhất. Tải lại hồ sơ trước khi chỉnh sửa tiếp.'); } }}>Hủy sửa</button>
       </>}
       {blocked && <div><p>Hồ sơ đã thay đổi hoặc chưa xác định kết quả lưu. Cần GET lại để đối chiếu; không tự gửi lại bản nhập cũ.</p>
-        <button ref={reloadButton} type="button" disabled={pending} onClick={() => setConfirmReload(true)}>Tải lại hồ sơ</button></div>}
+        <button ref={reloadButton} type="button" disabled={pending} onClick={() => setConfirmReload(true)}><Icon name="retry" label="Tải lại hồ sơ" showLabel /></button></div>}
       {confirmReload && <div role="dialog" aria-modal="true" aria-label="Xác nhận tải lại" onKeyDown={event => {
         if (event.key === 'Escape' && !pending) { event.preventDefault(); closeReload(); }
         if (event.key === 'Tab') {
@@ -174,7 +175,7 @@ function MemberProfileEditor({ id }: { id: string }) {
         <button type="button" autoFocus disabled={pending} onClick={() => void load(false)}>Xác nhận tải lại</button>
         <button type="button" disabled={pending} onClick={closeReload}>Giữ bản nhập</button>
       </div>}
-      {!editing && <><button type="button" disabled={pending} onClick={() => void load(false)}>Làm mới hồ sơ và quyền lợi</button>
+      {!editing && <><button type="button" disabled={pending} onClick={() => void load(false)}><Icon name="retry" label="Làm mới hồ sơ và quyền lợi" showLabel /></button>
         <ServiceSalePanel memberId={id} /><MemberHistory id={id} /></>}
     </>}
   </section>;

@@ -22,6 +22,8 @@ import { ShiftsModule } from './modules/shifts/shifts.module';
 import { PublicSessionsModule } from './modules/public-sessions/public-sessions.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { PlansModule } from './modules/plans/plans.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { TraineesModule } from './modules/trainees/trainees.module';
 
 @Module({
   imports: [
@@ -47,6 +49,8 @@ import { PlansModule } from './modules/plans/plans.module';
     PublicSessionsModule,
     SalesModule,
     PlansModule,
+    CatalogModule,
+    TraineesModule,
   ],
 })
 export class AppModule {}

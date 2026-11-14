@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { membersApi, type MemberListItem, type MemberPage, type MembershipState, type ServiceKind } from './members.api';
 import { MemberEntitlements, MemberReadTime, membershipStateNames } from './MemberEntitlements';
+import { Icon } from '../../components/Icon';
 
 export function MembersPage() {
   const { pathname } = useLocation();
@@ -35,21 +36,25 @@ export function MembersPage() {
     return () => { clearTimeout(timer); controller.abort(); };
   }, [q, kind, membershipState, page, reload]);
 
-  return <section className="auth-card"><h2>Tra cứu hội viên</h2>
-    <Link to={`${base}/new`}>Tạo hồ sơ hội viên</Link>
-    <label htmlFor="member-search">Mã, tên hoặc số điện thoại</label>
-    <input id="member-search" value={q} maxLength={120} onChange={event => change(() => { setQ(event.target.value); setPage(1); })} />
-    <label htmlFor="member-kind">Loại dịch vụ</label>
+  return <section className="auth-card">
+    {/* Tiêu đề bên trái, link tạo hồ sơ dạng nút bên phải. */}
+    <div className="page-head"><h2>Tra cứu hội viên</h2><Link className="button-link" to={`${base}/new`}>Tạo hồ sơ hội viên</Link></div>
+    {/* Ô tìm và hai ô lọc trên một hàng. */}
+    <div className="toolbar">
+    <div className="toolbar-search"><label htmlFor="member-search">Mã, tên hoặc số điện thoại</label>
+    <input id="member-search" value={q} maxLength={120} onChange={event => change(() => { setQ(event.target.value); setPage(1); })} /></div>
+    <div><label htmlFor="member-kind">Loại dịch vụ</label>
     <select id="member-kind" value={kind} onChange={event => change(() => { setKind(event.target.value as ServiceKind | ''); setPage(1); })}>
       <option value="">Tất cả loại</option><option value="GYM">GYM</option><option value="PT">PT</option>
-    </select>
-    <label htmlFor="member-state">Trạng thái gói</label>
+    </select></div>
+    <div><label htmlFor="member-state">Trạng thái gói</label>
     <select id="member-state" value={membershipState} onChange={event => change(() => { setMembershipState(event.target.value as MembershipState | ''); setPage(1); })}>
       <option value="">Tất cả trạng thái</option>
       {Object.entries(membershipStateNames).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-    </select>
+    </select></div>
+    </div>
     {loading && <p role="status">Đang tải hội viên…</p>}
-    {error && <div role="alert"><p>{error}</p><button type="button" onClick={() => change(() => setReload(value => value + 1))}>Thử lại</button></div>}
+    {error && <div role="alert"><p>{error}</p><button type="button" onClick={() => change(() => setReload(value => value + 1))}><Icon name="retry" label="Thử lại" /></button></div>}
     {data && <><MemberReadTime time={data} />
       {data.items.length === 0 ? <p>Không tìm thấy hội viên phù hợp.</p> : <ul aria-label="Danh sách hội viên">
         {data.items.map(member => <li key={member.id}>
@@ -59,9 +64,9 @@ export function MembersPage() {
         </li>)}
       </ul>}
       <div className="user-actions">
-        <button type="button" disabled={page <= 1} onClick={() => change(() => setPage(value => value - 1))}>Trang trước</button>
+        <button type="button" disabled={page <= 1} onClick={() => change(() => setPage(value => value - 1))}><Icon name="prev" label="Trang trước" /></button>
         <span>Trang {data.page}/{data.totalPages} · {data.total} hội viên</span>
-        <button type="button" disabled={page >= data.totalPages} onClick={() => change(() => setPage(value => value + 1))}>Trang sau</button>
+        <button type="button" disabled={page >= data.totalPages} onClick={() => change(() => setPage(value => value + 1))}><Icon name="next" label="Trang sau" /></button>
       </div>
     </>}
   </section>;

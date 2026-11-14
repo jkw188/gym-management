@@ -3,6 +3,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { membersApi, type LinkCandidate, type Member, type VerificationMethod } from './members.api';
+import { Icon } from '../../components/Icon';
 
 // Lỗi mạng (không có status) hoặc server báo chưa rõ kết quả: chưa biết lệnh đã chạy hay chưa, phải gửi lại cùng key.
 const isOutcomeUnknown = (error: ApiError) => error.status === undefined || error.code === 'OPERATION_OUTCOME_UNKNOWN';
@@ -190,7 +191,7 @@ export function MemberCreatePage() {
         <form onSubmit={searchAccounts} noValidate>
           <label htmlFor="link-account-phone">Số điện thoại tài khoản</label>
           <input id="link-account-phone" type="tel" value={accountPhone} onChange={event => setAccountPhone(event.target.value)} />
-          <button type="submit">Tìm tài khoản</button>
+          <button type="submit"><Icon name="search" label="Tìm tài khoản" /></button>
         </form>
         {searchError && <ErrorAlert error={searchError} />}
         {candidates?.length === 0 && <p>Không tìm thấy tài khoản</p>}

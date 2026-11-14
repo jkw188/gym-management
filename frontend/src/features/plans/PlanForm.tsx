@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { findCreatedPlan, plansApi, type CatalogStatus, type Plan, type PlanInput } from './plans.api';
+import { Icon } from '../../components/Icon';
 
 export function CatalogError({ error }: { error: ApiError | null }) {
   if (!error) return null;
@@ -75,6 +76,6 @@ export function PlanForm({ initial, onClose, onSaved }: { initial?: Plan; onClos
       {error?.code === 'VERSION_CONFLICT' && <button type="button" disabled={pending} onClick={() => void reload()}>Bỏ bản nhập và tải lại gói</button>}
       {uncertain && <button type="button" disabled={pending} onClick={() => void lookup()}>Tra cứu mã gói trước khi thử lại</button>}
       <div className="user-actions"><button type="submit" disabled={pending || uncertain || error?.code === 'VERSION_CONFLICT'}>{pending ? 'Đang xử lý…' : 'Lưu gói'}</button>
-        <button type="button" className="secondary" disabled={pending} onClick={onClose}>Đóng</button></div>
+        <button type="button" className="secondary" disabled={pending} onClick={onClose}><Icon name="close" label="Đóng" /></button></div>
     </form></section>;
 }

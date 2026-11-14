@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { addDays, mondayOf, vietnamDate, vietnamTime } from '../shifts/shift-time';
 import { classesApi, type PublicSession, type PublicSessionPage, type Subject } from './classes.api';
+import { Icon } from '../../components/Icon';
 
 // "2026-11-05" → "05/11".
 const shortDate = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
@@ -115,17 +116,21 @@ export function ClassesPage() {
     <h2>Lịch lớp miễn phí</h2>
     <p>Lịch tham khảo công khai, không cần đăng ký chỗ.</p>
 
-    <div className="user-actions" role="group" aria-label="Chọn tuần">
-      <button type="button" className="secondary" onClick={() => changeWeek(-7)}>Tuần trước</button>
-      <span>{shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}</span>
-      <button type="button" className="secondary" onClick={() => changeWeek(7)}>Tuần sau</button>
+    {/* Chọn tuần và bộ môn nằm chung một hàng. */}
+    <div className="toolbar">
+      <div className="user-actions week-picker" role="group" aria-label="Chọn tuần">
+        <button type="button" className="secondary" onClick={() => changeWeek(-7)}><Icon name="prev" label="Tuần trước" /></button>
+        <span>{shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}</span>
+        <button type="button" className="secondary" onClick={() => changeWeek(7)}><Icon name="next" label="Tuần sau" /></button>
+      </div>
+      <div className="toolbar-select">
+        <label htmlFor="class-subject">Bộ môn</label>
+        <select id="class-subject" value={subjectCode} onChange={event => changeSubject(event.target.value)}>
+          <option value="">Tất cả bộ môn</option>
+          {subjects.map(subject => <option key={subject.code} value={subject.code}>{subject.label}</option>)}
+        </select>
+      </div>
     </div>
-
-    <label htmlFor="class-subject">Bộ môn</label>
-    <select id="class-subject" value={subjectCode} onChange={event => changeSubject(event.target.value)}>
-      <option value="">Tất cả bộ môn</option>
-      {subjects.map(subject => <option key={subject.code} value={subject.code}>{subject.label}</option>)}
-    </select>
 
     {notice && <p className="form-error" role="alert">{notice}</p>}
 
@@ -133,7 +138,7 @@ export function ClassesPage() {
 
     {/* US-26-TC12: lỗi DB/mạng có nút thử lại, giữ nguyên bộ lọc. */}
     {listError && <div className="form-error" role="alert"><p>{listError}</p>
-      <button type="button" onClick={() => setReloadCount(count => count + 1)}>Thử lại</button></div>}
+      <button type="button" onClick={() => setReloadCount(count => count + 1)}><Icon name="retry" label="Thử lại" /></button></div>}
 
     {/* US-26-TC04: tuần không có lớp. */}
     {data && data.items.length === 0 && <p>Không có lớp nào trong khoảng này.</p>}
@@ -149,16 +154,16 @@ export function ClassesPage() {
     </ul>}
 
     {data && data.totalPages > 1 && <div className="user-actions">
-      {data.page > 1 && <button type="button" className="secondary" onClick={() => changePage(page - 1)}>Trang trước</button>}
+      {data.page > 1 && <button type="button" className="secondary" onClick={() => changePage(page - 1)}><Icon name="prev" label="Trang trước" /></button>}
       <span>Trang {data.page}/{data.totalPages}</span>
-      {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => changePage(page + 1)}>Trang sau</button>}
+      {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => changePage(page + 1)}><Icon name="next" label="Trang sau" /></button>}
     </div>}
 
     {selected && <div role="dialog" aria-modal="true" aria-labelledby="class-detail-title" className="auth-card">
       <h3 id="class-detail-title">Chi tiết lớp</h3>
       <div className="class-detail"><SessionInfo session={selected} /></div>
       <div className="user-actions">
-        <button type="button" className="secondary" onClick={() => setSelected(null)}>Đóng</button>
+        <button type="button" className="secondary" onClick={() => setSelected(null)}><Icon name="close" label="Đóng" /></button>
       </div>
     </div>}
   </section>;

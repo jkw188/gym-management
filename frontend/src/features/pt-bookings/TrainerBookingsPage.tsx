@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { formatAsOf, formatDate, formatRange, todayInVietnam } from './pt-booking-format';
 import { ptBookingsApi, type PtBookingStatus, type TrainerBooking } from './pt-bookings.api';
+import { Icon } from '../../components/Icon';
 
 // US-64-TC15: nhãn trạng thái của trang PT (spec dùng "hoàn tất" cho buổi PT đã xác nhận).
 const TRAINER_STATUS_LABELS: Record<PtBookingStatus, string> = { BOOKED: 'Đã đặt', COMPLETED: 'Đã hoàn tất', CANCELLED: 'Đã hủy' };
@@ -104,7 +105,7 @@ export function TrainerBookingsPage() {
       <p>Giờ buổi: {sessionTime(confirming)}</p>
       <p>Xác nhận sẽ trừ 1 buổi trong gói PT của hội viên. Chỉ xác nhận khi buổi đã thực sự diễn ra.</p>
       <button type="button" onClick={() => void submitComplete()} disabled={submitting}>Xác nhận</button>
-      <button type="button" onClick={() => setConfirming(null)} disabled={submitting}>Đóng</button>
+      <button type="button" onClick={() => setConfirming(null)} disabled={submitting}><Icon name="close" label="Đóng" /></button>
     </section>}
 
     <section aria-labelledby="trainer-list-title">
