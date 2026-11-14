@@ -3,22 +3,28 @@ import { ApiError } from '../../api/client';
 import { membersApi, type MemberMembership, type MemberPage, type MemberTransaction } from './members.api';
 import { MemberReadTime, membershipStateNames } from './MemberEntitlements';
 import { Icon } from '../../components/Icon';
+import { ServiceRenewalPanel } from '../sales/ServiceRenewalPanel';
 
 const transactionStatusNames = { PENDING: 'Chờ thanh toán / chưa cấp gói', SETTLED: 'Đã đối chiếu giao dịch', CANCELLED: 'Đã hủy' };
 const storedStatusNames = { ACTIVE: 'Đang được ghi nhận', SUPERSEDED: 'Đã được thay thế', CANCELLED: 'Đã hủy' };
 
 export function MemberHistory({ id }: { id: string }) {
   const [tab, setTab] = useState<'memberships' | 'transactions'>('memberships');
+  const [source, setSource] = useState<MemberMembership | null>(null);
+  const [renewalLocked, setRenewalLocked] = useState(false);
+  const [revision, setRevision] = useState(0);
   return <section><h3>Gói tập và giao dịch</h3>
     <div className="user-actions" role="group" aria-label="Chọn lịch sử">
       <button type="button" aria-pressed={tab === 'memberships'} onClick={() => setTab('memberships')}>Lịch sử gói</button>
       <button type="button" aria-pressed={tab === 'transactions'} onClick={() => setTab('transactions')}>Lịch sử giao dịch</button>
     </div>
-    <HistoryPage key={`${id}:${tab}`} id={id} tab={tab} />
+    <HistoryPage key={`${id}:${tab}:${revision}`} id={id} tab={tab} onRenew={setSource} renewalLocked={renewalLocked} />
+    <ServiceRenewalPanel key={id} memberId={id} source={source} onLockedChange={setRenewalLocked} onRefresh={() => setRevision(value => value + 1)} />
   </section>;
 }
 
-function HistoryPage({ id, tab }: { id: string; tab: 'memberships' | 'transactions' }) {
+function HistoryPage({ id, tab, onRenew, renewalLocked }: { id: string; tab: 'memberships' | 'transactions';
+  onRenew: (source: MemberMembership) => void; renewalLocked: boolean }) {
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
   const [data, setData] = useState<MemberPage<MemberMembership | MemberTransaction> | null>(null);
@@ -45,6 +51,8 @@ function HistoryPage({ id, tab }: { id: string; tab: 'memberships' | 'transactio
           {' · '}{storedStatusNames[item.storedStatus]} · {transactionStatusNames[item.transactionStatus]}</p>
         {item.kind === 'PT' && <p>Buổi đã dùng: {item.sessionsUsed}/{item.sessionsQuota}</p>}
         <small>Mã lần bán: {item.saleId}</small>
+        {item.storedStatus === 'ACTIVE' && item.transactionStatus === 'SETTLED' &&
+          <button type="button" disabled={renewalLocked} onClick={() => onRenew(item)}>Gia hạn {item.planName}</button>}
       </li> : <li key={item.id}>
         <strong>{item.code} ({item.kind})</strong><p>{item.kind === 'RETAIL' && item.status === 'PENDING' ? 'Chờ thanh toán' : transactionStatusNames[item.status]}</p>
         <p>Cần thu: {item.amountDue} VND · {new Date(item.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</p>
