@@ -50,6 +50,8 @@ export const ACCESS_POLICY = {
   // US-65: chỉ Member chủ booking gửi và xem lại đánh giá của mình; PT/Admin/Staff không viết hộ (403).
   'ptReviews.createOwn': { name: 'Gửi đánh giá buổi PT của mình', roles: ['MEMBER'] },
   'ptReviews.readOwn': { name: 'Xem đánh giá buổi PT của mình', roles: ['MEMBER'] },
+  // US-31-F01: chỉ PT xem đánh giá của các buổi mình đã dạy; Member/Staff/Admin → 403 (US-31-TC03).
+  'trainers.reviews.readOwn': { name: 'Xem đánh giá học viên gửi cho mình', roles: ['TRAINER'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;

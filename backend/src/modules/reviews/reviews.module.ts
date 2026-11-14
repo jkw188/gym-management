@@ -1,4 +1,4 @@
-// Cấu hình NestJS (US-65 bước 1–2): module đánh giá buổi PT – collection trainer_reviews và API Member gửi/xem đánh giá.
+// Cấu hình NestJS (US-65 bước 1–2, US-31 bước 1): module đánh giá buổi PT – collection trainer_reviews, API Member gửi/xem và API PT xem đánh giá.
 // BookingsModule: đọc booking, ghi audit; OperationsModule: Idempotency-Key (EN-02); TransactionModule: khóa và giờ server.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -8,6 +8,8 @@ import { OperationsModule } from '../operations/operations.module';
 import { ReviewController } from './review.controller';
 import { ReviewRepository } from './review.repository';
 import { ReviewService } from './review.service';
+import { TrainerReviewQueryController } from './trainer-review-query.controller';
+import { TrainerReviewQueryService } from './trainer-review-query.service';
 import { TrainerReviewSchema } from './schemas/trainer-review.schema';
 
 @Module({
@@ -17,7 +19,7 @@ import { TrainerReviewSchema } from './schemas/trainer-review.schema';
     OperationsModule,
     TransactionModule,
   ],
-  controllers: [ReviewController],
-  providers: [ReviewService, ReviewRepository],
+  controllers: [ReviewController, TrainerReviewQueryController],
+  providers: [ReviewService, ReviewRepository, TrainerReviewQueryService],
 })
 export class ReviewsModule {}

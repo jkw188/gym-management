@@ -26,6 +26,7 @@ import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
 import { PlansPage } from './features/plans/PlansPage';
 import { TraineesPage } from './features/trainees/TraineesPage';
+import { TrainerReviewsPage } from './features/trainer-reviews/TrainerReviewsPage';
 import { TransactionsPage } from './features/payments/TransactionsPage';
 
 export default function App() {
@@ -81,7 +82,9 @@ export default function App() {
         {/* US-64 bước 4: PT xem buổi dạy và xác nhận buổi đã dạy; chỉ TRAINER. */}
         <Route path="/trainer/bookings" element={<TrainerBookingsPage />} />
         {/* US-30 bước 3: PT tra cứu học viên có buổi với mình; chỉ TRAINER. */}
-        <Route path="/trainer/trainees" element={<TraineesPage />} /></Route>
+        <Route path="/trainer/trainees" element={<TraineesPage />} />
+        {/* US-31 bước 3: PT xem điểm và nhận xét học viên gửi cho mình; chỉ TRAINER. */}
+        <Route path="/trainer/reviews" element={<TrainerReviewsPage />} /></Route>
       {(Object.entries(rolePaths) as [RoleCode, string][]).map(([role, path]) => <Route key={role} element={<ProtectedRoute role={role} />}>
         <Route path={path} element={<RoleShell role={role} />} /></Route>)}
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
