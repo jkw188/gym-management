@@ -107,14 +107,20 @@ export class TrainerReviewQueryService {
   }
 
   // US-31-F02, TC05, TC08: kỳ theo ngày VN → khoảng thời điểm gửi review [00:00 fromDate, 00:00 ngày sau toDate).
-  // Không gửi toDate → hôm nay; không gửi fromDate → 29 ngày trước toDate (đủ 30 ngày).
+  // Spec bản 1.3: không gửi toDate → hôm nay; không gửi fromDate → 29 ngày trước toDate (đủ 30 ngày).
   private reviewPeriod(fromDate: string | undefined, toDate: string | undefined): { from: Date; to: Date } {
     const toDay = toDate === undefined ? this.clock.today() : realDate(toDate, 'toDate');
     const fromDay = fromDate === undefined ? addCalendarDays(toDay, -(DEFAULT_DAYS - 1)) : realDate(fromDate, 'fromDate');
 
+    // Spec bản 1.3, US-31-TC08: lỗi kỳ nêu đúng field người dùng ĐÃ gửi. Có gửi toDate → báo ở toDate;
+    // chỉ gửi fromDate (toDate tự điền là hôm nay) → báo ở fromDate và không nhắc tới toDate.
+    const onlyFromDate = toDate === undefined;
+    const errorField = onlyFromDate ? 'fromDate' : 'toDate';
     const dayCount = daysBetween(fromDay, toDay) + 1;
-    if (dayCount < 1) invalidField('toDate', 'toDate không được trước fromDate');
-    if (dayCount > MAX_DAYS) invalidField('toDate', `Chỉ xem tối đa ${MAX_DAYS} ngày mỗi lần`);
+    if (dayCount < 1) {
+      invalidField(errorField, onlyFromDate ? 'fromDate không được sau hôm nay' : 'toDate không được trước fromDate');
+    }
+    if (dayCount > MAX_DAYS) invalidField(errorField, `Chỉ xem tối đa ${MAX_DAYS} ngày mỗi lần`);
 
     return { from: vietnamMidnight(fromDay), to: vietnamMidnight(addCalendarDays(toDay, 1)) };
   }
