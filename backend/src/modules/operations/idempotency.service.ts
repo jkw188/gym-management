@@ -46,6 +46,8 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   PT_BOOKING_COMPLETE: ACCESS_POLICY['ptBookings.completeOwn'].roles,
   // US-64-C01, C02: quyền ptBookings.correct chỉ cho ADMIN.
   PT_BOOKING_CORRECT: ACCESS_POLICY['ptBookings.correct'].roles,
+  // US-65: quyền ptReviews.createOwn chỉ cho MEMBER.
+  PT_REVIEW_CREATE: ACCESS_POLICY['ptReviews.createOwn'].roles,
 };
 
 // Số lần thử lại khi hai request cùng key chạy đua và request này thua ở unique index.

@@ -1,6 +1,7 @@
 // Tầng giao diện – trang (US-27 bước 3, US-28 bước 4, US-29 bước 3): trang /member/pt-bookings – lịch PT riêng của Member, chọn PT/ngày/gói
 // để xem slot trống và đặt slot sau bảng xác nhận; tự hủy buổi BOOKED khi server báo còn hạn (US-29).
 // Quota, asOf, bookable, cancelAllowed lấy nguyên từ server, React không tự tính (US-27-TC12, US-29-TC02).
+// US-65 bước 3: nút "Đánh giá"/"Xem đánh giá" theo reviewState của server; form đánh giá nằm ở PtReviewPanel.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import type { MyMembership } from '../memberships/memberships.api';
@@ -11,6 +12,7 @@ import {
 } from './pt-bookings.api';
 import { formatAsOf, formatDate, formatRange, STATUS_LABELS } from './pt-booking-format';
 import { Icon } from '../../components/Icon';
+import { PtReviewPanel, type ReviewMode } from './PtReviewPanel';
 
 // US-27-TC12: giải thích vì sao slot chưa đặt được.
 const REASON_LABELS: Record<SlotReason, string> = {
@@ -45,7 +47,11 @@ const CANCEL_CONFLICT_LABELS: Record<string, string> = {
 
 // ---------- Vùng "Lịch của tôi" ----------
 
-function BookingCard({ booking, onCancel }: { booking: MyPtBooking; onCancel: (booking: MyPtBooking) => void }) {
+function BookingCard({ booking, onCancel, onReview }: {
+  booking: MyPtBooking;
+  onCancel: (booking: MyPtBooking) => void;
+  onReview: (booking: MyPtBooking, mode: ReviewMode) => void;
+}) {
   return <article aria-label={`Buổi PT ${formatDate(booking.startAt)} ${formatRange(booking.startAt, booking.endAt)}`}>
     <p><strong>{booking.trainerName}</strong> · <span>{STATUS_LABELS[booking.status]}</span></p>
     <p>{formatDate(booking.startAt)} · {formatRange(booking.startAt, booking.endAt)}</p>
@@ -55,6 +61,9 @@ function BookingCard({ booking, onCancel }: { booking: MyPtBooking; onCancel: (b
       ? <p>Hạn hủy: {formatCancelDeadline(booking.startAt)}{' '}
         <button type="button" onClick={() => onCancel(booking)}>Hủy lịch</button></p>
       : <p>Đã quá hạn tự hủy. Vui lòng liên hệ quầy để được hỗ trợ.</p>)}
+    {/* US-65-TC04, TC07: nút đánh giá theo reviewState của server; không tự suy từ status hay gói còn hạn. */}
+    {booking.reviewState === 'ELIGIBLE' && <p><button type="button" onClick={() => onReview(booking, 'create')}>Đánh giá</button></p>}
+    {booking.reviewState === 'SUBMITTED' && <p><button type="button" onClick={() => onReview(booking, 'view')}>Xem đánh giá</button></p>}
   </article>;
 }
 
@@ -100,6 +109,9 @@ export function PtBookingsPage() {
   const cancellingNow = useRef(false);
   // US-29-TC12: giống US-28 – mất phản hồi/503 rồi bấm lại cùng dữ liệu thì dùng LẠI key cũ; xong hoặc bị 409 thì bỏ key.
   const pendingCancelKey = useRef<{ payload: string; key: string } | null>(null);
+
+  // US-65: buổi đang mở đánh giá và chế độ (gửi mới / xem lại); chi tiết nằm trong PtReviewPanel.
+  const [reviewTarget, setReviewTarget] = useState<{ booking: MyPtBooking; mode: ReviewMode } | null>(null);
 
   // Số thứ tự lần tải mới nhất: kết quả cũ về muộn (bộ lọc/lựa chọn đã đổi) thì bỏ qua.
   const latestBookings = useRef(0);
@@ -294,7 +306,8 @@ export function PtBookingsPage() {
         : !bookings ? <p>Đang tải lịch…</p>
           : bookings.memberLinked && bookings.items.length === 0 ? <p>Không có buổi PT nào trong khoảng này.</p>
             : <>
-              {bookings.items.map(item => <BookingCard key={item.id} booking={item} onCancel={openCancel} />)}
+              {bookings.items.map(item => <BookingCard key={item.id} booking={item} onCancel={openCancel}
+                onReview={(booking, mode) => setReviewTarget({ booking, mode })} />)}
               {/* Lịch có phân trang: chỉ chuyển trang, không dùng số buổi đang thấy để suy ra quota. */}
               {bookings.totalPages > 1 && <p>
                 <button type="button" disabled={filter.page <= 1}
@@ -321,6 +334,10 @@ export function PtBookingsPage() {
       </section>}
       {cancelSuccess && <p role="status">{cancelSuccess}</p>}
       {cancelError && <p role="alert">{cancelError}</p>}
+
+      {/* US-65: gửi hoặc xem đánh giá. key đổi theo buổi và chế độ → mỗi lần mở là form mới. */}
+      {reviewTarget && <PtReviewPanel key={`${reviewTarget.booking.id}-${reviewTarget.mode}`} booking={reviewTarget.booking}
+        mode={reviewTarget.mode} onReload={loadBookings} onClose={() => setReviewTarget(null)} />}
     </section>
 
     <section aria-labelledby="pt-book-panel">

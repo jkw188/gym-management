@@ -1,12 +1,15 @@
 // Tầng giao diện – gọi API (US-27 bước 3, US-28 bước 4, US-29 bước 3): Member đọc lịch PT riêng, danh mục PT, slot trống, gói PT,
 // đặt và hủy slot PT; Staff/Admin tra cứu, xem chi tiết và hủy hỗ trợ (US-29). Tất cả qua ApiClient.
 // US-64 bước 4: PT xem buổi dạy của mình và xác nhận buổi đã dạy.
+// US-65 bước 3: Member gửi và xem lại đánh giá buổi PT đã hoàn tất.
 // Không gửi memberId/accountId vì server lấy chủ thể từ phiên đăng nhập; lệnh đặt gửi header Idempotency-Key (EN-02).
 import { apiClient } from '../../api/client';
 import type { MyListPage, MyMembership } from '../memberships/memberships.api';
 
 export type PtBookingStatus = 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 export type SlotReason = 'MEMBERSHIP_REQUIRED' | 'MEMBERSHIP_NOT_ELIGIBLE' | 'QUOTA_EXHAUSTED';
+// US-65 bước 3: server gợi ý buổi có đánh giá được không (POST vẫn kiểm lại).
+export type ReviewState = 'NOT_ELIGIBLE' | 'ELIGIBLE' | 'SUBMITTED';
 
 // Một buổi trong lịch riêng; tên PT và địa điểm là snapshot lúc đặt (US-27-F05).
 export interface MyPtBooking {
@@ -21,6 +24,9 @@ export interface MyPtBooking {
   status: PtBookingStatus;
   version: number;
   cancelAllowed: boolean;
+  // US-65: ELIGIBLE → nút "Đánh giá"; SUBMITTED → nút "Xem đánh giá" (reviewId là id review đã gửi).
+  reviewState: ReviewState;
+  reviewId?: string;
 }
 
 export interface PtTrainer {
@@ -173,6 +179,32 @@ export interface CompletedBooking {
   notificationState: 'STORED' | 'NO_LINKED_ACCOUNT';
 }
 
+// US-65: một đánh giá đã gửi (201 của POST và field review của GET /api/me/pt-bookings/:id/review).
+export interface PtReview {
+  id: string;
+  bookingId: string;
+  trainerId: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+
+// US-65: GET /api/me/pt-bookings/:id/review – review gốc nếu đã gửi; chưa gửi thì review = null và canReview.
+export interface OwnPtReview {
+  review: PtReview | null;
+  canReview: boolean;
+  reason?: string;
+}
+
+// US-65: body của lệnh gửi đánh giá, CHỈ hai field (server từ chối memberId/status/createdAt).
+export interface CreateReviewInput {
+  rating: number;
+  comment: string;
+}
+
+// US-65-F02: nhận xét sau khi bỏ khoảng trắng hai đầu tối đa 1000 ký tự (server kiểm lại).
+export const REVIEW_COMMENT_MAX = 1000;
+
 export const BOOKINGS_PAGE_SIZE = 20;
 
 export const ptBookingsApi = {
@@ -253,5 +285,20 @@ export const ptBookingsApi = {
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ version }),
     });
+  },
+
+  // POST /api/me/pt-bookings/:id/review (US-65): body CHỈ {rating, comment}. idempotencyKey do trang giữ,
+  // mất phản hồi thì gửi lại ĐÚNG key cũ để server trả kết quả gốc, không tạo review thứ hai (US-65-TC11).
+  createReview(bookingId: string, input: CreateReviewInput, idempotencyKey: string) {
+    return apiClient.request<PtReview>(`/me/pt-bookings/${encodeURIComponent(bookingId)}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(input),
+    });
+  },
+
+  // GET /api/me/pt-bookings/:id/review (US-65): xem lại đánh giá đã gửi; chỉ đọc.
+  getOwnReview(bookingId: string) {
+    return apiClient.request<OwnPtReview>(`/me/pt-bookings/${encodeURIComponent(bookingId)}/review`);
   },
 };

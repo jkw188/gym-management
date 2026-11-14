@@ -180,6 +180,9 @@ main:has(.shifts-page) { max-width: 1240px; }
 /* US-31: danh mục gói tập. */
 .plan-benefits { white-space: pre-wrap; }
 
+/* US-65: nhận xét đánh giá buổi PT giữ xuống dòng của Member (vẫn là chữ thường, React escape). */
+.review-comment { white-space: pre-wrap; }
+
 /* ===== 10. Màn hình nhỏ (điện thoại) ===== */
 @media (max-width: 600px) {
   .site-header-inner, .hero-inner { padding-left: 16px; padding-right: 16px; }

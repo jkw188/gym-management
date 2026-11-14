@@ -5,6 +5,7 @@
 // US-29 bước 2: thêm ghi audit booking_events và tìm account người nhận thông báo hủy (Member, PT).
 // US-64 bước 2: thêm tìm PT của account, ghi hoàn tất có điều kiện (CAS) và tăng sessions_used của gói.
 // US-64 bước 3: thêm rút xác nhận có điều kiện (CAS) và kiểm booking đã có đánh giá chưa.
+// US-65 bước 2: được export cho ReviewsModule (đọc booking, ghi audit REVIEW_SUBMITTED).
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession } from 'mongodb';
@@ -111,8 +112,9 @@ export class BookingRepository {
   }
 
   // US-29-F04: đọc booking mới nhất trong session của transaction; null nếu không tồn tại.
-  findBookingById(id: Types.ObjectId, session: ClientSession): Promise<PtBooking | null> {
-    return this.bookings.findById(id).session(session).lean<PtBooking>().exec();
+  // US-65 bước 2: session tùy chọn – GET đánh giá chỉ đọc nên không cần transaction.
+  findBookingById(id: Types.ObjectId, session?: ClientSession): Promise<PtBooking | null> {
+    return this.bookings.findById(id).session(session ?? null).lean<PtBooking>().exec();
   }
 
   // US-29-F03, F04: CAS – chỉ ghi khi booking VẪN đúng trạng thái và version mà service vừa kiểm.
