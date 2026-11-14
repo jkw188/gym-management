@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/client';
+import { MemoryRouter } from 'react-router-dom';
 import { ServiceSalePanel } from './ServiceSalePanel';
 import { salesApi, type SaleDetail, type SalePlan } from './sales.api';
 
@@ -23,7 +24,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
 
 async function open() {
   const user = userEvent.setup();
-  render(<ServiceSalePanel memberId={memberId} />);
+  render(<ServiceSalePanel memberId={memberId} />, { wrapper: MemoryRouter });
   await user.click(screen.getByRole('button', { name: 'Đăng ký gói' }));
   await screen.findByRole('option', { name: 'Gym 30 (GYM)' });
   await user.selectOptions(screen.getByLabelText('Gói đang bán'), plan.id);
@@ -62,7 +63,7 @@ describe('US14 TC16: confirmation, pending/free states and safe retries', () => 
     await user.click(screen.getByRole('button', { name: 'Xác nhận tạo đăng ký' }));
     await screen.findByRole('button', { name: 'Kiểm tra / gửi lại cùng yêu cầu' });
     expect(screen.getByLabelText('Gói đang bán').matches(':disabled')).toBe(true);
-    cleanup(); render(<ServiceSalePanel memberId={memberId} />);
+    cleanup(); render(<ServiceSalePanel memberId={memberId} />, { wrapper: MemoryRouter });
     await user.click(screen.getByRole('button', { name: 'Đăng ký gói' }));
     const retry = await screen.findByRole('button', { name: 'Kiểm tra / gửi lại cùng yêu cầu' });
     await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(false));

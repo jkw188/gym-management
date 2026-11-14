@@ -67,7 +67,7 @@ describe('US21 staff lookup and manual review', () => {
     expect(await screen.findByText(/Đủ điều kiện tại thời điểm/)).toBeTruthy();
     expect(paymentsApi.preview).toHaveBeenCalledWith(item.id, { method: 'CASH', amount: '300000', evidenceNote: 'Đã đếm đủ tiền mặt thực nhận' });
     expect(requests).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Xác nhận thu/ })).toBeNull();
+    expect((screen.getByRole('button', { name: /Xác nhận thu/ }) as HTMLButtonElement).disabled).toBe(true);
     await user.clear(screen.getByLabelText('Số tiền đối chiếu (VND)'));
     await user.type(screen.getByLabelText('Số tiền đối chiếu (VND)'), '299999');
     expect(screen.queryByText(/Đủ điều kiện tại thời điểm/)).toBeNull();

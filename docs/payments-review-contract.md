@@ -32,13 +32,13 @@ receivedAt TRANSFER bắt buộc ISO8601 có timezone, từ transaction.created_
 
 Thiếu/không hợp lệ căn cứ hoặc dữ liệu chuyển khoản trả400, không tạo payment FAILED. evidenceNote là lời ghi nhận kiểm tra thủ công; server không thể xác minh sự thật của đoạn văn hay báo có ngân hàng. UI bắt nhân viên đánh dấu đã đếm tiền/kiểm báo có, nhắc ảnh người mua chưa đủ căn cứ, không có upload hoặc kiểm ngân hàng tự động. Không dùng suy đoán từ khóa trong note để tuyên bố đã xác thực chứng cứ.
 
-Các field đọc chứng cứ US-22 được bổ sung tương thích dạng optional vào payments: verified_at/evidence_note/receiving_account_code/bank_reference. Không thay đổi dữ liệu payment lịch sử hoặc quy tắc bắt buộc của writer hiện tại; US-22 phải hoàn thiện validation SUCCEEDED ở bước triển khai của mình.
+Các field đọc chứng cứ US-22 được bổ sung tương thích dạng optional vào payments: verified_at/evidence_note/receiving_account_code/bank_reference. US-22 hiện ghi đầy đủ metadata và created_at, bắt buộc verified_by/paid_at và amount dương cho SUCCEEDED; không backfill chứng cứ hoặc thời điểm thu giả cho lịch sử.
 
 ## Giao diện và tích hợp
 
 `/staff/transactions`, `/admin/transactions` và liên kết từ trang chính Staff/Admin. Mặc định lọc PENDING, có bộ lọc/mã/khách/ngày/phân trang/Retry, chi tiết snapshot gói, lịch sử payment và invoice có thật. Số phải thu và số đối chiếu tách riêng. Đổi input xóa kết quả preview cũ; đang gửi khóa form; lỗi giữ input. Đổi tài khoản/đăng xuất unmount nội dung và bỏ response đến muộn.
 
-**Giới hạn phụ thuộc:** source chưa có settlement/confirm-payment US-22. UI thông báo bước xác nhận chưa khả dụng, không dựng nút xác nhận giả hay tự SETTLED. Có thể tái sử dụng input và review service khi thêm US-22; không có replay/confirm key ở US-21. TC10 phần confirm cạnh tranh và test preview→confirm thực tế chưa thể nghiệm thu; không đánh Done toàn bộ US-21/22.
+**Tích hợp US-22:** sau READY, UI có checkbox xác nhận thực nhận và nút confirm riêng; preview vẫn không ghi/giữ chỗ. Settlement gọi lại cùng review service trong session sau khóa, với PAYMENT_CONFIRM key. Test `settlement.integration-spec.ts` bổ sung US-21-TC10: hai preview READY rồi hai confirm cạnh tranh cùng reference chỉ một commit. Chi tiết: [settlement-contract.md](settlement-contract.md). Không tự đổi trạng thái tracker hoặc kết luận CI/demo trình duyệt đã đạt từ việc có source.
 
 ## Kiểm tra và vận hành
 
