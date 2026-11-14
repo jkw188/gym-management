@@ -229,6 +229,28 @@ describe('US-31 bước 2: lọc, phân trang và tổng điểm đánh giá c�
 
       expect(ids(body)).toEqual([last, first]);
     });
+
+    // Spec bản 1.3 (sinh viên chốt 14/11): chỉ gửi một ngày thì tự điền ngày còn lại.
+    it('US-31-TC05: chỉ gửi toDate → kỳ 30 ngày kết thúc ở toDate (fromDate = toDate − 29)', async () => {
+      const pt = await trainer();
+      const an = await member();
+      const end = await review(an, pt.trainerId, 4, at(-40));
+      const start = await review(an, pt.trainerId, 3, at(-69));
+      await review(an, pt.trainerId, 5, at(-39));
+      await review(an, pt.trainerId, 5, at(-70));
+
+      expect(ids(await listOk(pt, { toDate: vnDay(-40) }))).toEqual([end, start]);
+    });
+
+    it('US-31-TC05: chỉ gửi fromDate → kỳ từ fromDate đến hôm nay', async () => {
+      const pt = await trainer();
+      const an = await member();
+      const today = await review(an, pt.trainerId, 5, at(0, '00:30'));
+      const start = await review(an, pt.trainerId, 4, at(-45));
+      await review(an, pt.trainerId, 1, at(-46));
+
+      expect(ids(await listOk(pt, { fromDate: vnDay(-45) }))).toEqual([today, start]);
+    });
   });
 
   describe('US-31-TC06: lọc rating và phân trang 2', () => {
@@ -398,6 +420,38 @@ describe('US-31 bước 2: lọc, phân trang và tổng điểm đánh giá c�
       const oldest = await review(an, pt.trainerId, 4, at(-365));
 
       expect(ids(await listOk(pt, { fromDate: vnDay(-365), toDate: vnDay(0) }))).toEqual([oldest]);
+    });
+
+    // Spec bản 1.3: lỗi kỳ nêu đúng field người dùng ĐÃ gửi, không nhắc field không gửi.
+    function expectPeriodError(response: request.Response, field: 'fromDate' | 'toDate', notMentioned?: 'toDate') {
+      expectError(response, 400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+      expect(response.body.error.details?.[0]?.field).toBe(field);
+      if (notMentioned) expect(JSON.stringify(response.body.error)).not.toContain(notMentioned);
+    }
+
+    it('US-31-TC08: chỉ gửi fromDate là ngày mai → 400 field fromDate, không nhắc toDate', async () => {
+      const pt = await trainer();
+      expectPeriodError(await list(pt, { fromDate: vnDay(1) }), 'fromDate', 'toDate');
+    });
+
+    it('US-31-TC08: chỉ gửi fromDate cách hôm nay 367 ngày (tính cả hai đầu) → 400 field fromDate, không nhắc toDate', async () => {
+      const pt = await trainer();
+      expectPeriodError(await list(pt, { fromDate: vnDay(-366) }), 'fromDate', 'toDate');
+    });
+
+    it('US-31-TC08: chỉ gửi fromDate cách hôm nay đúng 366 ngày → 200', async () => {
+      const pt = await trainer();
+      const an = await member();
+      const oldest = await review(an, pt.trainerId, 4, at(-365));
+
+      expect(ids(await listOk(pt, { fromDate: vnDay(-365) }))).toEqual([oldest]);
+    });
+
+    it('US-31-TC08: gửi cả hai, fromDate sau toDate hoặc quá 366 ngày → 400 field toDate', async () => {
+      const pt = await trainer();
+      expectPeriodError(await list(pt, { fromDate: vnDay(-1), toDate: vnDay(-5) }), 'toDate');
+      expectPeriodError(await list(pt, { fromDate: vnDay(-366), toDate: vnDay(0) }), 'toDate');
     });
   });
 
