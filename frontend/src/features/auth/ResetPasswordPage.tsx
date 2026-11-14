@@ -16,6 +16,7 @@ export function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
   // Đếm ngược theo mốc thời gian: resendAt = lúc được bấm "Gửi lại mã", now = giờ hiện tại (cập nhật mỗi giây).
   const [resendAt, setResendAt] = useState(() => Date.now() + RESEND_SECONDS * 1000);
   const [now, setNow] = useState(() => Date.now());
@@ -133,7 +134,11 @@ export function ResetPasswordPage() {
     <button type="button" className="secondary" onClick={() => void resend()} disabled={pending || secondsLeft > 0}>
       {secondsLeft > 0 ? `Gửi lại mã (${secondsLeft} giây)` : 'Gửi lại mã'}
     </button>
-    <button type="button" className="secondary" onClick={restart} disabled={pending}>Bắt đầu lại</button>
+    {confirmRestart ? <div role="group" aria-label="Xác nhận bắt đầu lại">
+      <p>Bỏ mã đang giữ để bắt đầu yêu cầu mới?</p>
+      <button type="button" className="secondary" onClick={restart} disabled={pending}>Xác nhận bắt đầu lại</button>
+      <button type="button" className="secondary" onClick={() => setConfirmRestart(false)} disabled={pending}>Giữ mã hiện tại</button>
+    </div> : <button type="button" className="secondary" onClick={() => setConfirmRestart(true)} disabled={pending}>Bắt đầu lại</button>}
     <Link to="/login">Đến trang đăng nhập</Link>
   </section>;
 }

@@ -3,6 +3,7 @@
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NextFunction, Request, Response } from 'express';
 import { getModelToken } from '@nestjs/mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Model, Types } from 'mongoose';
@@ -12,6 +13,7 @@ import path from 'node:path';
 import request from 'supertest';
 import { configureHttp } from '../src/common/http/configure-http';
 import { PasswordService } from '../src/common/security/password.service';
+import { PasswordResetMailer } from '../src/modules/auth/password-reset-mailer.service';
 import { Account } from '../src/modules/users/schemas/account.schema';
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { extractOtp, SandboxMail, SmtpSandbox } from './helpers/smtp-sandbox';
@@ -32,6 +34,7 @@ describe('US-05 quên mật khẩu – bước 2: gửi OTP qua SMTP sau phản 
   let logs: string[] = [];
   // Riêng log ghi qua console (cách cả dự án đang ghi log), dùng để kiểm tra "có log". Không đếm stdout vì Jest cũng ghi vào đó.
   let consoleLogs: string[] = [];
+  let responseFinished = false;
 
   beforeAll(async () => {
     await smtp.start();
@@ -49,6 +52,13 @@ describe('US-05 quên mật khẩu – bước 2: gửi OTP qua SMTP sau phản 
     const { AppModule } = await import('../src/app.module');
     app = await NestFactory.create(AppModule, { logger: false, abortOnError: false, bodyParser: false });
     configureHttp(app);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.path === '/api/auth/password-reset/request') {
+        responseFinished = false;
+        res.once('finish', () => { responseFinished = true; });
+      }
+      next();
+    });
     await app.init();
     accounts = app.get<Model<Account>>(getModelToken('Account'));
   }, 600000);
@@ -358,6 +368,23 @@ describe('US-05 quên mật khẩu – bước 2: gửi OTP qua SMTP sau phản 
   });
 
   // ---------- US-05-TC14: SMTP chậm, lỗi hoặc không chạy ----------
+
+  it('US-05-TC14: chỉ bắt đầu SMTP sau HTTP finish và vẫn gửi thư qua sandbox thật', async () => {
+    await createAccount({ email: memberEmail });
+    const mailer = app.get(PasswordResetMailer);
+    const send = mailer.sendResetCode.bind(mailer);
+    const observed: boolean[] = [];
+    jest.spyOn(mailer, 'sendResetCode').mockImplementation((email, otp) => {
+      observed.push(responseFinished);
+      return send(email, otp);
+    });
+
+    await requestReset({ identifier: memberPhone }).expect(202);
+    await smtp.waitForMessages(1);
+
+    expect(observed).toEqual([true]);
+    expect(smtp.messages[0].envelopeTo).toEqual([memberEmail]);
+  });
 
   // F03 và bước 2: SMTP chạy sau phản hồi, không trong transaction, nên SMTP chậm không làm chậm 202.
   it('US-05-TC14: SMTP chậm 3 giây không làm chậm phản hồi 202; record đã lưu trước khi thư tới', async () => {

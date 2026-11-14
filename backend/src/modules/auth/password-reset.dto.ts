@@ -1,7 +1,7 @@
 // Tầng kiểm tra dữ liệu: body của POST /api/auth/password-reset/request và /confirm (US-05).
 // Field thừa (accountId, role, email…) bị ValidationPipe từ chối với 400 VALIDATION_ERROR (US-05-TC15).
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsString, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
 
 export class PasswordResetRequestDto {
   // Phone hoặc email; service chuẩn hóa và báo 400 nếu không phải cả hai.
@@ -10,7 +10,8 @@ export class PasswordResetRequestDto {
 
   // US-05-F02: challenge là 32 byte ngẫu nhiên do server tạo, mã hóa base64url thành đúng 43 ký tự.
   @ApiPropertyOptional({ description: 'Challenge của flow đang giữ, gửi kèm khi muốn gửi lại mã' })
-  @IsOptional() @IsString() @Matches(/^[A-Za-z0-9_-]{43}$/) challenge?: string;
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString() @Matches(/^[A-Za-z0-9_-]{43}$/) challenge?: string;
 }
 
 // Body của POST /api/auth/password-reset/confirm. Độ dài newPassword (12–128 ký tự Unicode, không trim)

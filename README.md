@@ -268,6 +268,14 @@ Kiểm thử US-08: `npm run build` rồi `npm test -- --runTestsByPath test/acc
 
 Kiểm tra thủ công: cấu hình JWT secret và MongoDB, chạy ensure-indexes/seed:admin, khởi động hai app; mở `/login` và nhập phone/password Admin đã seed, kết quả `/admin`. Fixture ba role khác được tạo trong integration test; US-02 không mở CRUD để tạo tài khoản ngoài phạm vi. Khi có dữ liệu ACTIVE STAFF/TRAINER/MEMBER, thử lần lượt trong profile browser riêng để đến đúng shell. Reload trang phải restore không chớp nội dung bảo vệ; Member mở `/admin` phải báo thiếu quyền. Kiểm cookie trong DevTools: HttpOnly/Lax/path, không có token ở Local/Session Storage; thử password sai và tắt backend để xem lỗi/thử lại. Mở `/health`: live/ready vẫn dùng được khi anonymous. Kiểm tra HTTPS/cookie Secure cùng site trên hosting production vẫn cần môi trường triển khai thật.
 
+## US-05 — Khôi phục mật khẩu qua OTP email (UC-07)
+
+Luồng `/forgot-password` và `/reset-password` dùng OTP gửi tới email đã lưu, phản hồi công khai thống nhất và challenge chỉ giữ trong memory. Chi tiết API, schema, giới hạn, migration và truy vết TC01–TC16 tại [hợp đồng US-05/UC-07](docs/password-reset-contract.md), [sequence](docs/password-reset-sequence.mmd).
+
+Bật recovery bằng `RESET_OTP_PEPPER` ngẫu nhiên ≥32 byte, khác JWT secret, cùng các biến `SMTP_*` trong `backend/.env.example`; MongoDB phải hỗ trợ transaction. Sau backup và dừng writer, chạy `npm run ensure-indexes` trong backend để chuyển revision Int32 cũ sang Int64, giữ nguyên giá trị và timestamp. Không cấu hình pepper thì endpoint trả 503 chung. OTP không được lưu thô hoặc phát lại qua outbox; SMTP bắt đầu sau commit và HTTP finish. SMTP lỗi có thể mất thư, người dùng chủ động yêu cầu lại sau cooldown.
+
+Kiểm thử backend dùng MongoDB replica set và SMTP sandbox thật: `npm run test:integration -- --testPathPatterns=password-reset`; frontend: `npm test -- --pool=threads --maxWorkers=1 src/features/auth/password-reset.test.tsx`. Kiểm tra trình duyệt/cookie HTTPS và SMTP môi trường triển khai riêng trước khi nghiệm thu toàn bộ.
+
 ## Quy ước và tham khảo
 
 Frontend giữ `api`, `components`, `features`, `hooks`, `layouts`, `pages`, `routes`, `types`, `utils`, xác thực nằm trong features/auth. Backend giữ các module nghiệp vụ; controller xử lý HTTP, service/repository quản lý nghiệp vụ/dữ liệu, common chứa tiện ích dùng chung. Transaction nhiều document thuộc EN-02; US-02 dùng CAS một document, không yêu cầu replica set.

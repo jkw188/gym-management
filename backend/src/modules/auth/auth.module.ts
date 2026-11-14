@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
+import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthOriginGuard, JwtAuthGuard, RolesGuard } from './auth.guards';
@@ -24,7 +25,7 @@ import { PasswordResetSchema } from './schemas/password-reset.schema';
 import { AuthSessionSchema } from './schemas/auth-session.schema';
 
 @Module({
-  imports: [UsersModule, PassportModule.register({ defaultStrategy: 'jwt', session: false }),
+  imports: [UsersModule, TransactionModule, PassportModule.register({ defaultStrategy: 'jwt', session: false }),
     MongooseModule.forFeature([{ name: 'AuthSession', schema: AuthSessionSchema }, { name: 'AuthRateLimit', schema: AuthRateLimitSchema },
       { name: 'PasswordReset', schema: PasswordResetSchema }]),
     JwtModule.registerAsync({ inject: [ConfigService], useFactory: (config: ConfigService) => ({

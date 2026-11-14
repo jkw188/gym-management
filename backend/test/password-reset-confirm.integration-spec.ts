@@ -12,6 +12,7 @@ import request from 'supertest';
 import { configureHttp } from '../src/common/http/configure-http';
 import { PasswordService } from '../src/common/security/password.service';
 import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
+import { PasswordResetsRepository } from '../src/modules/auth/password-resets.repository';
 import { Account } from '../src/modules/users/schemas/account.schema';
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { extractOtp, SmtpSandbox } from './helpers/smtp-sandbox';
@@ -348,6 +349,41 @@ describe('US-05 quên mật khẩu – bước 3: xác nhận OTP và đặt m�
   });
 
   // ---------- US-05-TC07: OTP hết 10 phút ----------
+
+  it('US-05-TC06: không tăng attempts nếu auth_version thay đổi sau kiểm mã sơ bộ', async () => {
+    const id = await createAccount();
+    const flow = await openFlow();
+    const resets = app.get(PasswordResetsRepository);
+    const read = resets.findByChallengeHash.bind(resets);
+    jest.spyOn(resets, 'findByChallengeHash').mockImplementationOnce(async hash => {
+      const reset = await read(hash);
+      await accounts.collection.updateOne({ _id: id }, { $inc: { auth_version: 1 } });
+      return reset;
+    });
+
+    expectResetInvalid(await confirm({ challenge: flow.challenge, otp: wrongOtp(flow.otp), newPassword }));
+
+    expect((await readReset(id)).attempts).toBe(0);
+  });
+
+  it('US-05-TC06: lỗi ghi invalidated_at ở lần sai thứ 5 phải rollback cả attempts', async () => {
+    const id = await createAccount();
+    const flow = await openFlow();
+    for (let attempt = 0; attempt < 4; attempt++) {
+      expectResetInvalid(await confirm({ challenge: flow.challenge, otp: wrongOtp(flow.otp), newPassword }));
+    }
+    await setValidator('password_resets', { invalidated_at: { $exists: false } });
+    const failed = await confirm({ challenge: flow.challenge, otp: wrongOtp(flow.otp), newPassword });
+    await removeValidators();
+    expect(failed.status).toBe(503);
+    expect((await readReset(id)).attempts).toBe(4);
+    expect((await readReset(id)).invalidated_at).toBeUndefined();
+
+    expectResetInvalid(await confirm({ challenge: flow.challenge, otp: wrongOtp(flow.otp), newPassword }));
+    const reset = await readReset(id);
+    expect(reset.attempts).toBe(5);
+    expect(reset.invalidated_at).toBeInstanceOf(Date);
+  });
 
   it('US-05-TC07: OTP quá 10 phút (record còn trong DB vì TTL chưa xóa) trả 400 RESET_INVALID', async () => {
     const id = await createAccount();
