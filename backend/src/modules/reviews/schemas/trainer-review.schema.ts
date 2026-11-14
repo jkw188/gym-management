@@ -27,25 +27,33 @@ export interface TrainerReview {
   member_display_name_snapshot?: string;
 }
 
+// US-65-F03: đánh giá không sửa sau khi gửi → mọi field đều immutable, schema chặn đổi giá trị đã lưu.
 export const TrainerReviewSchema = new Schema<TrainerReview>({
-  id: { type: Schema.Types.ObjectId, required: true },
-  booking_id: { type: Schema.Types.ObjectId, ref: 'PtBooking', required: true },
-  // US-65-TC05: 0, 6, 1.5 bị chặn ngay ở schema. Số nguyên nhỏ được driver lưu kiểu Int32.
-  rating: { type: Number, required: true, min: 1, max: 5, validate: Number.isInteger },
+  // Báo cáo 4.2.16: id bắt buộc, unique và bằng _id (giống account.schema.ts).
+  id: { type: Schema.Types.ObjectId, required: true, immutable: true, default: function () { return this._id; },
+    validate: function (value: Types.ObjectId) { return value.equals(this._id); } },
+  booking_id: { type: Schema.Types.ObjectId, ref: 'PtBooking', required: true, immutable: true },
+  // US-65-TC05, báo cáo 4.2.16: rating kiểu Int32, số nguyên 1–5; 0, 6, 1.5 bị chặn ngay ở schema.
+  // Int32 của Mongoose không có validator min/max (chỉ Number có) nên kiểm khoảng 1–5 trong validate.
+  rating: { type: Schema.Types.Int32, required: true, immutable: true,
+    validate: (value: number) => Number.isInteger(value) && value >= 1 && value <= 5 },
   // US-65-TC05: comment quá 1000 ký tự bị chặn.
-  comment: { type: String, default: '', maxlength: REVIEW_COMMENT_MAX },
-  created_at: { type: Date, required: true },
-  trainer_id: { type: Schema.Types.ObjectId, ref: 'Trainer', required: true },
-  member_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true },
-  created_by: { type: Schema.Types.ObjectId, ref: 'Account', required: true },
-  // US-65-TC08: tên snapshot tối đa 120 ký tự.
-  trainer_name_snapshot: { type: String, maxlength: REVIEW_NAME_SNAPSHOT_MAX },
-  member_display_name_snapshot: { type: String, maxlength: REVIEW_NAME_SNAPSHOT_MAX },
-}, { collection: 'trainer_reviews', id: false, versionKey: false });
+  comment: { type: String, default: '', immutable: true, maxlength: REVIEW_COMMENT_MAX },
+  created_at: { type: Date, required: true, immutable: true },
+  trainer_id: { type: Schema.Types.ObjectId, ref: 'Trainer', required: true, immutable: true },
+  member_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true, immutable: true },
+  created_by: { type: Schema.Types.ObjectId, ref: 'Account', required: true, immutable: true },
+  // US-65-TC08: tên snapshot tối đa 120 ký tự, giữ nguyên tên lúc gửi.
+  trainer_name_snapshot: { type: String, immutable: true, maxlength: REVIEW_NAME_SNAPSHOT_MAX },
+  member_display_name_snapshot: { type: String, immutable: true, maxlength: REVIEW_NAME_SNAPSHOT_MAX },
+  // strict: 'throw' – field lạ gửi vào bị báo lỗi thay vì bị bỏ đi âm thầm (giống các schema khác).
+}, { collection: 'trainer_reviews', id: false, versionKey: false, strict: 'throw' });
 
+// Báo cáo 4.2.16: id unique.
+TrainerReviewSchema.index({ id: 1 }, { unique: true, name: 'trainer_reviews_id_unique' });
 // US-65-F03, US-65-TC09: bảo vệ cuối cùng – một buổi chỉ có một đánh giá.
 TrainerReviewSchema.index({ booking_id: 1 }, { unique: true, name: 'trainer_reviews_booking_unique' });
 // US-31: PT xem đánh giá của mình theo thời gian.
 TrainerReviewSchema.index({ trainer_id: 1, created_at: 1, _id: 1 }, { name: 'trainer_reviews_trainer_time' });
-// US-33 / Member xem lại đánh giá đã gửi theo thời gian.
+// Member xem lại các đánh giá chính mình đã gửi theo thời gian.
 TrainerReviewSchema.index({ member_id: 1, created_at: 1, _id: 1 }, { name: 'trainer_reviews_member_time' });
