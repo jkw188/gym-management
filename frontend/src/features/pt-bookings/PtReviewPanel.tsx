@@ -1,7 +1,7 @@
 // Tầng giao diện – thành phần của trang /member/pt-bookings (US-65 bước 3): Member gửi đánh giá buổi PT đã hoàn tất
 // (chọn sao, nhận xét, xem trước, xác nhận) và xem lại đánh giá đã gửi. Đánh giá không sửa/xóa sau khi gửi (US-65-F03).
 // Được đánh giá hay không là gợi ý reviewState của server; server kiểm lại khi gửi, React không tự quyết theo gói hay giờ.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { ptBookingsApi, REVIEW_COMMENT_MAX, type CreateReviewInput, type MyPtBooking, type PtReview } from './pt-bookings.api';
@@ -63,27 +63,36 @@ export function PtReviewPanel({ booking, mode, onReload, onClose }: Props) {
   const trimmedComment = comment.trim();
   const canPreview = rating !== null && trimmedComment.length <= REVIEW_COMMENT_MAX;
 
-  // Tải review đã gửi từ server và hiện trong "Đánh giá của bạn".
-  async function loadReview() {
+  // Tải review đã gửi từ server và hiện trong "Đánh giá của bạn". Trả true nếu server có review.
+  // useCallback: hàm chỉ đổi khi đổi buổi (booking.id) hoặc đổi hàm tải lịch, để effect bên dưới khai báo đủ phụ thuộc.
+  const loadReview = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError('');
     try {
       const result = await ptBookingsApi.getOwnReview(booking.id);
-      if (result.review) setReview(result.review);
-      else setError('Buổi này chưa có đánh giá.');
+      if (result.review) {
+        setReview(result.review);
+        return true;
+      }
+      // US-65-TC07: reviewState trên thẻ chỉ là gợi ý; server nói chưa có review nghĩa là gợi ý đã cũ
+      // → tải lại lịch để thẻ hiện đúng reviewState mới của server.
+      setError('Buổi này chưa có đánh giá. Lịch đã được tải lại.');
+      await onReload();
+      return false;
     } catch (loadError) {
       // US-65-TC12: lỗi mạng là lỗi, không hiện như đã gửi thành công.
       setError(errorMessage(loadError, 'Không tải được đánh giá.'));
+      return false;
     } finally {
       setLoading(false);
     }
-  }
+  }, [booking.id, onReload]);
 
-  // US-65-TC07: "Xem đánh giá" tải bản gốc ngay khi mở.
+  // US-65-TC07: "Xem đánh giá" tải bản gốc khi mở. Phụ thuộc khai báo đủ (mode, loadReview) nên đổi buổi thì tải lại
+  // đúng review của buổi mới, không dựa vào việc trang cha đặt key cho PtReviewPanel.
   useEffect(() => {
     if (mode === 'view') void loadReview();
-    // Chỉ chạy một lần khi mở: mỗi lần mở là một PtReviewPanel mới (key theo buổi và chế độ).
-  }, []);
+  }, [mode, loadReview]);
 
   // US-65-TC01, TC02, TC04, TC07, TC11: gửi đánh giá sau khi Member xác nhận ở bảng xem trước.
   async function submit() {
@@ -111,8 +120,8 @@ export function PtReviewPanel({ booking, mode, onReload, onClose }: Props) {
         // US-65-TC07: buổi đã được đánh giá (ví dụ gửi từ máy khác) → tải và hiện bản đã gửi, không gửi POST khác.
         pendingKey.current = null;
         setStep('closed');
-        await loadReview();
-        await onReload();
+        // Không có review (hiếm) thì loadReview đã tự tải lại lịch; có review thì tải lại lịch để thẻ thành SUBMITTED.
+        if (await loadReview()) await onReload();
       } else if (sendError instanceof ApiError && sendError.status === 409) {
         // US-65-TC04: buổi không còn COMPLETED (vừa bị Admin mở lại) → báo lỗi, đóng form, tải lại lịch.
         pendingKey.current = null;
