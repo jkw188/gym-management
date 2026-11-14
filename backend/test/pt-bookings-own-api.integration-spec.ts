@@ -29,8 +29,9 @@ const origin = 'http://localhost:5173';
 const databaseName = 'gym_management_test_us27_bookings';
 const password = 'MậtKhẩuUS-27-123';
 const base = '/api/me/pt-bookings';
+// US-65 bước 3 mở thêm projection reviewState (buổi BOOKED → NOT_ELIGIBLE, không có reviewId).
 const DETAIL_FIELDS = [
-  'asOf', 'cancelAllowed', 'endAt', 'id', 'location', 'membershipId', 'shiftId', 'startAt', 'status', 'trainerId', 'trainerName', 'version',
+  'asOf', 'cancelAllowed', 'endAt', 'id', 'location', 'membershipId', 'reviewState', 'shiftId', 'startAt', 'status', 'trainerId', 'trainerName', 'version',
 ];
 
 type Auth = { accessToken: string };
