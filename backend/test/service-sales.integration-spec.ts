@@ -32,6 +32,7 @@ describe('US-14: sale API, atomic free completion and activation port on a real 
   const savedEnv = { ...process.env };
   let connection: Connection;
   let tokens: Record<RoleCode, string>;
+  let adminId: Types.ObjectId;
   let staffId: Types.ObjectId;
   let memberId: string;
   let plan: Plan;
@@ -75,6 +76,7 @@ describe('US-14: sale API, atomic free completion and activation port on a real 
       const role = await users.ensureRole(code, code);
       const account = await users.createAccount({ roleId: role.id.toHexString(), fullName: `US14 ${code}`,
         phone: `+8491234567${index}`, passwordHash: hash });
+      if (code === 'ADMIN') adminId = account._id;
       if (code === 'STAFF') staffId = account._id;
       tokens[code] = (await request(apps[0].getHttpServer()).post('/api/auth/login').set('Origin', origin)
         .send({ phone: account.phone, password }).expect(200)).body.accessToken;
@@ -84,7 +86,8 @@ describe('US-14: sale API, atomic free completion and activation port on a real 
     memberId = created._id.toHexString();
     const model = apps[0].get<Model<Plan>>(getModelToken('Plan'));
     plan = (await model.create({ code: 'GYM30', name: 'Gym 30 ngày', kind: 'GYM', duration_days: 30,
-      session_quota: 0, price: toVndDecimal('300000'), benefits: 'Tập Gym trong giờ mở cửa', status: 'ACTIVE' })).toObject();
+      session_quota: 0, price: toVndDecimal('300000'), benefits: 'Tập Gym trong giờ mở cửa', status: 'ACTIVE',
+      created_by: adminId, updated_by: adminId })).toObject();
   });
   afterEach(() => jest.restoreAllMocks());
 
@@ -173,7 +176,8 @@ describe('US-14: sale API, atomic free completion and activation port on a real 
     const raw = await connection.db!.collection('members').findOne({ _id: new Types.ObjectId(memberId) }, { promoteLongs: false });
     expect(raw!.service_revision).toBeInstanceOf(Long);
     const pt = await plans().create({ code: 'PT30', name: 'PT', kind: 'PT', duration_days: 30,
-      session_quota: 10, price: toVndDecimal('1000000'), benefits: '10 buổi PT', status: 'ACTIVE' });
+      session_quota: 10, price: toVndDecimal('1000000'), benefits: '10 buổi PT', status: 'ACTIVE',
+      created_by: adminId, updated_by: adminId });
     await api('', input({ planId: pt._id.toHexString() })).expect(201);
     expect(await count('service_sales')).toBe(2);
   });

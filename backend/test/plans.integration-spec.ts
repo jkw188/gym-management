@@ -129,7 +129,8 @@ describe('US-12: API, BSON constraints and races on real MongoDB replica set', (
     return runner.run(async session => {
       const snapshot = await reader.readForSale(session, plan.id, plan.version);
       const transactionId = new ObjectId();
-      await db.collection('transactions').insertOne({ _id: transactionId, status: 'PENDING', amount_due: snapshot.price, guard_revision: Long.ZERO }, { session });
+      await db.collection('transactions').insertOne({ _id: transactionId, code: `TX-${transactionId.toHexString()}`,
+        request_key: transactionId.toHexString(), status: 'PENDING', amount_due: snapshot.price, guard_revision: Long.ZERO }, { session });
       await db.collection('service_sales').insertOne({ transaction_id: transactionId, plan_snapshot: snapshot }, { session });
       return snapshot;
     });

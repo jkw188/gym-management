@@ -108,7 +108,8 @@ describe('EN-03 bước 1: persistBusinessEvent lưu thông báo cùng transacti
   // "Lệnh thanh toán giả": ghi một payment trong session rồi lưu thông báo trong CÙNG session.
   async function settle(source: EventSource, recipients: string[], afterPersist?: () => void) {
     return transactions.run(async (session: ClientSession) => {
-      await db().collection('payments').insertOne({ transaction_id: source.transactionId, amount: '500000' }, { session });
+      await db().collection('payments').insertOne({ transaction_id: source.transactionId,
+        reference: new ObjectId().toHexString(), amount: '500000' }, { session });
       const result = await notifications.persistBusinessEvent(session, source, recipients);
       afterPersist?.();
       return result;
