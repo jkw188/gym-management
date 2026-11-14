@@ -5,7 +5,7 @@ import { Schema, Types } from 'mongoose';
 export interface PasswordReset {
   _id: Types.ObjectId; id: Types.ObjectId; account_id: Types.ObjectId;
   token_hash: string; challenge_hash: string; expires_at: Date; used_at?: Date; invalidated_at?: Date; attempts: number;
-  auth_version_snapshot: number; recovery_revision_snapshot: number; email_snapshot: string; created_at: Date;
+  auth_version_snapshot: number; recovery_revision_snapshot: bigint; email_snapshot: string; created_at: Date;
 }
 
 export const PasswordResetSchema = new Schema<PasswordReset>({
@@ -20,7 +20,8 @@ export const PasswordResetSchema = new Schema<PasswordReset>({
   invalidated_at: { type: Date },
   attempts: { type: Schema.Types.Int32, required: true, default: 0, min: 0 },
   auth_version_snapshot: { type: Schema.Types.Int32, required: true },
-  recovery_revision_snapshot: { type: Schema.Types.Int32, required: true },
+  recovery_revision_snapshot: { type: Schema.Types.BigInt, required: true,
+    validate: (value: bigint) => value >= 0n && value <= 9223372036854775807n },
   email_snapshot: { type: String, required: true, maxlength: 190 },
   created_at: { type: Date, required: true },
 }, { collection: 'password_resets', id: false, versionKey: false, strict: 'throw' });

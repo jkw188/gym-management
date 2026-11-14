@@ -248,12 +248,29 @@ describe('US-05 giao diện quên mật khẩu', () => {
     expect(await screen.findByRole('alert')).toBeDefined();
     expect(window.location.pathname).toBe('/reset-password');
     await user.click(screen.getByRole('button', { name: ui.restart }));
+    expect(window.location.pathname).toBe('/reset-password');
+    await user.click(screen.getByRole('button', { name: 'Xác nhận bắt đầu lại' }));
     expect(await screen.findByLabelText(ui.identifier)).toBeDefined();
     expect(window.location.pathname).toBe('/forgot-password');
     expect(callsTo(fetcher, 'request')).toHaveLength(1);
   });
 
   // ---------- Gửi lại mã và đếm ngược 60 giây (đồng hồ giả) ----------
+
+  it('US-05-TC16: hủy bắt đầu lại giữ challenge và OTP đang nhập, không phát sinh request', async () => {
+    const fetcher = fakeServer();
+    await renderApp(fetcher);
+    const user = userEvent.setup();
+    await requestCode(user);
+    await fillReset(user);
+    await user.click(screen.getByRole('button', { name: ui.restart }));
+    await user.click(screen.getByRole('button', { name: 'Giữ mã hiện tại' }));
+    expect((screen.getByLabelText(ui.otp) as HTMLInputElement).value).toBe(otpWithZero);
+    expect(callsTo(fetcher, 'request')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: ui.submit }));
+    await waitFor(() => expect(callsTo(fetcher, 'confirm')).toHaveLength(1));
+    expect(callsTo(fetcher, 'confirm')[0].body.challenge).toBe(challenge);
+  });
 
   // Chỉ giả bộ hẹn giờ và Date; không dùng findBy/waitFor vì chúng cần bộ hẹn giờ thật.
   async function renderWithFakeTimers(fetcher: ReturnType<typeof fakeServer>) {

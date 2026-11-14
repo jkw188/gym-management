@@ -16,6 +16,7 @@ const { MemberLinkEventSchema } = require('../dist/modules/members/schemas/membe
 const { AuthSessionSchema } = require('../dist/modules/auth/schemas/auth-session.schema');
 const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-limit.schema');
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
+const { ensurePasswordResetRevisions } = require('../dist/modules/auth/password-reset-migration');
 const { OperationRequestSchema } = require('../dist/modules/operations/schemas/operation-request.schema');
 const { NotificationSchema } = require('../dist/modules/notifications/schemas/notification.schema');
 const { NotificationRecipientSchema } = require('../dist/modules/notifications/schemas/notification-recipient.schema');
@@ -82,9 +83,8 @@ async function run() {
       await Promise.all([notification.createIndexes(), recipient.createIndexes(), outbox.createIndexes()]);
       // Chỉ tạo counter khi chưa có; chạy lại nhiều lần không đổi value.
       await counter.updateOne({ _id: 'global' }, { $setOnInsert: { value: 0n } }, { upsert: true });
-      // US-05 migration: account tạo trước US-05 chưa có recovery_revision thì ghi 0. Chạy lại nhiều lần vẫn an toàn
-      // vì chỉ chọn account chưa có field này; timestamps: false để không đổi updated_at.
-      await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
+      // US-05: backfill thiếu và chuyển revision Int32 cũ sang Int64, giữ nguyên giá trị/timestamps.
+      await ensurePasswordResetRevisions(connection);
       // US-28 bước 1: kiểm dữ liệu lịch, tạo index pt_bookings và guard schedule_guards trước khi mở writer lịch.
       await ensureSchedulingIntegrity(connection);
       // US-65 bước 1: index trainer_reviews và owner/snapshot cho đánh giá cũ; chạy SAU lịch vì đọc booking đã có member_id.

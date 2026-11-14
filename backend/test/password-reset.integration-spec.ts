@@ -295,6 +295,11 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
     const id = await createAccount({ email: memberEmail });
     // Giả lập account tạo trước US-05: chưa có field recovery_revision.
     await accounts.collection.updateOne({ _id: id }, { $unset: { recovery_revision: '' } });
+    const legacyId = await createAccount({ phone: '0907654321', email: 'legacy.us05@example.com' });
+    await requestReset({ identifier: '0907654321' }).expect(202);
+    await accounts.db.collection('accounts').updateOne({ _id: legacyId }, { $set: { recovery_revision: 7 } });
+    await accounts.db.collection('password_resets').updateOne({ account_id: legacyId }, { $set: { recovery_revision_snapshot: 7 } });
+    const legacyBefore = await readAccount(legacyId);
 
     const first = await runProcess(['scripts/admin.cjs', 'ensure-indexes'], {});
     const second = await runProcess(['scripts/admin.cjs', 'ensure-indexes'], {});
@@ -302,6 +307,17 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
     expect(first.code).toBe(0);
     expect(second.code).toBe(0);
     expect((await readAccount(id)).recovery_revision).toBe(0);
+    expect((await readAccount(legacyId)).recovery_revision).toBe(7);
+    expect((await readAccount(legacyId)).updated_at).toEqual(legacyBefore.updated_at);
+    const accountTypes = await accounts.db.collection('accounts').aggregate([
+      { $project: { type: { $type: '$recovery_revision' } } },
+    ]).toArray();
+    expect(accountTypes.every(item => item.type === 'long')).toBe(true);
+    const [resetType] = await accounts.db.collection('password_resets').aggregate([
+      { $project: { type: { $type: '$recovery_revision_snapshot' } } },
+    ]).toArray();
+    expect(resetType.type).toBe('long');
+    expect((await readResets())[0].recovery_revision_snapshot).toBe(7);
     const resetIndexes = await accounts.db.collection('password_resets').indexes();
     expect(resetIndexes.some(index => JSON.stringify(index.key) === JSON.stringify({ challenge_hash: 1 }))).toBe(true);
   }, 240000);
@@ -621,6 +637,7 @@ describe('US-05 quên mật khẩu – bước 1: yêu cầu mã', () => {
       { name: 'identifier rỗng', body: { identifier: '' } },
       { name: 'identifier không phải phone hay email', body: { identifier: 'khong phai phone hay email' } },
       { name: 'challenge là số', body: { identifier: memberPhone, challenge: 12345 } },
+      { name: 'challenge là null', body: { identifier: memberPhone, challenge: null } },
       { name: 'challenge sai cú pháp', body: { identifier: memberPhone, challenge: 'abc' } },
       { name: 'field thừa accountId', body: { identifier: memberPhone, accountId: new Types.ObjectId().toHexString() } },
       { name: 'field thừa role', body: { identifier: memberPhone, role: 'ADMIN' } },

@@ -126,7 +126,7 @@ export class UsersRepository implements OnModuleInit {
     const update = {
       $set: { password_hash: newHash, password_changed_at: new Date() },
       // $inc tự tạo recovery_revision bằng 1 nếu record cũ chưa có field này.
-      $inc: { version: 1, auth_version: 1, recovery_revision: 1 },
+      $inc: { version: 1, auth_version: 1, recovery_revision: 1n },
     };
     const result = await this.accounts.updateOne(filter, update, { runValidators: true }).maxTimeMS(5000).exec();
     return result.modifiedCount === 1;
@@ -141,7 +141,7 @@ export class UsersRepository implements OnModuleInit {
   }
 
   // US-05-F05: yêu cầu mã được chấp nhận thì ghi revision mới và thời điểm yêu cầu; không đổi auth_version, version.
-  async startRecovery(id: Types.ObjectId, recoveryRevision: number, requestedAt: Date, session: ClientSession): Promise<void> {
+  async startRecovery(id: Types.ObjectId, recoveryRevision: bigint, requestedAt: Date, session: ClientSession): Promise<void> {
     await this.accounts.updateOne({ _id: id }, { $set: { recovery_revision: recoveryRevision, recovery_requested_at: requestedAt } },
       { session, runValidators: true }).exec();
   }
@@ -151,7 +151,7 @@ export class UsersRepository implements OnModuleInit {
   async resetPassword(id: Types.ObjectId, passwordHash: string, changedAt: Date, session: ClientSession): Promise<void> {
     await this.accounts.updateOne({ _id: id }, {
       $set: { password_hash: passwordHash, password_changed_at: changedAt },
-      $inc: { version: 1, auth_version: 1, recovery_revision: 1 },
+      $inc: { version: 1, auth_version: 1, recovery_revision: 1n },
     }, { session, runValidators: true }).exec();
   }
 

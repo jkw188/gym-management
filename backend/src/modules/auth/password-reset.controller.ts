@@ -25,8 +25,15 @@ export class PasswordResetController {
   // US-05-F03: luôn 202 cùng message và challenge, dù account có đủ điều kiện hay không. Header no-store do configureHttp đặt.
   @Public() @UseGuards(AuthOriginGuard) @Post('request') @HttpCode(202)
   @ApiAcceptedResponse({ type: PasswordResetRequestResponseDto })
-  request(@Body() dto: PasswordResetRequestDto, @Req() req: Request) {
-    return this.passwordReset.request(dto.identifier, dto.challenge, clientIp(req));
+  async request(@Body() dto: PasswordResetRequestDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const { response, deliver } = await this.passwordReset.request(dto.identifier, dto.challenge, clientIp(req));
+    if (deliver) {
+      const send = () => { if (res.statusCode === 202) void deliver(); };
+      res.once('finish', send);
+      // Kết nối bị hủy trước phản hồi thì bỏ thư tạm, không phát lại OTP.
+      res.once('close', () => res.removeListener('finish', send));
+    }
+    return response;
   }
 
   // US-05-F06: OTP đúng thì 200, không trả token hay cookie phiên mới.

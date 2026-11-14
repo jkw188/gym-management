@@ -6,7 +6,7 @@ export interface Account {
   _id: Types.ObjectId; id: Types.ObjectId; role_id: Types.ObjectId;
   full_name: string; phone: string; email?: string; birth_date?: string; address?: string; password_hash: string;
   status: AccountStatus; version: number; auth_version: number; created_at: Date; updated_at: Date;
-  password_changed_at?: Date; recovery_revision?: number; recovery_requested_at?: Date;
+  password_changed_at?: Date; recovery_revision?: bigint; recovery_requested_at?: Date;
 }
 
 export const AccountSchema = new Schema<Account>({
@@ -26,13 +26,16 @@ export const AccountSchema = new Schema<Account>({
   // US-67-F03: không bắt buộc vì record cũ chưa có; chỉ được ghi khi đổi mật khẩu.
   password_changed_at: { type: Date },
   // US-05: mặc định 0; account cũ chưa có field này được migration ensure-indexes ghi 0.
-  recovery_revision: { type: Schema.Types.Int32, default: 0 },
+  recovery_revision: { type: Schema.Types.BigInt, default: 0n, validate: (value: bigint) => value >= 0n && value <= 9223372036854775807n },
   // US-05-F05: lần cuối yêu cầu mã được chấp nhận, dùng cho cooldown 60 giây.
   recovery_requested_at: { type: Date },
 }, {
   collection: 'accounts', id: false, versionKey: false, strict: 'throw',
   timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-  toJSON: { transform: (_document, result) => { const { password_hash: _passwordHash, ...safe } = result; return safe; } },
+  toJSON: { transform: (_document, result) => {
+    const { password_hash: _passwordHash, recovery_revision: _recoveryRevision, ...safe } = result;
+    return safe;
+  } },
 });
 AccountSchema.index({ id: 1 }, { unique: true, name: 'accounts_id_unique' });
 AccountSchema.index({ phone: 1 }, { unique: true, name: 'accounts_phone_unique' });

@@ -3,6 +3,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { isDuplicateKey } from '../../common/http/http-error.filter';
 import { AuthRateLimit } from './schemas/auth-rate-limit.schema';
 
 @Injectable()
@@ -23,14 +24,18 @@ export class AuthRateLimitsRepository implements OnModuleInit {
   // Tăng bộ đếm và trả về số đếm mới cùng thời điểm hết khung.
   async increment(key: string, windowMs: number): Promise<{ count: number; expiresAt: Date }> {
     const now = new Date();
-    // Khung cũ đã hết hạn thì xóa để bắt đầu khung mới. TTL của MongoDB chỉ dọn khoảng 60 giây một lần nên không đợi TTL.
-    await this.limits.deleteOne({ key, expires_at: { $lte: now } }).maxTimeMS(5000).exec();
-    // Một lệnh atomic: nhiều instance gọi cùng lúc vẫn đếm đúng. Bộ đếm mới thì khung bắt đầu từ bây giờ.
-    const counter = await this.limits.findOneAndUpdate(
-      { key },
-      { $inc: { count: 1 }, $setOnInsert: { window_start: now, expires_at: new Date(now.getTime() + windowMs) } },
-      { upsert: true, returnDocument: 'after' },
-    ).maxTimeMS(5000).orFail().exec();
+    // Reset khung hết hạn và tăng count trong cùng một lệnh; không xóa khung giữa hai request.
+    // Không phụ thuộc TTL đã dọn hay chưa. Unique key bảo vệ upsert từ nhiều instance.
+    const expired = { $lte: [{ $ifNull: ['$expires_at', now] }, now] };
+    const increment = () => this.limits.findOneAndUpdate({ key }, [{ $set: {
+      count: { $cond: [expired, 1, { $add: ['$count', 1] }] },
+      window_start: { $cond: [expired, now, '$window_start'] },
+      expires_at: { $cond: [expired, new Date(now.getTime() + windowMs), '$expires_at'] },
+    } }], { upsert: true, returnDocument: 'after', updatePipeline: true }).maxTimeMS(5000).orFail().exec();
+    const counter = await increment().catch(error => {
+      if (!isDuplicateKey(error)) throw error;
+      return increment(); // Instance khác vừa tạo key; lần này tăng trên document đã tồn tại.
+    });
     return { count: Number(counter.count), expiresAt: counter.expires_at };
   }
 

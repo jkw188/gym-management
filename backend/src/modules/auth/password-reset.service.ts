@@ -25,6 +25,10 @@ const COOLDOWN_MS = 60 * 1000;
 const MIN_RESPONSE_MS = 200;
 
 export interface PasswordResetRequestResult { message: string; challenge: string }
+export interface PreparedPasswordResetRequest {
+  response: PasswordResetRequestResult;
+  deliver?: () => Promise<void>;
+}
 // OTP thô và email nhận thư: chỉ giữ tạm trong bộ nhớ để gửi thư, không lưu DB, không ghi log (US-05-F05).
 interface CodeDelivery { email: string; otp: string }
 
@@ -34,7 +38,7 @@ export class PasswordResetService {
     private readonly limiter: PasswordResetLimiter, private readonly mailer: PasswordResetMailer,
     private readonly passwords: PasswordService, private readonly config: ConfigService) {}
 
-  async request(identifier: string, challenge: string | undefined, ip: string): Promise<PasswordResetRequestResult> {
+  async request(identifier: string, challenge: string | undefined, ip: string): Promise<PreparedPasswordResetRequest> {
     const startedAt = Date.now();
     const pepper = this.availablePepper();
     const lookup = this.normalizeIdentifier(identifier);
@@ -57,10 +61,12 @@ export class PasswordResetService {
     // tính từ lúc nhận request, để thời gian phản hồi không cho biết account có tồn tại hay không.
     await waitUntil(startedAt + MIN_RESPONSE_MS);
 
-    // US-05-TC14: KHÔNG await việc gửi thư, nên SMTP chậm hay lỗi cũng không làm chậm hay đổi phản hồi 202.
-    // sendResetCode tự bắt lỗi và ghi log an toàn. Không có delivery (cooldown, vượt giới hạn, không đủ điều kiện) thì không gửi.
-    if (delivery) void this.mailer.sendResetCode(delivery.email, delivery.otp);
-    return response;
+    // Controller chỉ gọi deliver sau sự kiện HTTP finish. OTP chỉ nằm trong closure tạm,
+    // không trở thành một phần JSON, log hoặc outbox.
+    const acceptedDelivery = delivery;
+    return { response, ...(acceptedDelivery ? {
+      deliver: () => this.mailer.sendResetCode(acceptedDelivery.email, acceptedDelivery.otp),
+    } : {}) };
   }
 
   // US-05-F05: flow mới tăng recovery_revision (flow cũ mất hiệu lực vì revision không còn khớp) và tạo record mới.
@@ -73,7 +79,7 @@ export class PasswordResetService {
       const account = await this.users.findAccountInSession(accountId, session);
       if (!account || !isEligible(account) || inCooldown(account, now)) return undefined;
 
-      const revision = (account.recovery_revision ?? 0) + 1;
+      const revision = (account.recovery_revision ?? 0n) + 1n;
       await this.users.startRecovery(accountId, revision, now, session);
       await this.resets.create({
         accountId, tokenHash: tokenHash(pepper, challenge, otp), challengeHash: hashChallenge(challenge),
@@ -100,7 +106,7 @@ export class PasswordResetService {
       if (!reset || !reset.account_id.equals(account._id) || reset.used_at || reset.invalidated_at ||
         reset.recovery_revision_snapshot !== account.recovery_revision || reset.auth_version_snapshot !== account.auth_version) return undefined;
 
-      const revision = (account.recovery_revision ?? 0) + 1;
+      const revision = (account.recovery_revision ?? 0n) + 1n;
       await this.users.startRecovery(accountId, revision, now, session);
       await this.resets.replaceCode(reset._id, {
         tokenHash: tokenHash(pepper, challenge, otp), authVersion: account.auth_version, recoveryRevision: revision,
@@ -120,19 +126,14 @@ export class PasswordResetService {
     // Bước 1 – kiểm mã sơ bộ ngoài transaction.
     const reset = await this.resets.findByChallengeHash(hashChallenge(challenge));
     if (!reset || !isUsable(reset, new Date())) throw resetInvalid();
-    if (!otpMatches(reset.token_hash, pepper, challenge, otp)) {
-      // US-05-TC06: OTP sai thì tăng attempts và commit TRƯỚC khi trả 400; lần sai thứ 5 vô hiệu hóa challenge.
-      const attempts = await this.resets.recordWrongAttempt(reset._id, MAX_ATTEMPTS);
-      if (attempts === MAX_ATTEMPTS) await this.resets.invalidate(reset._id, new Date());
-      throw resetInvalid();
-    }
-
     // Bước 2 – hash mật khẩu mới NGOÀI transaction, vì argon2 chậm mà transaction cần ngắn.
-    let passwordHash: string;
-    try {
-      passwordHash = await this.passwords.hash(newPassword);
-    } catch {
-      throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+    let passwordHash: string | undefined;
+    if (otpMatches(reset.token_hash, pepper, challenge, otp)) {
+      try {
+        passwordHash = await this.passwords.hash(newPassword);
+      } catch {
+        throw new ApplicationError(503, 'SERVICE_UNAVAILABLE', 'Dịch vụ chưa sẵn sàng, vui lòng thử lại');
+      }
     }
 
     // Bước 3 – trong transaction kiểm lại mọi điều kiện rồi ghi used_at và mật khẩu mới cùng một lần commit.
@@ -142,12 +143,19 @@ export class PasswordResetService {
     const done = await this.resets.inTransaction(async session => {
       const now = new Date();
       const current = await this.resets.findByChallengeHash(hashChallenge(challenge), session);
-      if (!current || !isUsable(current, now) || !otpMatches(current.token_hash, pepper, challenge, otp)) return false;
+      if (!current || !isUsable(current, now)) return false;
       const account = await this.users.findAccountInSession(current.account_id, session);
       // US-05-TC09: account bị khóa, đổi email, đổi password/phone/role (auth_version) hay đã có flow mới thì từ chối.
       if (!account || account.status !== 'ACTIVE' || account.email !== current.email_snapshot ||
         account.auth_version !== current.auth_version_snapshot || account.recovery_revision !== current.recovery_revision_snapshot) return false;
 
+      if (!otpMatches(current.token_hash, pepper, challenge, otp)) {
+        // Kiểm lại mã trong snapshot hiện tại: resend có thể đã thay mã sau bước sơ bộ.
+        // Lượt sai và invalidated_at của lần thứ 5 được ghi cùng một lệnh, cùng transaction.
+        await this.resets.recordWrongAttempt(current, MAX_ATTEMPTS, now, session);
+        return false; // Trả lỗi SAU commit để không rollback lượt thử.
+      }
+      if (!passwordHash) return false;
       await this.resets.markUsed(current._id, now, session);
       await this.users.resetPassword(account._id, passwordHash, now, session);
       return true;
