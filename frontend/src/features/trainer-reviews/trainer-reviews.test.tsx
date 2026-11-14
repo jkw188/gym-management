@@ -57,12 +57,18 @@ let snapshot: AuthSnapshot;
 let authListeners: Array<() => void>;
 let dataByAccount: Record<string, AccountData>;
 let failNext: Error | null;
+// Spec 1.4: lỗi riêng theo bộ lọc (ví dụ 400 khi fromDate sau toDate); null = không lỗi.
+let rejectList: ((params: URLSearchParams) => Error | null) | null;
 let hold: Promise<void> | null;
 let requestSpy: ReturnType<typeof vi.fn>;
 
 async function fakeServer(path: string, init: RequestInit = {}): Promise<unknown> {
   if (hold) await hold;
   if (failNext) throw failNext;
+  if (rejectList && path.split('?')[0] === '/me/trainer-reviews') {
+    const rejected = rejectList(new URLSearchParams(path.split('?')[1] ?? ''));
+    if (rejected) throw rejected;
+  }
   if (init.method && init.method !== 'GET') throw new Error(`Không có trong spec US-31: ${init.method} ${path}`);
   const [route, search = ''] = path.split('?');
   const params = new URLSearchParams(search);
@@ -103,6 +109,7 @@ beforeEach(() => {
     },
   };
   failNext = null;
+  rejectList = null;
   hold = null;
   vi.spyOn(apiClient, 'getSnapshot').mockImplementation(() => snapshot);
   vi.spyOn(apiClient, 'subscribe').mockImplementation(listener => {
@@ -263,6 +270,83 @@ describe('US-31 bước 3: danh sách và tổng quan đánh giá', () => {
     expect(await screen.findByRole('alert')).toBeDefined();
     expect(screen.queryByText('Chưa có đánh giá')).toBeNull();
     expect(document.body.textContent).not.toMatch(/Số lượt:\s*0/);
+  });
+});
+
+// =====================================================================
+// Spec bản 1.4 (sinh viên chốt 15/11): lỗi nhập bộ lọc và tải lại khi có mạng lại
+// =====================================================================
+describe('US-31 bước 3: lỗi bộ lọc và refresh sau reconnect (spec 1.4)', () => {
+  const RANGE_MESSAGE = 'Chỉ xem tối đa 366 ngày mỗi lần';
+  const tooLong = () => new ApiError('Dữ liệu không hợp lệ', 400, 'req-400', [{ field: 'toDate', message: RANGE_MESSAGE }], undefined, 'VALIDATION_ERROR');
+
+  it('US-31-TC08: bộ lọc bị server từ chối 400 → hiện message trong details cạnh bộ lọc, không trong vùng danh sách, không có "Thử lại"', async () => {
+    rejectList = params => (params.get('fromDate') === '2025-01-01' ? tooLong() : null);
+    renderPage();
+    await cards();
+
+    fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: '2025-01-01' } });
+    fireEvent.change(screen.getByLabelText('Đến ngày'), { target: { value: '2026-11-30' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Lọc' }));
+
+    expect(await screen.findByText(RANGE_MESSAGE)).toBeDefined();
+    expect(within(await listRegion()).queryByText(RANGE_MESSAGE)).toBeNull();
+    expect(within(await listRegion()).queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Thử lại' })).toBeNull();
+  });
+
+  it('US-31-TC08: sửa bộ lọc cho đúng rồi bấm "Lọc" → thông báo lỗi biến mất và danh sách tải lại', async () => {
+    rejectList = params => (params.get('fromDate') === '2025-01-01' ? tooLong() : null);
+    renderPage();
+    await cards();
+    fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: '2025-01-01' } });
+    fireEvent.change(screen.getByLabelText('Đến ngày'), { target: { value: '2026-11-30' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Lọc' }));
+    await screen.findByText(RANGE_MESSAGE);
+
+    fireEvent.change(screen.getByLabelText('Từ ngày'), { target: { value: '2026-11-01' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Lọc' }));
+
+    await waitFor(() => expect(screen.queryByText(RANGE_MESSAGE)).toBeNull());
+    expect(await cards()).toHaveLength(2);
+    expect(lastListParams().get('fromDate')).toBe('2026-11-01');
+  });
+
+  it('US-31-TC11: lỗi mạng/503 vẫn hiện kèm "Thử lại" (khác lỗi 400 của bộ lọc)', async () => {
+    rejectList = () => new ApiError('Hệ thống tạm thời không sẵn sàng', 503, 'req-503', undefined, undefined, 'DATABASE_UNAVAILABLE');
+    renderPage();
+
+    expect(await screen.findByRole('alert')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Thử lại' })).toBeDefined();
+  });
+
+  it('US-31-TC11: trình duyệt có mạng lại (sự kiện "online") → tải lại danh sách theo bộ lọc hiện tại và hiện review mới', async () => {
+    renderPage();
+    await cards();
+    await userEvent.selectOptions(screen.getByLabelText('Điểm'), '5');
+    await userEvent.click(screen.getByRole('button', { name: 'Lọc' }));
+    await waitFor(async () => expect(await cards()).toHaveLength(1));
+    const callsBefore = reviewCalls().length;
+
+    // Trong lúc mất mạng có học viên gửi thêm review 5 sao.
+    dataByAccount[ptA.id].reviews.unshift(reviewOf('5'.repeat(24), 5, 'Review gửi lúc mất mạng', 'Lê Thị Mai'));
+    act(() => { window.dispatchEvent(new Event('online')); });
+
+    expect(await screen.findByText('Review gửi lúc mất mạng')).toBeDefined();
+    expect(reviewCalls().length).toBeGreaterThan(callsBefore);
+    expect(lastListParams().get('rating')).toBe('5');
+  });
+
+  it('US-31-TC11: rời trang thì gỡ listener – sự kiện "online" sau đó không gọi API nữa', async () => {
+    const { unmount } = renderPage();
+    await cards();
+    unmount();
+    const callsAfterUnmount = reviewCalls().length;
+
+    act(() => { window.dispatchEvent(new Event('online')); });
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(reviewCalls().length).toBe(callsAfterUnmount);
   });
 });
 
