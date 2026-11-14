@@ -74,6 +74,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'TRAINER' && <Link to="/trainer/bookings">Buổi dạy của tôi</Link>}
     {/* US-30: PT tra cứu học viên có buổi với mình. */}
     {role === 'TRAINER' && <Link to="/trainer/trainees">Học viên của tôi</Link>}
+    {/* US-31: PT xem đánh giá học viên gửi cho các buổi mình dạy. */}
+    {role === 'TRAINER' && <Link to="/trainer/reviews">Đánh giá của học viên</Link>}
     {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
     {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
     {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
