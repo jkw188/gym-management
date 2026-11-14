@@ -3,14 +3,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, Max, Min } from 'class-validator';
+import { queryInteger } from '../../common/utils/query-integer';
 import { ReadState } from './notifications.types';
 
 const READ_STATES: ReadState[] = ['ALL', 'UNREAD', 'READ'];
-
-// Query luôn là chuỗi: chỉ đổi sang số khi là số nguyên dương viết đúng dạng; "1.5", "abc", "0" giữ nguyên để @IsInt/@Min báo lỗi.
-function queryInteger({ value }: { value: unknown }): unknown {
-  return typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value;
-}
 
 export class InboxQueryDto {
   // US-47-TC08: chỉ ALL/UNREAD/READ, mặc định ALL.

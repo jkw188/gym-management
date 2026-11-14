@@ -4,12 +4,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsMongoId, IsOptional, Matches, Max, Min } from 'class-validator';
+import { queryInteger } from '../../common/utils/query-integer';
 import { SUBJECT_CODES, SubjectCode } from './public-sessions.types';
-
-// Query luôn là chuỗi: chỉ đổi sang số khi là số nguyên dương viết đúng dạng; "0", "1.5", "abc" giữ nguyên để @IsInt/@Min báo lỗi.
-function queryInteger({ value }: { value: unknown }): unknown {
-  return typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value;
-}
 
 // Ngày Việt Nam dạng YYYY-MM-DD.
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;

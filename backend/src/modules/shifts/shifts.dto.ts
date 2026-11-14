@@ -4,6 +4,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { queryInteger } from '../../common/utils/query-integer';
 import { SHIFT_STATUSES, ShiftStatus } from './shifts.types';
 
 export class CreateShiftDto {
@@ -22,11 +23,6 @@ export class CreateShiftDto {
 export class UpdateShiftDto extends CreateShiftDto {
   @ApiProperty({ example: 0, minimum: 0 })
   @IsInt() @Min(0) version!: number;
-}
-
-// Query luôn là chuỗi: chỉ đổi sang số khi là số nguyên dương viết đúng dạng; "1.5", "abc", "0" giữ nguyên để @IsInt/@Min báo lỗi.
-function queryInteger({ value }: { value: unknown }): unknown {
-  return typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value;
 }
 
 // Ngày Việt Nam dạng YYYY-MM-DD; ngày có thật hay không và khoảng tối đa 31 ngày do service kiểm.

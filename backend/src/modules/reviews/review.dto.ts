@@ -3,6 +3,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsInt, IsMongoId, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { queryInteger } from '../../common/utils/query-integer';
 import { MeListQueryDto } from '../memberships/me-memberships.dto';
 
 // US-65-TC02: id sai định dạng → 400.
@@ -24,9 +25,6 @@ export class CreatePtReviewDto {
 // Ngày Việt Nam dạng YYYY-MM-DD. Ngày có thật, thứ tự và độ dài kỳ do TrainerReviewQueryService kiểm (luật nghiệp vụ).
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-// Query luôn là chuỗi: chỉ đổi sang số khi là số nguyên dương viết đúng dạng; "4.5", "abc", "0" giữ nguyên để @IsInt báo 400.
-const toPositiveInteger = ({ value }: { value: unknown }) => (typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value);
-
 // US-31 bước 2 – query của GET /api/me/trainer-reviews. Allowlist: fromDate, toDate, rating, page, limit.
 // page/limit kế thừa khuôn chung (mặc định 1 và 20, tối đa 100). Mọi query khác (trainerId, ownerId…) → 400,
 // kể cả khi kèm bộ lọc hợp lệ (US-31-F01, US-31-TC02).
@@ -40,7 +38,7 @@ export class TrainerReviewsQueryDto extends MeListQueryDto {
 
   // US-31-TC06: lọc điểm nguyên 1–5; 0, 6, 4.5, chữ → 400.
   @ApiPropertyOptional({ minimum: 1, maximum: 5 })
-  @IsOptional() @Transform(toPositiveInteger) @IsInt() @Min(1) @Max(5) rating?: number;
+  @IsOptional() @Transform(queryInteger) @IsInt() @Min(1) @Max(5) rating?: number;
 }
 
 // US-31-TC02: id đánh giá sai định dạng → 400.
