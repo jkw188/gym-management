@@ -11,15 +11,12 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Api
 // Giờ buổi tập theo giờ Việt Nam: "09:00–10:00 18/11/2026".
 const sessionTime = (review: TrainerReview) => `${formatRange(review.booking.startAt, review.booking.endAt)} ${formatDate(review.booking.startAt)}`;
 
-// Tên hiển thị của field bộ lọc, dùng khi server báo lỗi 400 theo field.
-const FILTER_LABELS: Record<string, string> = { fromDate: 'Từ ngày', toDate: 'Đến ngày', rating: 'Điểm', page: 'Trang' };
-
-// US-31-TC08: lỗi 400 của bộ lọc → lý do cụ thể trong details (vd "Đến ngày: Chỉ xem tối đa 366 ngày mỗi lần").
+// US-31-TC08 (spec 1.4): lỗi 400 của bộ lọc → hiện đúng message trong details (vd "Chỉ xem tối đa 366 ngày mỗi lần").
 // Không có details thì dùng message chung của server.
 function filterErrorText(error: ApiError): string {
   const details = error.details ?? [];
   if (details.length === 0) return error.message || 'Bộ lọc không hợp lệ.';
-  return details.map(detail => (FILTER_LABELS[detail.field] ? `${FILTER_LABELS[detail.field]}: ${detail.message}` : detail.message)).join(' ');
+  return details.map(detail => detail.message).join(' ');
 }
 
 // Lỗi tải chi tiết: retryReviewId có khi lỗi tạm thời (mạng/503) để "Thử lại" đúng review đó; 404 thì không có.
@@ -72,6 +69,14 @@ function TrainerReviewsContent() {
       },
     );
   }, [filter]);
+
+  // US-31-TC11 (spec 1.4): trình duyệt có mạng lại (sự kiện 'online') → tải lại danh sách theo bộ lọc HIỆN TẠI.
+  // Tạo object mới cùng giá trị để effect ở trên chạy lại. Rời trang thì gỡ listener để không gọi API nữa.
+  useEffect(() => {
+    const reload = () => setFilter(current => ({ ...current }));
+    window.addEventListener('online', reload);
+    return () => window.removeEventListener('online', reload);
+  }, []);
 
   // US-31-TC05: lọc luôn quay về trang 1.
   function applyFilter(event: FormEvent) {
