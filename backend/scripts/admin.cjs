@@ -25,6 +25,7 @@ const { EnvironmentCheck } = require('../dist/infrastructure/environment/environ
 const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction/financial-integrity');
 const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-query.indexes');
 const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/scheduling-migration');
+const { ensureTrainerReviewsIntegrity } = require('../dist/modules/reviews/trainer-reviews-migration');
 const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
 const { MembershipSchema } = require('../dist/modules/memberships/schemas/membership.schema');
@@ -84,6 +85,8 @@ async function run() {
       await account.updateMany({ recovery_revision: { $exists: false } }, { $set: { recovery_revision: 0 } }, { timestamps: false });
       // US-28 bước 1: kiểm dữ liệu lịch, tạo index pt_bookings và guard schedule_guards trước khi mở writer lịch.
       await ensureSchedulingIntegrity(connection);
+      // US-65 bước 1: index trainer_reviews và owner/snapshot cho đánh giá cũ; chạy SAU lịch vì đọc booking đã có member_id.
+      await ensureTrainerReviewsIntegrity(connection);
       console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INDEXES_ENSURED' }));
     } finally { await connection.close(); }
     return;
@@ -154,9 +157,10 @@ run().catch(error => {
   const mapped = mapError(error);
   const en02 = error instanceof Error && /^EN02_(DUPLICATE_DATA|INVALID_REVISION|INDEX_CONFLICT): [a-z_]+\/[a-z_]+$/.test(error.message);
   // US-28-G01: dữ liệu lịch vi phạm → in mã SCHEDULE_DATA_INVALID kèm loại vi phạm và id để người vận hành đối chiếu.
-  const scheduleInvalid = error instanceof Error && /^SCHEDULE_DATA_INVALID: [a-z_]+\/[0-9a-f]{24}$/.test(error.message);
+  // US-65 bước 1: đánh giá cũ mồ côi hoặc không khớp booking → in REVIEW_DATA_INVALID kèm loại vi phạm và id.
+  const dataInvalid = error instanceof Error && /^(SCHEDULE|REVIEW)_DATA_INVALID: [a-z_]+\/[0-9a-f]{24}$/.test(error.message);
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), requestId: randomUUID(),
-    code: en02 || scheduleInvalid ? error.message.split(':')[0] : error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
-    message: en02 || scheduleInvalid || error instanceof ConfigurationError ? error.message : mapped.message }));
+    code: en02 || dataInvalid ? error.message.split(':')[0] : error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
+    message: en02 || dataInvalid || error instanceof ConfigurationError ? error.message : mapped.message }));
   process.exitCode = 1;
 });
