@@ -22,6 +22,9 @@ function filterErrorText(error: ApiError): string {
 // Lỗi tải chi tiết: retryReviewId có khi lỗi tạm thời (mạng/503) để "Thử lại" đúng review đó; 404 thì không có.
 type DetailError = { text: string; retryReviewId?: string } | null;
 
+// Lần đầu không gửi ngày/điểm: server mặc định 30 ngày gần nhất, mọi điểm.
+const INITIAL_FILTER: TrainerReviewFilter = { fromDate: '', toDate: '', rating: '', page: 1 };
+
 export function TrainerReviewsPage() {
   // US-31-TC11: đổi account/đăng xuất → key đổi → React bỏ toàn bộ state của account cũ (danh sách, tổng quan, chi tiết)
   // ngay lập tức rồi dựng lại và tải theo account mới.
@@ -39,11 +42,15 @@ function TrainerReviewsContent() {
   const [toDate, setToDate] = useState('');
   const [rating, setRating] = useState('');
   // Điều kiện tải danh sách: đổi object này (kể cả cùng giá trị) là tải lại. Lần đầu không gửi ngày/điểm (server mặc định 30 ngày).
-  const [filter, setFilter] = useState<TrainerReviewFilter>({ fromDate: '', toDate: '', rating: '', page: 1 });
+  const [filter, setFilter] = useState<TrainerReviewFilter>(INITIAL_FILTER);
   const [list, setList] = useState<TrainerReviewPage | null>(null);
+  const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
   // US-31-TC08: lỗi do bộ lọc người dùng nhập (400) – hiện cạnh bộ lọc, KHÔNG có "Thử lại" vì gửi lại vẫn sai.
   const [filterError, setFilterError] = useState('');
+  // Bộ lọc đã tạo ra danh sách đang hiển thị. Bộ lọc mới bị 400 thì danh sách cũ vẫn giữ, nên nút trang và
+  // tải lại khi có mạng phải dùng bộ lọc này, không dùng bộ lọc sai.
+  const shownFilter = useRef<TrainerReviewFilter>(INITIAL_FILTER);
 
   const [detail, setDetail] = useState<TrainerReview | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -55,25 +62,37 @@ function TrainerReviewsContent() {
   // US-31-TC05, TC06: GET /me/trainer-reviews theo bộ lọc và trang đang chọn.
   useEffect(() => {
     const loadNumber = ++latestList.current;
-    setList(null);
+    // Danh sách cũ vẫn hiện trong lúc tải; chỉ thay khi có kết quả mới.
+    setLoading(true);
     setListError('');
     setFilterError('');
     trainerReviewsApi.list(filter).then(
-      page => { if (loadNumber === latestList.current) setList(page); },
+      page => {
+        if (loadNumber !== latestList.current) return;
+        setList(page);
+        shownFilter.current = filter;
+        setLoading(false);
+      },
       error => {
         if (loadNumber !== latestList.current) return;
+        setLoading(false);
         // US-31-TC08: 400 là bộ lọc sai (kỳ sai, quá 366 ngày…) → báo lý do cạnh bộ lọc để người dùng sửa.
-        if (error instanceof ApiError && error.status === 400) setFilterError(filterErrorText(error));
-        // US-31-TC11: lỗi mạng/503 hiện như lỗi kèm "Thử lại", KHÔNG hiện như "Chưa có đánh giá".
-        else setListError(errorMessage(error, 'Không tải được danh sách đánh giá.'));
+        // Giữ danh sách và tổng quan của bộ lọc trước (có ghi chú), không xóa trắng màn hình.
+        if (error instanceof ApiError && error.status === 400) {
+          setFilterError(filterErrorText(error));
+          return;
+        }
+        // US-31-TC11: lỗi mạng/503 → bỏ dữ liệu, hiện lỗi kèm "Thử lại", KHÔNG hiện như "Chưa có đánh giá".
+        setList(null);
+        setListError(errorMessage(error, 'Không tải được danh sách đánh giá.'));
       },
     );
   }, [filter]);
 
-  // US-31-TC11 (spec 1.4): trình duyệt có mạng lại (sự kiện 'online') → tải lại danh sách theo bộ lọc HIỆN TẠI.
+  // US-31-TC11 (spec 1.4): trình duyệt có mạng lại (sự kiện 'online') → tải lại danh sách theo bộ lọc đang hiển thị.
   // Tạo object mới cùng giá trị để effect ở trên chạy lại. Rời trang thì gỡ listener để không gọi API nữa.
   useEffect(() => {
-    const reload = () => setFilter(current => ({ ...current }));
+    const reload = () => setFilter({ ...shownFilter.current });
     window.addEventListener('online', reload);
     return () => window.removeEventListener('online', reload);
   }, []);
@@ -124,6 +143,8 @@ function TrainerReviewsContent() {
       </select>
       <button type="submit"><Icon name="filter" label="Lọc" /></button>
       {filterError && <p role="alert">{filterError}</p>}
+      {/* Bộ lọc mới bị từ chối nhưng vẫn giữ kết quả cũ → ghi rõ để không hiểu nhầm số liệu là của bộ lọc mới (F05). */}
+      {filterError && list && <p>Đang hiển thị kết quả của bộ lọc trước.</p>}
     </form>
 
     {/* US-31-TC04: account PT chưa có hồ sơ PT là trạng thái bình thường, không phải lỗi; không hiện điểm 0. */}
@@ -144,7 +165,7 @@ function TrainerReviewsContent() {
         <p>{listError}</p>
         <button type="button" onClick={() => setFilter({ ...filter })}><Icon name="retry" label="Thử lại" /></button>
       </div>}
-      {!list && !listError && !filterError && <p>Đang tải danh sách đánh giá...</p>}
+      {loading && <p>Đang tải danh sách đánh giá...</p>}
       {/* US-31-F02: buổi chưa có review không thành dòng điểm 0; tập rỗng ghi "Chưa có đánh giá". */}
       {list?.profileLinked && list.items.length === 0 && <p>Chưa có đánh giá</p>}
       {list?.items.map(review => <article key={review.id} aria-label={`Đánh giá ${review.id}`}>
@@ -156,8 +177,8 @@ function TrainerReviewsContent() {
         <p>Buổi tập: {sessionTime(review)}</p>
         <button type="button" onClick={() => void openDetail(review.id)}>Xem chi tiết</button>
       </article>)}
-      {list && list.page > 1 && <button type="button" onClick={() => setFilter({ ...filter, page: filter.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
-      {list && list.totalPages > list.page && <button type="button" onClick={() => setFilter({ ...filter, page: filter.page + 1 })}><Icon name="next" label="Trang sau" /></button>}
+      {list && list.page > 1 && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
+      {list && list.totalPages > list.page && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page + 1 })}><Icon name="next" label="Trang sau" /></button>}
     </section>
 
     {detailLoading && <p>Đang tải chi tiết đánh giá...</p>}
