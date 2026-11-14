@@ -3,15 +3,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { queryInteger } from '../../common/utils/query-integer';
 import { MEMBERSHIP_KINDS, MembershipKind, TIME_STATES, TimeState } from './me-memberships.types';
 import { MembershipStatus } from './schemas/membership.schema';
 
 const STORED_STATUSES: MembershipStatus[] = ['ACTIVE', 'SUPERSEDED', 'CANCELLED'];
-
-// Query luôn là chuỗi: chỉ đổi sang số khi là số nguyên dương viết đúng dạng; "1.5", "abc", "0" giữ nguyên để @IsInt/@Min báo lỗi.
-function queryInteger({ value }: { value: unknown }): unknown {
-  return typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value;
-}
 
 export class MeListQueryDto {
   // Spec US-17 mục 2: page mặc định 1.

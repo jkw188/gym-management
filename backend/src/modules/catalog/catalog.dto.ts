@@ -3,12 +3,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import { queryInteger } from '../../common/utils/query-integer';
 import { PLAN_KINDS, PlanKind } from '../plans/schemas/plan.schema';
-
-// Query luôn là chuỗi: chỉ đổi sang số khi là số nguyên dương viết đúng dạng; "0", "1.5", "abc" giữ nguyên để @IsInt/@Min báo lỗi.
-function queryInteger({ value }: { value: unknown }): unknown {
-  return typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value;
-}
 
 // Giá VND là chuỗi số nguyên 0–999999999999 (EN-02), không âm, không lẻ, không exponent.
 const VND_INTEGER = /^\d{1,12}$/;

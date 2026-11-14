@@ -3,14 +3,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
+import { queryInteger } from '../../common/utils/query-integer';
 import { PT_BOOKING_STATUSES, PtBookingStatus } from '../bookings/schemas/pt-booking.schema';
 import { MeListQueryDto } from '../memberships/me-memberships.dto';
 
 // Ngày Việt Nam dạng YYYY-MM-DD.
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-// Query luôn là chuỗi: '12' → 12; '0', 'abc' giữ nguyên để @IsInt/@Min báo 400.
-const toPositiveInteger = ({ value }: { value: unknown }) => (typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value);
 // 'true' → true, 'false' → false; giá trị khác giữ nguyên để @IsBoolean báo 400.
 const toBoolean = ({ value }: { value: unknown }) => (value === 'true' ? true : value === 'false' ? false : value);
 // US-30-TC08: bỏ khoảng trắng hai đầu trước khi kiểm độ dài.
@@ -27,10 +26,10 @@ export class TraineesQueryDto {
 
   // US-30-TC01: page mặc định 1; limit mặc định 20, tối đa 100.
   @ApiPropertyOptional({ default: 1, minimum: 1 })
-  @Transform(toPositiveInteger) @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) page = 1;
+  @Transform(queryInteger) @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) page = 1;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
-  @Transform(toPositiveInteger) @IsInt() @Min(1) @Max(100) limit = 20;
+  @Transform(queryInteger) @IsInt() @Min(1) @Max(100) limit = 20;
 }
 
 // US-30 bước 2 – GET /api/me/trainees/:memberId/bookings. page/limit kế thừa khuôn chung (mặc định 1 và 20, tối đa 100).
