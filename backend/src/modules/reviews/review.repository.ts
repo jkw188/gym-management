@@ -1,4 +1,4 @@
-// Tầng dữ liệu (US-65 bước 2, US-31 bước 1): nơi duy nhất đọc/ghi trainer_reviews, kèm đọc hồ sơ hội viên và tên PT để chụp snapshot.
+// Tầng dữ liệu (US-65 bước 2, US-31 bước 1–2): nơi duy nhất đọc/ghi trainer_reviews, kèm đọc hồ sơ hội viên và tên PT để chụp snapshot.
 // Mọi hàm ghi nhận session (tùy chọn) để lệnh gửi đọc lại dữ liệu trong CÙNG transaction sau khi giữ khóa (US-65-F05).
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
@@ -6,7 +6,7 @@ import { ClientSession } from 'mongodb';
 import { Connection, Model, PipelineStage, Types } from 'mongoose';
 import { PtBookingStatus } from '../bookings/schemas/pt-booking.schema';
 import { TrainerReview } from './schemas/trainer-review.schema';
-import { NewTrainerReview, ReviewMember, TrainerReviewFilter, TrainerReviewRow } from './review.types';
+import { NewTrainerReview, ReviewMember, TrainerReviewFilter, TrainerReviewPage, TrainerReviewRow } from './review.types';
 
 // US-31 mục 2, F02: nối review sang buổi tập bằng booking_id, kiểm buổi đó do chính PT này dạy VÀ đang ở trạng thái service yêu cầu.
 // Chỉ lấy 3 field giờ buổi; review không có buổi khớp bị $unwind bỏ đi (bước 4 bổ sung dataIssue cho nguồn mồ côi/không hợp lệ).
@@ -25,8 +25,14 @@ function bookingStages(trainerId: Types.ObjectId, bookingStatus: PtBookingStatus
   ];
 }
 
+// Kết quả $facet của findTrainerReviewPage: một trang dòng + một dòng tổng (hoặc rỗng khi không có review).
+interface FacetResult {
+  items: TrainerReviewRow[];
+  summary: { reviewCount: number; ratingSum: number }[];
+}
+
 // US-31-F03: chỉ các field PT được xem; không lấy member_id, created_by, tên PT.
-const TRAINER_VIEW_PROJECTION: PipelineStage = {
+const TRAINER_VIEW_PROJECTION: PipelineStage.Project = {
   $project: { _id: 1, rating: 1, comment: 1, created_at: 1, member_display_name_snapshot: 1, booking: 1 },
 };
 
@@ -64,16 +70,31 @@ export class ReviewRepository {
     return trainer ? (trainer._id as Types.ObjectId) : null;
   }
 
-  // US-31-F01, F02: đánh giá của MỘT PT, lọc trainer_id và thời điểm gửi ngay trong truy vấn DB (dùng index
-  // trainer_id, created_at, _id), sắp mới gửi trước rồi _id giảm dần.
-  findTrainerReviews(filter: TrainerReviewFilter): Promise<TrainerReviewRow[]> {
-    return this.reviews.aggregate<TrainerReviewRow>([
-      { $match: { trainer_id: filter.trainerId, created_at: { $gte: filter.from, $lt: filter.to } } },
-      { $sort: { created_at: -1, _id: -1 } },
+  // US-31-F01, F02, F05: đánh giá của MỘT PT. Lọc trainer_id, thời điểm gửi và điểm ngay trong truy vấn DB (dùng index
+  // trainer_id, created_at, _id), nối buổi hợp lệ, rồi $facet tách hai nhánh trên CÙNG tập lọc:
+  //   items: sắp mới gửi trước rồi _id giảm dần, cắt một trang;  summary: đếm và cộng điểm của TOÀN BỘ tập lọc.
+  // Một lệnh aggregate đọc một lần nên trang và tổng không lệch nhau (US-31 mục 2: cùng snapshot read).
+  async findTrainerReviewPage(filter: TrainerReviewFilter): Promise<TrainerReviewPage> {
+    const match: Record<string, unknown> = { trainer_id: filter.trainerId, created_at: { $gte: filter.from, $lt: filter.to } };
+    if (filter.rating !== undefined) match.rating = filter.rating;
+
+    const [result] = await this.reviews.aggregate<FacetResult>([
+      { $match: match },
       ...bookingStages(filter.trainerId, filter.bookingStatus),
-      { $limit: filter.limit },
-      TRAINER_VIEW_PROJECTION,
+      { $facet: {
+        items: [
+          { $sort: { created_at: -1, _id: -1 } },
+          { $skip: (filter.page - 1) * filter.limit },
+          { $limit: filter.limit },
+          TRAINER_VIEW_PROJECTION,
+        ],
+        summary: [{ $group: { _id: null, reviewCount: { $sum: 1 }, ratingSum: { $sum: '$rating' } } }],
+      } },
     ]).exec();
+
+    // Không có review nào khớp thì nhánh summary rỗng → 0 review, tổng điểm 0.
+    const summary = result.summary[0];
+    return { rows: result.items, reviewCount: summary?.reviewCount ?? 0, ratingSum: summary?.ratingSum ?? 0 };
   }
 
   // US-31-TC01, TC02, F02: một đánh giá theo id, CHỈ khi thuộc PT này và buổi đúng trạng thái; của PT khác, không có hoặc buổi sai trạng thái → null.

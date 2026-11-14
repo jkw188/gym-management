@@ -1,7 +1,9 @@
-// Tầng kiểm tra dữ liệu (US-65 bước 2, US-31 bước 1): body/id khi Member gửi/xem đánh giá; query/id khi PT xem đánh giá của mình.
+// Tầng kiểm tra dữ liệu (US-65 bước 2, US-31 bước 1–2): body/id khi Member gửi/xem đánh giá; query/id khi PT xem đánh giá của mình.
 // CHỈ nhận field có khai báo; memberId/trainerId/status/createdAt… → 400 vì ValidationPipe forbidNonWhitelisted (US-65-TC02, US-31-TC02).
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsInt, IsMongoId, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsInt, IsMongoId, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { MeListQueryDto } from '../memberships/me-memberships.dto';
 
 // US-65-TC02: id sai định dạng → 400.
 export class ReviewBookingParamDto {
@@ -19,9 +21,27 @@ export class CreatePtReviewDto {
   @IsOptional() @IsString() comment?: string;
 }
 
-// US-31 bước 1 – query của GET /api/me/trainer-reviews. Bước này CHƯA nhận tham số nào: mọi query (trainerId, ownerId…)
-// đều nằm ngoài allowlist nên 400, kể cả khi kèm bộ lọc khác (US-31-F01, US-31-TC02). Bước 2 thêm fromDate, toDate, rating, page, limit.
-export class TrainerReviewsQueryDto {}
+// Ngày Việt Nam dạng YYYY-MM-DD. Ngày có thật, thứ tự và độ dài kỳ do TrainerReviewQueryService kiểm (luật nghiệp vụ).
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+// Query luôn là chuỗi: chỉ đổi sang số khi là số nguyên dương viết đúng dạng; "4.5", "abc", "0" giữ nguyên để @IsInt báo 400.
+const toPositiveInteger = ({ value }: { value: unknown }) => (typeof value === 'string' && /^[1-9]\d*$/.test(value) ? Number(value) : value);
+
+// US-31 bước 2 – query của GET /api/me/trainer-reviews. Allowlist: fromDate, toDate, rating, page, limit.
+// page/limit kế thừa khuôn chung (mặc định 1 và 20, tối đa 100). Mọi query khác (trainerId, ownerId…) → 400,
+// kể cả khi kèm bộ lọc hợp lệ (US-31-F01, US-31-TC02).
+export class TrainerReviewsQueryDto extends MeListQueryDto {
+  // US-31-TC05, TC08: không gửi thì mặc định 30 ngày gần nhất.
+  @ApiPropertyOptional({ example: '2026-10-16' })
+  @IsOptional() @Matches(DATE_ONLY, { message: 'fromDate phải có dạng YYYY-MM-DD' }) fromDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-11-14' })
+  @IsOptional() @Matches(DATE_ONLY, { message: 'toDate phải có dạng YYYY-MM-DD' }) toDate?: string;
+
+  // US-31-TC06: lọc điểm nguyên 1–5; 0, 6, 4.5, chữ → 400.
+  @ApiPropertyOptional({ minimum: 1, maximum: 5 })
+  @IsOptional() @Transform(toPositiveInteger) @IsInt() @Min(1) @Max(5) rating?: number;
+}
 
 // US-31-TC02: id đánh giá sai định dạng → 400.
 export class TrainerReviewParamDto {
