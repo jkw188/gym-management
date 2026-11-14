@@ -6,6 +6,7 @@
 // của transaction (US-28-G04), mà các reader trên không nhận session.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { TrainerReviewSchema } from '../reviews/schemas/trainer-review.schema';
 import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
 import { MembersDataModule } from '../members/members-data.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -41,7 +42,9 @@ import { TrainerBookingsService } from './trainer-bookings.service';
   imports: [
     // Cùng schema với MembershipsModule (US-17) nên Mongoose dùng lại một model PtBooking.
     // BookingEvent: audit booking_events của lệnh hủy (US-29 bước 2).
-    MongooseModule.forFeature([{ name: 'PtBooking', schema: PtBookingSchema }, { name: 'BookingEvent', schema: BookingEventSchema }]),
+    // TrainerReview (US-65 bước 3): lịch riêng của Member đọc review đã gửi để tính reviewState; cùng schema với ReviewsModule.
+    MongooseModule.forFeature([{ name: 'PtBooking', schema: PtBookingSchema }, { name: 'BookingEvent', schema: BookingEventSchema },
+      { name: 'TrainerReview', schema: TrainerReviewSchema }]),
     // ShiftIntervalService (slot, overlap, ngày Việt Nam) và ShiftsRepository (ca CONFIRMED).
     ShiftsModule,
     // PublicSessionsRepository: giờ lớp PUBLISHED của PT.

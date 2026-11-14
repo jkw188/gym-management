@@ -1,6 +1,7 @@
 // Tầng nghiệp vụ (US-27 bước 2): Member xem lịch PT riêng của CHÍNH mình (danh sách và chi tiết).
 // Chủ thể lấy từ account đang đăng nhập qua MemberOwnerReader (US-17); chủ buổi theo member_id, không theo gói hiện tại.
 // Chỉ đọc, không đổi trạng thái buổi (BOOKED quá giờ vẫn BOOKED – US-27-TC10).
+// US-65 bước 3: mỗi buổi có thêm gợi ý reviewState/reviewId; GET không ghi gì, không khóa.
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
@@ -10,7 +11,7 @@ import { ShiftIntervalService } from '../shifts/shift-interval.service';
 import { MePtBookingsQueryDto } from './me-pt-bookings.dto';
 import { toMePtBookingItem } from './me-pt-bookings.mapper';
 import { MePtBookingsRepository } from './me-pt-bookings.repository';
-import { MePtBookingDetail, MePtBookingPage } from './me-pt-bookings.types';
+import { MePtBookingDetail, MePtBookingPage, ReviewProjection } from './me-pt-bookings.types';
 import { PT_BOOKING_STATUSES, PtBooking } from './schemas/pt-booking.schema';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -44,7 +45,8 @@ export class MePtBookingsService {
     const filter = { memberId, statuses, from: range.from, to: range.to };
     const bookings = await this.repository.findOwnPage(filter, (query.page - 1) * query.limit, query.limit);
     const total = await this.repository.countOwn(filter);
-    return this.toPage(true, bookings, query, total, now);
+    const reviewIds = await this.findReviewIds(bookings);
+    return this.toPage(true, bookings, query, total, now, reviewIds);
   }
 
   // GET /api/me/pt-bookings/:id: US-27-TC07, US-27-TC08 – chỉ buổi có member_id là chính mình.
@@ -56,7 +58,25 @@ export class MePtBookingsService {
     if (!memberId) throw notFound();
     const booking = await this.repository.findOwnById(memberId, new Types.ObjectId(bookingId));
     if (!booking) throw notFound();
-    return { ...toMePtBookingItem(booking, this.cancelAllowed(booking, now)), asOf: now.toISOString() };
+    const reviewIds = await this.findReviewIds([booking]);
+    return { ...toMePtBookingItem(booking, this.cancelAllowed(booking, now), this.reviewProjection(booking, reviewIds)), asOf: now.toISOString() };
+  }
+
+  // US-65-TC07: Map từ id buổi (chuỗi hex) sang id review đã gửi, đọc một lần cho cả trang.
+  private async findReviewIds(bookings: PtBooking[]): Promise<Map<string, string>> {
+    const reviews = await this.repository.findReviewsOfBookings(bookings.map(booking => booking._id));
+    const reviewIds = new Map<string, string>();
+    for (const review of reviews) reviewIds.set(review.booking_id.toHexString(), review._id.toHexString());
+    return reviewIds;
+  }
+
+  // US-65 bước 3, US-65-TC04, TC07: đã có review → SUBMITTED (kể cả khi buổi không còn COMPLETED, vì review vẫn tồn tại);
+  // COMPLETED chưa review → ELIGIBLE (không xét gói còn hạn); BOOKED/CANCELLED → NOT_ELIGIBLE.
+  private reviewProjection(booking: PtBooking, reviewIds: Map<string, string>): ReviewProjection {
+    const reviewId = reviewIds.get(booking._id.toHexString());
+    if (reviewId) return { reviewState: 'SUBMITTED', reviewId };
+    if (booking.status === 'COMPLETED') return { reviewState: 'ELIGIBLE' };
+    return { reviewState: 'NOT_ELIGIBLE' };
   }
 
   // US-27-TC10: gợi ý hủy theo giờ server – BOOKED và còn ≥ 120 phút; buổi quá giờ hoặc đã hủy/hoàn tất → false.
@@ -65,10 +85,11 @@ export class MePtBookingsService {
   }
 
   // Spec mục 2: {memberLinked, items, page, limit, total, totalPages}; rỗng thì totalPages = 0.
-  private toPage(memberLinked: boolean, bookings: PtBooking[], query: MePtBookingsQueryDto, total: number, now: Date): MePtBookingPage {
+  private toPage(memberLinked: boolean, bookings: PtBooking[], query: MePtBookingsQueryDto, total: number, now: Date,
+    reviewIds: Map<string, string> = new Map()): MePtBookingPage {
     return {
       memberLinked,
-      items: bookings.map(booking => toMePtBookingItem(booking, this.cancelAllowed(booking, now))),
+      items: bookings.map(booking => toMePtBookingItem(booking, this.cancelAllowed(booking, now), this.reviewProjection(booking, reviewIds))),
       page: query.page,
       limit: query.limit,
       total,
