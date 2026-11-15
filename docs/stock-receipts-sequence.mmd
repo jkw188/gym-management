@@ -1,0 +1,49 @@
+sequenceDiagram
+  actor Operator as Staff/Admin
+  participant UI as Receipt UI
+  participant API as StockReceiptsController
+  participant Service as StockReceiptsService
+  participant UOW as EN-02 / Idempotency
+  participant Writer as InventoryWriter
+  participant DB as MongoDB replica set
+  Operator->>UI: Lưu nháp hàng thực nhận
+  UI->>API: POST /stock-receipts + UUID v4 key
+  API->>Service: DTO hợp lệ, actor có quyền
+  Service->>UOW: STOCK_RECEIPT_CREATE
+  UOW->>DB: Snapshot transaction, kiểm key/hash
+  Service->>DB: Tăng catalog revision, kiểm SKU/category
+  Service->>DB: DRAFT + items + CREATED audit
+  UOW->>DB: Operation result + majority commit
+  UI-->>Operator: Nháp chưa cộng tồn, tổng server
+  Operator->>UI: Kiểm thực nhận và xác nhận Ghi sổ
+  UI->>API: POST /:id/post {version} + key
+  API->>Service: Ghi sổ theo actor hiện hành
+  Service->>UOW: STOCK_RECEIPT_POST
+  UOW->>DB: Snapshot transaction, kiểm key/hash
+  alt Cùng key đã commit
+    UOW-->>UI: HTTP/body gốc
+  else Key mới
+    Service->>DB: Tăng catalog revision, đọc receipt
+    alt Phiếu đã POSTED
+      Service->>DB: Đọc kết quả POSTED hiện có
+    else Phiếu DRAFT
+      Service->>DB: Tái kiểm dòng, sản phẩm và cost
+      Service->>Writer: Khóa inventory theo productId tăng
+      Writer->>DB: Tăng guard_revision thật rồi đọc balances
+      Writer->>Writer: Kiểm tất cả balances và trần Int32
+      Service->>DB: CAS document version/status
+      Service->>DB: Làm mới snapshot các dòng
+      loop Mỗi dòng
+        Service->>Writer: onHand + quantity, reserved +0
+        Writer->>DB: Conditional balance/version update + movement cùng sequence
+      end
+      Service->>DB: POSTED audit duy nhất
+    end
+    UOW->>DB: Operation result + majority commit
+    UOW-->>UI: POSTED + movementIds
+  end
+  Note over UOW,DB: Lỗi bất kỳ trước commit: abort toàn bộ, không báo thành công
+  opt Mất phản hồi / outcome unknown
+    UI->>API: Lookup hoặc replay cùng key/payload
+    API-->>UI: Kết quả commit hoặc vẫn chưa xác định
+  end

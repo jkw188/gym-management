@@ -97,3 +97,9 @@ Không thêm env/dependency, không chạy migration vào DB cá nhân trong ki�
   thử URL ảnh404 và tắt mạng khi lưu rồi tra cứu/gửi lại cùng key.
 - Build/typecheck và các suite hồi quy không thay thế nghiệm thu public/cart/POS chưa triển khai;
   không gắn bằng chứng vào commit vì chưa được yêu cầu commit.
+
+## Tích hợp US-36
+
+Phiếu nhập dùng cùng S05-C01, không đổi giá bán/trạng thái catalog.
+InventoryWriter và UC-25 được mô tả trong [stock-receipts-contract.md](stock-receipts-contract.md).
+US-36 bổ sung picker nội bộ theo US-37 cho Staff/Admin; không dùng endpoint public hoặc cấp quyền products.manage cho Staff.

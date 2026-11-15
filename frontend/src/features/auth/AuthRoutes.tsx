@@ -70,6 +70,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'ADMIN' && <Link to="/admin/products">Sản phẩm bán lẻ</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/transactions`}>Đối chiếu thanh toán</Link>}
+    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/stock-receipts`}>Phiếu nhập kho</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}
     {/* US-29: tra cứu và hủy hỗ trợ lịch PT. */}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/pt-bookings`}>Tra cứu lịch PT</Link>}

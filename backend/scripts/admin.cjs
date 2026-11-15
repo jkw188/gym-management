@@ -30,6 +30,7 @@ const { ensureTrainerReviewsIntegrity } = require('../dist/modules/reviews/train
 const { ensureTrainersIntegrity } = require('../dist/modules/trainers/trainers-migration');
 const { ensurePublicSessionsIntegrity } = require('../dist/modules/public-sessions/public-sessions-migration');
 const { ensureRetailCatalogIntegrity } = require('../dist/modules/catalog/retail-catalog.migration');
+const { STOCK_MODELS } = require('../dist/modules/stock/stock.schema');
 const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
 const { MembershipSchema } = require('../dist/modules/memberships/schemas/membership.schema');
@@ -54,6 +55,8 @@ async function run() {
       await ensureTrainersIntegrity(connection);
       await ensurePublicSessionsIntegrity(connection);
       await ensureRetailCatalogIntegrity(connection);
+      // US-36: indexes are installed without rewriting any historical receipt or movement.
+      for (const { name, schema } of STOCK_MODELS) await connection.model(name, schema).createIndexes();
       // US-14: keep old sale terms intact; only backfill absent business versions.
       for (const [name, schema] of [['Plan', PlanSchema], ['ServiceSale', ServiceSaleSchema],
         ['Membership', MembershipSchema], ['Transaction', TransactionSchema]]) {
