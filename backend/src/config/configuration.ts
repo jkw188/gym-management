@@ -37,6 +37,28 @@ export function readReceivingAccounts(env: NodeJS.ProcessEnv): string[] {
   } catch { throw new ConfigurationError('Invalid environment variables: RECEIVING_ACCOUNTS'); }
 }
 
+// US-18 mục 2: thông tin công khai để Member chuyển khoản (ngân hàng, số tài khoản, tên chủ tài khoản), KHÔNG có credential.
+// RECEIVING_ACCOUNT_DETAILS = JSON [{code,bankName,accountNumber,accountName}]; mỗi code phải có trong RECEIVING_ACCOUNTS.
+export type ReceivingAccountDetail = { code: string; bankName: string; accountNumber: string; accountName: string };
+
+export function readReceivingAccountDetails(env: NodeJS.ProcessEnv, codes: string[]): ReceivingAccountDetail[] {
+  if (!env.RECEIVING_ACCOUNT_DETAILS?.trim()) return [];
+  try {
+    const rows: unknown = JSON.parse(env.RECEIVING_ACCOUNT_DETAILS);
+    if (!Array.isArray(rows)) throw new Error();
+    const details: ReceivingAccountDetail[] = [];
+    for (const row of rows) {
+      // Mã tài khoản phải nằm trong danh sách RECEIVING_ACCOUNTS; ba ô còn lại là chuỗi không rỗng.
+      if (typeof row?.code !== 'string' || !codes.includes(row.code)) throw new Error();
+      for (const text of [row.bankName, row.accountNumber, row.accountName]) {
+        if (typeof text !== 'string' || !text.trim() || text.length > 120) throw new Error();
+      }
+      details.push({ code: row.code, bankName: row.bankName, accountNumber: row.accountNumber, accountName: row.accountName });
+    }
+    return details;
+  } catch { throw new ConfigurationError('Invalid environment variables: RECEIVING_ACCOUNT_DETAILS'); }
+}
+
 // Ghi TÊN biến sai vào invalid (không ghi giá trị); NODE_ENV=test bắt buộc dùng database test.
 function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: string[]) {
   const mongoUri = env.MONGODB_URI?.trim() ?? '';
@@ -48,6 +70,10 @@ function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: s
 }
 
 // Keep EN-01 validation reusable by infrastructure tools and validate Auth at application startup.
-export default () => ({ ...readConfiguration(process.env), ...readAuthConfiguration(process.env), receivingAccounts: readReceivingAccounts(process.env) });
+export default () => {
+  const receivingAccounts = readReceivingAccounts(process.env);
+  return { ...readConfiguration(process.env), ...readAuthConfiguration(process.env), receivingAccounts,
+    receivingAccountDetails: readReceivingAccountDetails(process.env, receivingAccounts) };
+};
 
 import { readAuthConfiguration } from './auth.configuration';

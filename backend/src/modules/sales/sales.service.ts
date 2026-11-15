@@ -13,6 +13,11 @@ import { SalesRepository } from './sales.repository';
 import { SaleActivationService, invalidState } from './sale-activation.service';
 import { ZeroSettlement } from './zero-settlement.service';
 import { PlansReader } from '../plans/plans.reader';
+import { SaleChannel } from '../memberships/schemas/service-sale.schema';
+import { PreferredPaymentMethod } from './me-sales.dto';
+
+// Nguồn tạo sale do server đặt: kênh bán và cách trả dự kiến của Member (US-18-F05).
+export interface SaleOrigin { channel: SaleChannel; preferredPaymentMethod?: PreferredPaymentMethod }
 
 @Injectable()
 export class SalesService {
@@ -59,9 +64,12 @@ export class SalesService {
       requestedStartDate: input.startDate, expectedEndDate, canProceed: !blockingCode, ...(blockingCode ? { blockingCode } : {}) };
   }
 
-  create(actorId: string, dto: RegisterSaleDto, key: string) {
+  // US-18-F05: kênh bán do server quyết định (quầy mặc định COUNTER; adapter Member truyền SELF_SERVICE), không lấy từ DTO.
+  // Kênh và cách trả dự kiến nằm trong payload nên cũng nằm trong fingerprint của Idempotency-Key (US-18-TC09).
+  create(actorId: string, dto: RegisterSaleDto, key: string, origin: SaleOrigin = { channel: 'COUNTER' }) {
     const input = this.normalize(dto);
-    return this.commands.execute({ actorId, operation: 'SALE_REGISTER', clientKey: key, payload: input }, async session => {
+    const payload = { ...input, channel: origin.channel, preferredPaymentMethod: origin.preferredPaymentMethod };
+    return this.commands.execute({ actorId, operation: 'SALE_REGISTER', clientKey: key, payload }, async session => {
       // Check existence for a precise 404 before acquiring revisions; all business checks repeat under locks.
       if (!await this.members.findById(objectId(input.memberId), session)) throw new ApplicationError(404, 'MEMBER_NOT_FOUND', 'Không tìm thấy hội viên');
       if (!await this.plans.findById(input.planId, session)) throw new ApplicationError(404, 'PLAN_NOT_FOUND', 'Không tìm thấy gói');
@@ -76,6 +84,8 @@ export class SalesService {
         created_at: this.clock.now(), version: 0, guard_revision: 0n }], { session });
       await this.repository.sales.create([{ _id: saleId, id: saleId, transaction_id: transactionId, member_id: input.memberId,
         plan_id: plan._id, operation: 'REGISTER', start_date: input.startDate, end_date: expectedEndDate,
+        // US-18-TC01: server ghi kênh và cách trả dự kiến (chỉ là ý định, không phải đã trả – US-18-F03).
+        channel: origin.channel, preferred_payment_method: origin.preferredPaymentMethod,
         requested_start_date: input.startDate, duration_days_snapshot: plan.duration_days, kind_snapshot: plan.kind,
         plan_version_snapshot: plan.version, created_at: this.clock.now(), plan_name_snapshot: plan.name,
         benefits_snapshot: plan.benefits, list_price_snapshot: plan.price, credit_amount: toVndDecimal('0'),
@@ -117,7 +127,8 @@ export class SalesService {
   }
 }
 
-function objectId(value: string) {
+// Dùng chung cho MeSalesService (US-18): id sai định dạng → 400.
+export function objectId(value: string) {
   if (!/^[a-f\d]{24}$/i.test(value)) throw new ApplicationError(400, 'VALIDATION_ERROR', 'ID phải là ObjectId hợp lệ');
   return new Types.ObjectId(value);
 }

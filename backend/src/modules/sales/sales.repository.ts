@@ -42,6 +42,19 @@ export class SalesRepository implements OnModuleInit {
     }
   }
 
+  // US-18: đọc theo chủ sở hữu – chỉ tìm trong dữ liệu của memberId lấy từ resolver, nên của người khác ra null (404).
+  findOwnSale(memberId: Types.ObjectId, saleId: Types.ObjectId): Promise<ServiceSale | null> {
+    return this.sales.findOne({ _id: saleId, member_id: memberId }).maxTimeMS(5000).lean<ServiceSale>().exec();
+  }
+
+  findOwnTransaction(memberId: Types.ObjectId, transactionId: Types.ObjectId): Promise<Transaction | null> {
+    return this.transactions.findOne({ _id: transactionId, member_id: memberId }).maxTimeMS(5000).lean<Transaction>().exec();
+  }
+
+  findSaleByTransaction(transactionId: Types.ObjectId): Promise<ServiceSale | null> {
+    return this.sales.findOne({ transaction_id: transactionId }).maxTimeMS(5000).lean<ServiceSale>().exec();
+  }
+
   // Legacy sales may lack kind_snapshot: transaction.kind remains the authoritative fallback.
   async blockingCode(memberId: Types.ObjectId, kind: 'GYM' | 'PT', today: string,
     session?: ClientSession, excludedTransactionId?: Types.ObjectId): Promise<string | undefined> {
