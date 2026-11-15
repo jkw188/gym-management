@@ -6,7 +6,8 @@ import { ClientSession, Long, MongoServerError } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Connection, Model, Types } from 'mongoose';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import request from 'supertest';
 import { configureHttp } from '../src/common/http/configure-http';
 import { PasswordService } from '../src/common/security/password.service';
@@ -274,11 +275,12 @@ describe('US-15 renewal: real API/Guard, replica set, two instances and shared s
   it('US-15 migration: rerunnable COUNTER backfill preserves historical price, creator and dates', async () => {
     await db.collection('service_sales').updateOne({ _id: oid(source.saleId) }, { $unset: { channel: '' } });
     const before = await sourceSale();
-    const options = { encoding: 'utf8' as const, windowsHide: true, env: { ...process.env } };
-    expect(spawnSync(process.execPath, [require.resolve('@nestjs/cli/bin/nest.js'), 'build'], options).status).toBe(0);
+    const options = { encoding: 'utf8' as const, windowsHide: true, env: { ...process.env }, timeout: 30000 };
+    const runNode = promisify(execFile);
+    await runNode(process.execPath, [require.resolve('@nestjs/cli/bin/nest.js'), 'build'], options);
     for (let i = 0; i < 2; i++) {
-      const migrated = spawnSync(process.execPath, ['scripts/admin.cjs', 'ensure-indexes'], options);
-      expect({ status: migrated.status, output: migrated.stdout + migrated.stderr }).toMatchObject({ status: 0 });
+      const migrated = await runNode(process.execPath, ['scripts/admin.cjs', 'ensure-indexes'], options);
+      expect(migrated.stdout).toContain('INDEXES_ENSURED');
     }
     expect(await sourceSale()).toEqual({ ...before, channel: 'COUNTER' });
   }, 120000);

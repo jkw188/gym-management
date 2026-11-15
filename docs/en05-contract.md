@@ -19,7 +19,14 @@ Không truyền URI production hoặc dùng DB cá nhân làm DB test.
 
 `jest.en05.config.cjs` chạy riêng, không thuộc CI nhanh. Job
 `.github/workflows/en05.yml` chạy hai process/DB thật và giữ bằng chứng kể cả
-khi fail. Không có tùy chọn giảm số vòng để đạt nghiệm thu.
+khi fail. PR/push chạy `npm run test:en05:regression`: vẫn chạy đủ ma trận khả dụng,
+10 vòng và toàn bộ oracle, chỉ chấp nhận đúng phạm vi chưa triển khai đã công bố
+(TC07/08/10 BLOCKED, TC13 PARTIAL). Assertion lỗi, thiếu vòng, thiếu DB evidence,
+TC khác bị BLOCKED/PARTIAL hoặc lỗi runner/client đều làm check fail.
+
+Lệnh `npm run test:en05` giữ nguyên cổng nghiệm thu đầy đủ. Chạy thủ công workflow
+với `full_acceptance=true` để dùng cổng này trên GitHub. Không dùng
+`continue-on-error`, không đổi TODO thành PASSED, không có tùy chọn giảm số vòng.
 
 ## Harness và oracle
 
@@ -85,7 +92,19 @@ thời gian, assertion), `client.json`, `summary.json` và `report.md`.
 Metadata ghi commit, dirty flag, SHA256 source/harness, runId/seed, clock và phiên bản runtime/DB/app.
 Log/report không có token, password, URI credential hoặc contact fixture.
 
-Mã thoát 0 chỉ khi tất cả TC01–TC20 PASSED, đủ 10 vòng và client test đạt.
+Trong mode nghiệm thu mặc định, mã thoát 0 chỉ khi tất cả TC01–TC20 PASSED,
+đủ 10 vòng và client test đạt.
 Còn dependency thiếu hoặc assertion lỗi thì mã thoát 1, acceptance NOT_ACCEPTED,
 kể cả khi các test Jest khả dụng đã xanh. Dùng report thật để liên kết runId/
 commit vào Excel phân công; không đánh Done khi chưa đủ bằng chứng.
+
+Trong mode regression, mã thoát phản ánh hồi quy của phạm vi đã triển khai;
+`summary.json` vẫn tách `regression` và `acceptance`, ghi danh sách `incomplete`.
+Kết quả NOT_ACCEPTED và các TC thiếu được đưa vào GitHub Step Summary ngay cả
+khi check hồi quy xanh. Khi các dependency hoàn tất, bỏ ngoại lệ tương ứng trong
+`scripts/test-report.cjs` và bổ sung race thật trước khi tuyên bố EN05 Done.
+
+EN04 dùng cùng bộ đọc báo cáo: test fail/skip hoặc thiếu file S01 bắt buộc vẫn
+làm gate fail; TODO của sprint sau được đếm riêng, TODO trong file S01 bắt buộc
+không được chấp nhận. Test migration US15/16 gọi CLI bất đồng bộ để event loop
+tiếp tục đọc pipe log của mongod; tránh timeout Linux do `spawnSync` chặn pipe.

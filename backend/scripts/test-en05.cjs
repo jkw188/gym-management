@@ -5,9 +5,13 @@ const path = require('node:path');
 const { MongoClient } = require('mongodb');
 const { MongoMemoryReplSet } = require('mongodb-memory-server');
 const { validateTestEnvironment } = require('./test-database.cjs');
+const { assessEn05Report } = require('../../scripts/test-report.cjs');
 
 async function main() {
   process.chdir(path.resolve(__dirname, '..'));
+  const args = process.argv.slice(2);
+  if (args.some(arg => arg !== '--regression') || args.length > 1) throw new Error('TEST_INVALID_EN05_MODE');
+  const mode = args.includes('--regression') ? 'regression' : 'acceptance';
   // Do not load personal .env or reuse a development URI.
   if (process.env.NODE_ENV && process.env.NODE_ENV !== 'test') throw new Error('TEST_NODE_ENV_REQUIRED');
   process.env.NODE_ENV = 'test';
@@ -37,8 +41,8 @@ async function main() {
       startedAt, node: process.version, mongoVersion, replicaSet: true, disposable: Boolean(mongo),
       applicationVersion: require('../package.json').version, clock: env.EN05_NOW, rounds: 10, batchSize: 20,
       sourceSha256: hashTree(['src', 'test/en05.concurrency-spec.ts', 'test/helpers/en05-fixture.ts', 'test/helpers/en05-oracle.ts',
-        'scripts/en05-app.cjs', 'scripts/test-en05.cjs', 'jest.en05.config.cjs', 'package-lock.json']),
-      command: 'npm run test:en05', reportVersion: 1 };
+        'scripts/en05-app.cjs', 'scripts/test-en05.cjs', '../scripts/test-report.cjs', 'jest.en05.config.cjs', 'package-lock.json']),
+      command: mode === 'regression' ? 'npm run test:en05:regression' : 'npm run test:en05', mode, reportVersion: 2 };
     writeFileSync(path.join(directory, 'environment.json'), JSON.stringify(metadata, null, 2));
     const result = await run(process.execPath, [require.resolve('jest/bin/jest'), '--config', 'jest.en05.config.cjs', '--runInBand'], env);
     // TC17 includes the existing production NotificationFeed dedupe/reconnect tests.
@@ -57,14 +61,17 @@ async function main() {
     const criteria = Object.fromEntries(Object.entries(coverage).map(([ac, ids]) => [ac,
       result.code === 0 && frontend.code === 0 && ids.every(i => report.cases.some(tc => tc.id === `TC${String(i).padStart(2, '0')}` &&
         tc.status === 'PASSED' && tc.rounds.length === 10)) ? 'PASSED' : 'NOT_ACCEPTED']));
-    const complete = result.code === 0 && frontend.code === 0 && report.cases.length === 20 && report.cases.every(tc => tc.status === 'PASSED' && tc.rounds.length === 10);
+    const assessment = assessEn05Report(report, result.code, frontend.code);
+    const complete = assessment.acceptancePassed;
+    const regression = assessment.regressionPassed ? 'PASSED' : 'FAILED';
     const acceptance = complete ? 'PASSED' : 'NOT_ACCEPTED';
     writeFileSync(path.join(directory, 'summary.json'), JSON.stringify({ ...metadata, finishedAt: new Date().toISOString(),
-      jestExitCode: result.code, clientExitCode: frontend.code, acceptance, criteria, cases: report.cases.map(tc =>
+      jestExitCode: result.code, clientExitCode: frontend.code, regression, acceptance, criteria, incomplete: assessment.incomplete, cases: report.cases.map(tc =>
         ({ id: tc.id, status: tc.status, rounds: tc.rounds.length, reason: tc.reason })) }, null, 2));
     const rows = report.cases.slice().sort((a, b) => a.id.localeCompare(b.id)).map(tc =>
       `| ${tc.id} | ${tc.status} | ${tc.rounds.length}/10 | ${tc.rounds.reduce((sum, round) => sum + round.requests.length, 0)} | ${tc.reason || ''} |`);
     writeFileSync(path.join(directory, 'report.md'), [`# EN-05 ${acceptance}`, '',
+      `Mode: ${mode}; regression: ${regression}; full acceptance: ${acceptance}.`, '',
       `Commit: ${metadata.commit}; dirty: ${metadata.dirty}; runId/seed: ${runId}.`,
       `Node ${metadata.node}; MongoDB ${mongoVersion}; replica set; clock ${metadata.clock}.`,
       `Jest exit: ${result.code}; NotificationFeed Vitest exit: ${frontend.code}.`, '',
@@ -74,10 +81,13 @@ async function main() {
       'DB before/after, checkpoints, request statuses/resolved outcomes: [cases.json](cases.json).',
       'Process IDs and actual indexes: [processes-indexes.json](processes-indexes.json).',
       'Client dedupe/reconnect checks: [client.json](client.json).',
-      'Re-run from backend: `npm run test:en05`. Any BLOCKED/PARTIAL/FAILED outcome prevents acceptance.', ''].join('\n'));
+      'Regression: `npm run test:en05:regression`; full acceptance: `npm run test:en05`.',
+      'Known incomplete scope remains visible; any BLOCKED/PARTIAL/FAILED outcome prevents full acceptance.', ''].join('\n'));
     console.log(`EN05 evidence: ${directory}`);
     console.log(complete ? 'EN05 PASSED' : 'EN05 NOT_ACCEPTED: inspect summary.json and cases.json');
-    process.exitCode = complete ? 0 : 1;
+    console.log(`EN05 regression: ${regression}; mode: ${mode}; incomplete: ${assessment.incomplete.map(tc => tc.id).join(', ') || 'none'}`);
+    if (process.env.GITHUB_STEP_SUMMARY) require('node:fs').appendFileSync(process.env.GITHUB_STEP_SUMMARY, readFileSync(path.join(directory, 'report.md'), 'utf8'));
+    process.exitCode = (mode === 'regression' ? assessment.regressionPassed : complete) ? 0 : 1;
   } finally { await client?.close(); await mongo?.stop(); }
 }
 function hashTree(paths) {
