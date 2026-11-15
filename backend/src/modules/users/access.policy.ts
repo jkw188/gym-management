@@ -29,6 +29,8 @@ export const ACCESS_POLICY = {
   'serviceSales.readOwn': { name: 'Xem lần mua gói của mình', roles: ['MEMBER'] },
   'transactions.readOwn': { name: 'Xem giao dịch của mình', roles: ['MEMBER'] },
   'invoices.readOwn': { name: 'Xem chứng từ của mình', roles: ['MEMBER'] },
+  // US-18-F01: Member tự xem trước/tạo yêu cầu mua gói cho chính mình; quyền xác nhận thu vẫn chỉ STAFF/ADMIN.
+  'serviceSales.registerOwn': { name: 'Tự đăng ký mua gói', roles: ['MEMBER'] },
   // US-27: Member xem danh mục PT khả dụng và giờ trống của PT (chỉ xem, không giữ chỗ).
   'ptTrainers.readAvailable': { name: 'Xem danh mục PT khả dụng', roles: ['MEMBER'] },
   'ptAvailability.read': { name: 'Xem giờ trống của PT', roles: ['MEMBER'] },
