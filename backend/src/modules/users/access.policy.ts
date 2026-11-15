@@ -5,6 +5,8 @@ import { RoleCode } from './schemas/role.schema';
 // Fixed module policy: decorators and the explanatory DB catalog use this same source.
 // Other modules add their permissions only with their own requirements and tests.
 export const ACCESS_POLICY = {
+  'categories.manage': { name: 'Quản lý danh mục bán lẻ', roles: ['ADMIN'] },
+  'products.manage': { name: 'Quản lý sản phẩm bán lẻ', roles: ['ADMIN'] },
   'publicSessions.manage': { name: 'Quản lý lớp tập miễn phí', roles: ['ADMIN'] },
   'trainers.manage': { name: 'Quản lý hồ sơ và trạng thái PT', roles: ['ADMIN'] },
   'accounts.read': { name: 'Xem tài khoản và danh mục vai trò', roles: ['ADMIN'] },

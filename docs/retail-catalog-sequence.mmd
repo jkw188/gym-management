@@ -1,0 +1,34 @@
+sequenceDiagram
+    actor Admin
+    participant UI as /admin/categories hoặc /admin/products
+    participant API as Controller + JWT/FixedPermission
+    participant Service as RetailCatalogService
+    participant Key as IdempotencyService
+    participant DB as MongoDB replica set
+    Admin->>UI: Tạo/sửa dữ liệu kinh doanh
+    UI->>API: GET detail category nếu đổi trạng thái
+    API->>DB: Đọc version và affectedActiveProductCount (không khóa)
+    DB-->>UI: Dữ liệu preview
+    Admin->>UI: Xác nhận
+    UI->>API: POST/PATCH, DTO + Idempotency-Key UUIDv4
+    API->>Service: Quyền hiện hành, DTO allowlist hợp lệ
+    Service->>Key: actor + operation + key + normalized payload + targetId
+    Key->>DB: BEGIN transaction, đọc operation_requests
+    alt Cùng key đã commit
+        DB-->>Key: HTTP/body gốc hoặc hash khác
+        Key-->>UI: Replay hoặc 409 IDEMPOTENCY_CONFLICT
+    else Lệnh mới
+        Key->>DB: Tăng catalog_state.revision thật (S05-C01)
+        Service->>DB: Đọc category/product, kiểm trạng thái và version
+        alt Tạo product
+            Service->>DB: Insert product + inventory0 (không movement)
+        else Sửa entity
+            Service->>DB: CAS version, tăng version+1 (không cascade status/tồn)
+        end
+        Service->>DB: Insert catalog_events before/after allowlist
+        Key->>DB: Insert operation_requests kết quả, COMMIT majority
+        DB-->>UI: 201 hoặc 200, DTO gốc
+    end
+    Note over Key,DB: Lỗi trước commit rollback tất cả, gồm revision, inventory và audit
+    Note over UI,DB: 503/đứt mạng giữ key; lookup hoặc replay. 404 UNKNOWN không chứng minh thất bại
+    UI->>API: Tải lại list/detail
