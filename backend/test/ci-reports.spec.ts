@@ -28,8 +28,6 @@ function en05(): { cases: En05Case[]; setupFailed?: boolean } {
 }
 function incomplete() {
   const report = en05();
-  for (const id of ['TC07', 'TC08']) Object.assign(report.cases.find(tc => tc.id === id)!, { status: 'BLOCKED', rounds: [] });
-  report.cases.find(tc => tc.id === 'TC10')!.status = 'PARTIAL';
   report.cases.find(tc => tc.id === 'TC13')!.status = 'PARTIAL';
   return report;
 }
@@ -64,7 +62,7 @@ describe('EN-05 regression is distinct from full acceptance', () => {
   });
   it('allows only documented missing scope in regression and still rejects full acceptance', () => {
     expect(assessEn05Report(incomplete(), 0, 0)).toMatchObject({ acceptancePassed: false, regressionPassed: true });
-    expect(assessEn05Report(incomplete(), 0, 0).incomplete).toHaveLength(4);
+    expect(assessEn05Report(incomplete(), 0, 0).incomplete).toHaveLength(1);
   });
   it.each(['FAILED', 'NOT_RUN', 'BLOCKED', 'PARTIAL'])('fails regression when an implemented case becomes %s', status => {
     const report = incomplete(); report.cases[0].status = status;
@@ -84,7 +82,7 @@ describe('EN-05 regression is distinct from full acceptance', () => {
     const noDb = incomplete(); noDb.cases[0].rounds[0].after.invariants = 'FAILED';
     expect(assessEn05Report(noDb, 0, 0).regressionPassed).toBe(false);
   });
-  it('requires real US-23 race evidence even while the US-66 branch of TC10 is partial', () => {
+  it('requires ten rounds and real DB evidence for the completed US-23/66 races', () => {
     const report = incomplete(), partial = report.cases.find(tc => tc.id === 'TC10')!;
     partial.rounds.pop(); expect(assessEn05Report(report, 0, 0).regressionPassed).toBe(false);
     partial.status = 'BLOCKED'; partial.rounds = [];

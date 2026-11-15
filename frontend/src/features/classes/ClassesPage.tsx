@@ -5,6 +5,7 @@ import { ApiError } from '../../api/client';
 import { addDays, mondayOf, vietnamDate, vietnamTime } from '../shifts/shift-time';
 import { classesApi, type PublicSession, type PublicSessionPage, type Subject } from './classes.api';
 import { Icon } from '../../components/Icon';
+import { subscribeClassChanges } from './class-signals';
 
 // "2026-11-05" → "05/11".
 const shortDate = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
@@ -44,6 +45,9 @@ export function ClassesPage() {
   const [selected, setSelected] = useState<PublicSession | null>(null);
   // Số lượt bộ lọc: tăng mỗi lần đổi tuần/bộ môn/trang để nhận ra kết quả chi tiết về muộn (US-26-TC12).
   const filterRound = useRef(0);
+  useEffect(() => subscribeClassChanges(() => {
+    filterRound.current += 1; setSelected(null); setReloadCount(count => count + 1);
+  }), []);
 
   // Taxonomy bộ môn do backend sở hữu (US-66), tải một lần.
   useEffect(() => {

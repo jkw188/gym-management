@@ -1,0 +1,38 @@
+sequenceDiagram
+  actor Admin
+  participant UI as /admin/classes
+  participant HTTP as JWT/RBAC + DTO
+  participant Service as AdminPublicSessionsService
+  participant EN02 as Idempotency / TransactionRunner
+  participant DB as MongoDB
+  Admin->>UI: Tạo/sửa/công bố/hủy (version, reason khi hủy)
+  UI->>HTTP: Request + Idempotency-Key UUID
+  HTTP->>Service: Principal ADMIN và input allowlist
+  Service->>EN02: Payload chuẩn hóa + resourceId/version
+  EN02->>DB: Transaction; tìm actor/operation/key
+  alt Key đã commit và hash giống
+    DB-->>EN02: HTTP/body gốc
+    EN02-->>UI: Replay sau kiểm quyền hiện hành
+  else Key mới
+    EN02->>Service: callback(session)
+    opt Tạo/sửa/công bố cần recheck account PT
+      Service->>DB: Tăng security_state
+    end
+    Service->>DB: Tăng schedule_guards global
+    Service->>DB: Recheck lớp/version/start và PT/account/role
+    opt Publish hoặc sửa PUBLISHED
+      Service->>DB: Kiểm overlap PUBLISHED khác + BOOKED/COMPLETED
+    end
+    alt Không hợp lệ hoặc xung đột
+      Service-->>EN02: Lỗi nghiệp vụ
+      EN02->>DB: Abort toàn bộ
+      EN02-->>UI: Lỗi có requestId
+    else Hợp lệ
+      Service->>DB: Insert DRAFT hoặc CAS status/fields, version+1
+      Service->>DB: Insert public_session_events cùng session
+      Service-->>EN02: Response allowlist và sessionId
+      EN02->>DB: Insert operation_requests; commit majority
+      EN02-->>UI: HTTP/body đã commit
+      UI->>UI: Invalidate public/detail và availability
+    end
+  end

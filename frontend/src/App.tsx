@@ -18,6 +18,7 @@ import { TrainersPage } from './features/trainers/TrainersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
 import { TrainerBookingsPage } from './features/pt-bookings/TrainerBookingsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
+import { AdminClassesPage } from './features/classes/AdminClassesPage';
 import { ServicesPage } from './features/services/ServicesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
 import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
@@ -57,6 +58,7 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/account" element={<AccountInfoPage role="STAFF" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/classes" element={<AdminClassesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/transactions" element={<TransactionsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/transactions" element={<TransactionsPage />} /></Route>

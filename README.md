@@ -1,5 +1,7 @@
 # Gym Management — EN-01, EN-04 và các nghiệp vụ Sprint 1
 
+US-66 bổ sung Admin quản lý lớp miễn phí tại `/admin/classes`: nháp, sửa, công bố, hủy có version/audit/idempotency; bảo vệ trùng lớp/booking bằng S04-G01. Hợp đồng UC-02, API, migration OTHER, taxonomy và kiểm thử: [docs/public-sessions-contract.md](docs/public-sessions-contract.md). Chạy `npm run ensure-indexes` và `npm run seed:access` ở backend trước mở writer trên dữ liệu cũ.
+
 US-12 bổ sung danh mục GYM/PT và policy chuyển đổi cho Admin tại `/admin/plans`. Hợp đồng UC-30, schema mục 4.2, API, khóa sale-reader US-14, index và kiểm thử: [docs/plans-contract.md](docs/plans-contract.md). Chạy `npm run ensure-indexes` ở backend trước khi khởi động production; sửa gói/policy cần MongoDB replica set.
 
 React + TypeScript (Vite), NestJS 11 với Express và MongoDB/Mongoose, kiến trúc Modular Monolith.

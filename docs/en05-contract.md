@@ -21,7 +21,8 @@ Không truyền URI production hoặc dùng DB cá nhân làm DB test.
 `.github/workflows/en05.yml` chạy hai process/DB thật và giữ bằng chứng kể cả
 khi fail. PR/push chạy `npm run test:en05:regression`: vẫn chạy đủ ma trận khả dụng,
 10 vòng và toàn bộ oracle, chỉ chấp nhận đúng phạm vi chưa triển khai đã công bố
-(TC07/08 BLOCKED, TC10/13 PARTIAL). Assertion lỗi, thiếu vòng, thiếu DB evidence,
+(TC13 PARTIAL do US20). TC07/08/10 dùng writer US66 thật và bắt buộc PASSED.
+Assertion lỗi, thiếu vòng, thiếu DB evidence,
 TC khác bị BLOCKED/PARTIAL hoặc lỗi runner/client đều làm check fail.
 
 Lệnh `npm run test:en05` giữ nguyên cổng nghiệm thu đầy đủ. Chạy thủ công workflow
@@ -36,6 +37,7 @@ với `full_acceptance=true` để dùng cổng này trên GitHub. Không dùng
 - Mỗi TC chạy được có 10 vòng, batch tranh slot/quota có 20 request chia đều
   hai app. Client barrier và IPC hook ngay trước DataGuardsService.acquire
   giúp tái hiện race; đảo thứ tự gửi qua từng vòng.
+  Kết quả vẫn tương ứng thứ tự input caller để replay đúng key thắng.
 - ServerClock cố định `2035-11-14T17:00:00Z` (00:00 VN), toàn bộ kỳ/giờ fixture
   tương đối mốc này. Ngưỡng hủy và retry qua mốc không sleep theo giờ thật.
   Writer ca làm việc dùng ServerClock có sẵn thay vì gọi trực tiếp Date.now.
@@ -66,10 +68,10 @@ với `full_acceptance=true` để dùng cổng này trên GitHub. Không dùng
 | --- | --- | --- |
 | TC01–TC05 | Slot/quota/member, idempotency/replay/payload khác | Writer hiện có |
 | TC06 | Create/update ca chồng, tự sửa, tiếp giáp, giữ bản cũ khi thất bại | Writer US24 |
-| TC07 | Publish hai lớp/sửa PUBLISHED chồng | BLOCKED: US66 chưa có writer |
-| TC08 | Publish lớp cạnh tranh booking | BLOCKED: US66 chưa có writer |
+| TC07 | Publish hai lớp/sửa PUBLISHED chồng, replay và rollback audit lớp | Writer US66 thật, batch20/hai process/10 vòng |
+| TC08 | Publish lớp cạnh tranh booking; hủy lớp giải phóng giờ | Writer US66/28 thật, batch20/hai process/10 vòng |
 | TC09 | Cancel ca cạnh tranh booking | Writer US25/28 |
-| TC10 | Tạo PT cùng account, CAS version; deactivate cạnh tranh create/confirm ca và booking | PARTIAL: US23/24/25/28 chạy API thật trên hai process; publish lớp US66 còn thiếu |
+| TC10 | Tạo PT/CAS; deactivate cạnh tranh create/confirm ca, booking, publish lớp; account lock trước publish | Writer US23/24/25/28/66 và US07 thật trên hai process |
 | TC11–TC12 | Hủy 20 lệnh/actor/key, hủy cạnh tranh đặt quota1 | Writer US29/28 |
 | TC13 | US16 tạo nâng cấp/settlement cạnh tranh đặt/hủy, replay settlement | PARTIAL: US20 chưa có ownership adapter/API self-service |
 | TC14 | 120 phút, 119 phút 59 giây, retry qua mốc | Server clock trong callback |
@@ -79,12 +81,12 @@ với `full_acceptance=true` để dùng cổng này trên GitHub. Không dùng
 | TC19 | Session/role thu hồi, foreign id, projection public/private | HTTP/JWT/session thật |
 | TC20 | Completion/cancel/upgrade, used tăng tối đa một | Endpoint US64 thật |
 
-TC07/08 được ghi BLOCKED, TC10/13 ghi PARTIAL; không dựng writer giả để đạt.
-TC10 phải chạy đủ 10 vòng với DB evidence cho create/version/deactivate US23 và writer ca/booking hiện có;
-không còn chấp nhận TC10 BLOCKED hoặc không chạy. Fixture trainer có actor/timestamp theo schema US23;
-oracle ghi trạng thái/version trainer và audit, kiểm unique account, unique request key và quan hệ audit/profile.
-Khi bổ sung dependency cần thay các khai báo BLOCKED bằng race thật, bổ sung
-nhánh self-service TC13 rồi chạy đủ ma trận. Không suy ra nghiệm thu toàn bộ
+TC07/08/10 có writer thật; regression không chấp nhận BLOCKED/PARTIAL cho ba TC này.
+TC13 giữ PARTIAL vì thiếu self-service US20. Mỗi TC thực thi phải đủ 10 vòng và DB evidence.
+Fixture trainer có actor/timestamp theo schema US23; oracle ghi trạng thái/version
+trainer/lớp/audit, kiểm unique account/request key, quan hệ audit/profile/lớp/operation và version audit.
+Rollback classAudit so sánh classes/counts/guard trước và sau abort rồi retry đúng key.
+Khi bổ sung nhánh self-service TC13 cần chạy đủ ma trận. Không suy ra nghiệm thu toàn bộ
 US64 từ EN05. Các AC01–04 chỉ đạt khi đủ TC liên quan, không có BLOCKED/PARTIAL.
 
 ## Bằng chứng và mã thoát

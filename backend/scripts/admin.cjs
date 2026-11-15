@@ -28,6 +28,7 @@ const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-q
 const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/scheduling-migration');
 const { ensureTrainerReviewsIntegrity } = require('../dist/modules/reviews/trainer-reviews-migration');
 const { ensureTrainersIntegrity } = require('../dist/modules/trainers/trainers-migration');
+const { ensurePublicSessionsIntegrity } = require('../dist/modules/public-sessions/public-sessions-migration');
 const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
 const { MembershipSchema } = require('../dist/modules/memberships/schemas/membership.schema');
@@ -50,6 +51,7 @@ async function run() {
       await ensureFinancialIntegrity(connection);
       await ensureMembersQueryIndexes(connection);
       await ensureTrainersIntegrity(connection);
+      await ensurePublicSessionsIntegrity(connection);
       // US-14: keep old sale terms intact; only backfill absent business versions.
       for (const [name, schema] of [['Plan', PlanSchema], ['ServiceSale', ServiceSaleSchema],
         ['Membership', MembershipSchema], ['Transaction', TransactionSchema]]) {
@@ -164,7 +166,7 @@ run().catch(error => {
   const en02 = error instanceof Error && /^EN02_(DUPLICATE_DATA|INVALID_REVISION|INDEX_CONFLICT): [a-z_]+\/[a-z_]+$/.test(error.message);
   // US-28-G01: dữ liệu lịch vi phạm → in mã SCHEDULE_DATA_INVALID kèm loại vi phạm và id để người vận hành đối chiếu.
   // US-65 bước 1: đánh giá cũ mồ côi hoặc không khớp booking → in REVIEW_DATA_INVALID kèm loại vi phạm và id.
-  const dataInvalid = error instanceof Error && /^(SCHEDULE|REVIEW|TRAINER)_DATA_INVALID: [a-z_]+\/[0-9a-f]{24}$/.test(error.message);
+  const dataInvalid = error instanceof Error && /^(SCHEDULE|REVIEW|TRAINER|PUBLIC_SESSION)_DATA_INVALID: [a-z_]+\/[0-9a-f]{24}$/.test(error.message);
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), requestId: randomUUID(),
     code: en02 || dataInvalid ? error.message.split(':')[0] : error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
     message: en02 || dataInvalid || error instanceof ConfigurationError ? error.message : mapped.message }));
