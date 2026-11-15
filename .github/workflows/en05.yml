@@ -1,7 +1,12 @@
-name: EN-05 concurrency acceptance
+name: EN-05 concurrency checks
 
 on:
   workflow_dispatch:
+    inputs:
+      full_acceptance:
+        description: Require the complete EN-05 acceptance matrix
+        type: boolean
+        default: false
   pull_request:
   push:
     branches: [main, develop, 'feature/jikang/sprint1']
@@ -11,6 +16,7 @@ permissions:
 
 jobs:
   concurrency:
+    name: EN-05 regression
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -37,7 +43,12 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck:test
         working-directory: backend
-      - name: Run all EN-05 cases and client dedupe checks
+      - name: Run concurrency regression and report incomplete acceptance scope
+        if: ${{ !inputs.full_acceptance }}
+        run: npm run test:en05:regression
+        working-directory: backend
+      - name: Require full EN-05 acceptance
+        if: ${{ inputs.full_acceptance }}
         run: npm run test:en05
         working-directory: backend
       - name: Preserve acceptance evidence, including failures

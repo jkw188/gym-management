@@ -1,6 +1,7 @@
 const { spawnSync } = require('node:child_process');
 const { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } = require('node:fs');
 const path = require('node:path');
+const { assessQualityReport } = require('./test-report.cjs');
 
 const root = path.resolve(__dirname, '..');
 const prefixScript = path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-prefix.js');
@@ -64,15 +65,16 @@ for (const [directory, args, resultName] of steps) {
     if (existsSync(file)) {
       try {
         const raw = JSON.parse(readFileSync(file, 'utf8'));
-        const executed = raw.testResults.map(suite => path.relative(root, suite.name).replaceAll('\\', '/'));
-        step.missingRequiredFiles = requiredTests[resultName].filter(file => !executed.includes(file));
-        step.tests = { passed: raw.numPassedTests, failed: raw.numFailedTests, skipped: raw.numPendingTests,
-          suitesPassed: raw.numPassedTestSuites, suitesFailed: raw.numFailedTestSuites };
+        const assessment = assessQualityReport(raw, requiredTests[resultName], root);
+        step.missingRequiredFiles = assessment.missingRequiredFiles;
+        step.incompleteRequiredTests = assessment.incompleteRequiredTests;
+        step.tests = assessment.tests;
         // Retain evidence without raw failure messages, HTTP bodies, tokens or environment values.
         writeFileSync(file, JSON.stringify({ ...step.tests, success: raw.success,
           suites: raw.testResults.map(suite => ({ file: path.relative(root, suite.name), status: suite.status,
             tests: suite.assertionResults.map(test => ({ name: test.fullName, status: test.status })) })) }, null, 2) + '\n');
-        if (!raw.success || raw.numFailedTests || raw.numPendingTests || !raw.numPassedTests || raw.numFailedTestSuites || step.missingRequiredFiles.length) step.exitCode = 1;
+        if (!assessment.passed) step.exitCode = 1;
+        if (step.tests.todo) console.info(`[EN-04] ${step.tests.todo} later-sprint TODO(s) recorded; mandatory S01 tests must all pass.`);
       } catch { step.exitCode = 1; step.reportError = 'INVALID_TEST_REPORT'; }
     } else { step.exitCode = 1; step.reportError = 'MISSING_TEST_REPORT'; }
   }
