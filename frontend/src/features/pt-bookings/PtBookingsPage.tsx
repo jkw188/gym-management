@@ -13,6 +13,7 @@ import {
 import { formatAsOf, formatDate, formatRange, STATUS_LABELS } from './pt-booking-format';
 import { Icon } from '../../components/Icon';
 import { PtReviewPanel, type ReviewMode } from './PtReviewPanel';
+import { subscribeClassChanges } from '../classes/class-signals';
 
 // US-27-TC12: giải thích vì sao slot chưa đặt được.
 const REASON_LABELS: Record<SlotReason, string> = {
@@ -172,6 +173,7 @@ export function PtBookingsPage() {
   useEffect(() => { void loadBookings(); }, [loadBookings]);
   useEffect(() => { void loadBase(); }, [loadBase]);
   useEffect(() => { void loadAvailability(); }, [loadAvailability]);
+  useEffect(() => subscribeClassChanges(() => { setConfirmSlot(null); void loadAvailability(); }), [loadAvailability]);
   // US-28: đổi PT, ngày hoặc gói thì slot đang xác nhận không còn đúng lựa chọn → đóng bảng xác nhận.
   useEffect(() => { setConfirmSlot(null); }, [trainerId, day, membershipId]);
 

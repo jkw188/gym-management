@@ -19,7 +19,7 @@ function pairs(rows: Document[], fields: string[], code: string) {
 // Independent oracle: committed documents, no availability API or HTTP success counting.
 export async function inspectCommitted(db: Db) {
   const names = ['pt_bookings', 'memberships', 'service_sales', 'transactions', 'members', 'trainers', 'work_shifts',
-    'public_sessions', 'trainer_events', 'operation_requests', 'booking_events', 'notifications', 'notification_recipients', 'notification_outbox'];
+    'public_sessions', 'public_session_events', 'trainer_events', 'operation_requests', 'booking_events', 'notifications', 'notification_recipients', 'notification_outbox'];
   const loaded = await Promise.all(names.map(name => db.collection(name).find({}, { readConcern: { level: 'majority' } }).toArray()));
   const data = Object.fromEntries(names.map((name, i) => [name, loaded[i]]));
   const find = (name: string, value: unknown) => data[name].find(row => id(row._id) === id(value));
@@ -67,6 +67,15 @@ export async function inspectCommitted(db: Db) {
   unique(data.booking_events, ['request_key'], 'AUDIT_UNIQUE');
   unique(data.trainers, ['account_id'], 'TRAINER_ACCOUNT_UNIQUE');
   unique(data.trainer_events, ['request_key'], 'TRAINER_AUDIT_UNIQUE');
+  unique(data.public_session_events, ['request_key'], 'CLASS_AUDIT_UNIQUE');
+  for (const audit of data.public_session_events) {
+    requireInvariant(find('public_sessions', audit.session_id), 'CLASS_AUDIT_ORPHAN');
+    const operation = data.operation_requests.find(row => row.operation === `PUBLIC_SESSION_${audit.action === 'CREATED' ? 'CREATE' : audit.action === 'UPDATED' ? 'UPDATE' : audit.action === 'PUBLISHED' ? 'PUBLISH' : 'CANCEL'}` &&
+      id(row.result_ids?.sessionId) === id(audit.session_id) && id(row.actor_id) === id(audit.actor_id) &&
+      row.response_body.version === audit.after.version);
+    requireInvariant(operation, 'CLASS_AUDIT_OPERATION');
+    requireInvariant(audit.action === 'CREATED' ? audit.after.version === 0 : audit.after.version === audit.before.version + 1, 'CLASS_AUDIT_VERSION');
+  }
   for (const audit of data.trainer_events) requireInvariant(find('trainers', audit.trainer_id), 'TRAINER_AUDIT_ORPHAN');
   for (const audit of data.booking_events) requireInvariant(find('pt_bookings', audit.booking_id), 'AUDIT_ORPHAN');
   for (const recipient of data.notification_recipients) requireInvariant(find('notifications', recipient.notification_id), 'RECIPIENT_ORPHAN');
@@ -81,6 +90,7 @@ export async function inspectCommitted(db: Db) {
   for (const operation of data.operation_requests) {
     if (operation.result_ids?.bookingId) requireInvariant(find('pt_bookings', operation.result_ids.bookingId), 'OPERATION_BOOKING_ORPHAN');
     if (operation.result_ids?.trainerId) requireInvariant(find('trainers', operation.result_ids.trainerId), 'OPERATION_TRAINER_ORPHAN');
+    if (operation.result_ids?.sessionId) requireInvariant(find('public_sessions', operation.result_ids.sessionId), 'OPERATION_CLASS_ORPHAN');
   }
   return {
     scheduleGuard: String((await db.collection('schedule_guards').findOne({ _id: 'global' as unknown as import('mongodb').ObjectId }))?.revision),
@@ -96,6 +106,8 @@ export async function inspectCommitted(db: Db) {
       version: row.version, startAt: row.start_at.toISOString(), endAt: row.end_at.toISOString() })),
     classes: data.public_sessions.map(row => ({ id: id(row._id), trainerId: id(row.trainer_id), status: row.status,
       version: row.version, startAt: row.start_at.toISOString(), endAt: row.end_at.toISOString() })),
+    classAudits: data.public_session_events.map(row => ({ sessionId: id(row.session_id), action: row.action,
+      beforeVersion: row.before?.version, afterVersion: row.after.version, requestKey: row.request_key })),
     events: data.notifications.map(row => ({ id: id(row._id), eventKey: row.event_key })),
     audits: data.booking_events.map(row => ({ bookingId: id(row.booking_id), action: row.action, requestKey: row.request_key,
       beforeStatus: row.before_status, afterStatus: row.after_status, usedBefore: row.used_before, usedAfter: row.used_after })),
@@ -107,7 +119,7 @@ export async function inspectCommitted(db: Db) {
 
 // Diagnostic fallback must still expose committed state when an invariant itself fails.
 export async function captureFailure(db: Db) {
-  const names = ['trainers', 'trainer_events', 'pt_bookings', 'memberships', 'service_sales', 'work_shifts', 'public_sessions', 'booking_events', 'operation_requests',
+  const names = ['trainers', 'trainer_events', 'pt_bookings', 'memberships', 'service_sales', 'work_shifts', 'public_sessions', 'public_session_events', 'booking_events', 'operation_requests',
     'notifications', 'notification_recipients', 'notification_outbox'];
   const projection = Object.fromEntries(['_id', 'member_id', 'membership_id', 'trainer_id', 'shift_id', 'start_at', 'end_at', 'status', 'version',
     'sessions_used', 'service_sale_id', 'sessions_snapshot', 'start_date', 'end_date', 'event_key', 'notification_id', 'booking_id', 'action',

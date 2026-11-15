@@ -111,7 +111,7 @@ export class En05Fixture {
       actor.tokens.push((await response.json() as { accessToken: string }).accessToken);
     }
     [this.admin, this.staff] = this.actors; this.pts = this.actors.slice(2, 4); this.members = this.actors.slice(4);
-    const indexes = await Promise.all(['pt_bookings', 'operation_requests', 'booking_events', 'notifications', 'notification_recipients', 'notification_outbox']
+    const indexes = await Promise.all(['pt_bookings', 'public_sessions', 'public_session_events', 'operation_requests', 'booking_events', 'notifications', 'notification_recipients', 'notification_outbox']
       .map(async name => ({ collection: name, indexes: await this.db.collection(name).listIndexes().toArray() })));
     writeFileSync(path.join(process.env.EN05_REPORT_DIR!, 'processes-indexes.json'), JSON.stringify({ database: this.db.databaseName,
       pids: this.apps.map(app => app.child.pid), parentPid: process.pid, indexes }, null, 2));
@@ -124,7 +124,7 @@ export class En05Fixture {
     await Promise.all(this.apps.map(app => app.rpc('clear'))); await this.clock(NOW);
     this.namespace = `${process.env.EN04_RUN_ID}_${id}_${round}`; this.sequence = 0;
     const collections = ['members', 'trainers', 'plans', 'plan_conversion_policies', 'transactions', 'service_sales', 'memberships', 'work_shifts',
-      'shift_events', 'trainer_events', 'pt_bookings', 'booking_events', 'public_sessions', 'notifications', 'notification_recipients', 'notification_outbox', 'operation_requests', 'payments', 'invoices'];
+      'shift_events', 'trainer_events', 'pt_bookings', 'booking_events', 'public_sessions', 'public_session_events', 'notifications', 'notification_recipients', 'notification_outbox', 'operation_requests', 'payments', 'invoices'];
     for (const name of collections) await this.db.collection(name).deleteMany({});
     await this.db.collection('schedule_guards').updateOne({ _id: 'global' as unknown as ObjectId }, { $set: { revision: Long.ZERO } }, { upsert: true });
     await this.db.collection('security_state').updateOne({ _id: 'account-administration' as unknown as ObjectId }, { $set: { revision: Long.ZERO } }, { upsert: true });
@@ -237,7 +237,9 @@ export class En05Fixture {
     void pending.catch(() => undefined);
     try { await Promise.all(this.apps.map(app => app.hit('guard'))); }
     finally { await Promise.all(this.apps.map(app => app.rpc('release'))); }
-    return pending;
+    const outcomes = await pending;
+    // Đảo thứ tự phát request nhưng kết quả vẫn tương ứng thứ tự input của caller.
+    return round % 2 ? outcomes.reverse() : outcomes;
   }
   blocked(id: string, why: string) { this.cases.push({ id, status: 'BLOCKED', reason: why, rounds: [] }); this.flush(); }
   async checkpoint(label: string) {

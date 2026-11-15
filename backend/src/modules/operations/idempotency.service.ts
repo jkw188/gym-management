@@ -27,6 +27,10 @@ export interface OperationResult { status: number; body: Record<string, unknown>
 
 // Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca làm việc S04 chỉ dành cho TRAINER (US-24-F01, US-25).
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
+  PUBLIC_SESSION_CREATE: ACCESS_POLICY['publicSessions.manage'].roles,
+  PUBLIC_SESSION_UPDATE: ACCESS_POLICY['publicSessions.manage'].roles,
+  PUBLIC_SESSION_PUBLISH: ACCESS_POLICY['publicSessions.manage'].roles,
+  PUBLIC_SESSION_CANCEL: ACCESS_POLICY['publicSessions.manage'].roles,
   TRAINER_CREATE: ACCESS_POLICY['trainers.manage'].roles,
   TRAINER_UPDATE: ACCESS_POLICY['trainers.manage'].roles,
   SALE_REGISTER: ACCESS_POLICY['serviceSales.create'].roles,

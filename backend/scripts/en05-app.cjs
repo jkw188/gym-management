@@ -7,6 +7,7 @@ const { getConnectionToken } = require('@nestjs/mongoose');
 const { ServerClock } = require('../dist/common/utils/business-date');
 const { DataGuardsService } = require('../dist/infrastructure/transaction/data-guards.service');
 const { BookingRepository } = require('../dist/modules/bookings/booking.repository');
+const { AdminPublicSessionsRepository } = require('../dist/modules/public-sessions/admin-public-sessions.repository');
 const { NotificationsRepository } = require('../dist/modules/notifications/notifications.repository');
 const { NotificationOutboxService } = require('../dist/modules/notifications/notification-outbox.service');
 const { OperationRequestsRepository } = require('../dist/modules/operations/operation-requests.repository');
@@ -77,6 +78,7 @@ async function main() {
   wrap(app.get(DataGuardsService), 'acquire', 'guard');
   wrap(app.get(BookingRepository), 'insertBooking', 'booking');
   wrap(app.get(BookingRepository), 'insertBookingEvent', 'audit');
+  wrap(app.get(AdminPublicSessionsRepository), 'insertEvent', 'classAudit');
   wrap(app.get(NotificationsRepository), 'insertRecipients', 'recipient');
   wrap(app.get(NotificationsRepository), 'insertOutbox', 'outbox');
   wrap(app.get(OperationRequestsRepository), 'insert', 'key');
@@ -96,7 +98,7 @@ async function main() {
         case 'worker': result = await app.get(NotificationOutboxService).runOnce(); break;
         case 'validate': {
           result = {};
-          for (const name of ['Member', 'Trainer', 'TrainerEvent', 'Plan', 'WorkShift', 'PublicSession', 'Membership', 'ServiceSale', 'Transaction', 'PtBooking']) {
+          for (const name of ['Member', 'Trainer', 'TrainerEvent', 'Plan', 'WorkShift', 'PublicSession', 'PublicSessionEvent', 'Membership', 'ServiceSale', 'Transaction', 'PtBooking']) {
             const model = connection.models[name];
             const rows = await model.collection.find({}).toArray();
             for (const row of rows) await model.hydrate(row).validate();

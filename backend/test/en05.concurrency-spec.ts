@@ -16,10 +16,16 @@ describe('EN-05: two Node processes / committed MongoDB oracle', () => {
   const shiftCall = (path: string, body: object, app: number, method = 'POST', operation = 'SHIFT_CREATE'): Call =>
     ({ path: `/me/work-shifts${path}`, actor: f.pts[0], app, body, method, key: f.key(), operation });
   const draft = (start: string, end: string) => ({ startAt: at(start), endAt: at(end), location: 'EN05' });
+  const classCall = (id: string, action: 'publish' | 'cancel' | 'update', body: object, app = 0): Call => ({ app, actor: f.admin,
+    path: `/admin/public-sessions/${id}${action === 'update' ? '' : `/${action}`}`, method: action === 'update' ? 'PATCH' : 'POST',
+    operation: `PUBLIC_SESSION_${action.toUpperCase()}`, key: f.key(), body });
+  const classDraft = (start = '08:00', end = '08:45', trainerId = String(f.trainers[0])) => ({ ...draft(start, end), title: 'EN05 US66', subjectCode: 'YOGA', trainerId });
+  async function createClass(start = '08:00', end = '08:45', trainerId = String(f.trainers[0])) {
+    const result = await f.send({ app: 0, actor: f.admin, path: '/admin/public-sessions', operation: 'PUBLIC_SESSION_CREATE', key: f.key(), body: classDraft(start, end, trainerId) });
+    ok(result, 201); return String(result.body.id);
+  }
   beforeAll(async () => {
     await f.start();
-    f.blocked('TC07', 'US-66 production publish/update controller/service are absent; fixtures cannot prove writer isolation.');
-    f.blocked('TC08', 'US-66 publish-versus-book cannot execute through a real writer.');
   }, 120000);
   afterAll(async () => { await f.close(); });
 
@@ -83,9 +89,6 @@ describe('EN-05: two Node processes / committed MongoDB oracle', () => {
     expect((await f.send(shiftCall('', draft('07:00', '08:00'), 0))).status).toBe(400);
   }));
 
-  it.todo('TC07: BLOCKED by missing US-66 publish/update writer');
-  it.todo('TC08: BLOCKED by missing US-66 publish writer');
-
   it('TC09: cancelling a shift races with booking its slot', async () => f.run('TC09', async round => {
     const responses = await f.race([
       f.book(0, '08:00', 0, 0),
@@ -96,7 +99,53 @@ describe('EN-05: two Node processes / committed MongoDB oracle', () => {
     expect(await count('pt_bookings', { shift_id: f.shifts[0], status: 'BOOKED' })).toBe(shift!.status === 'CANCELLED' ? 0 : 1);
   }));
 
-  it('TC10: trainer create/version/deactivate races with real shift and booking writers', async () => f.run('TC10', async round => {
+  it('TC07: real US66 publish/update races and audit rollback', async () => f.run('TC07', async round => {
+    const a = await createClass(), b = await createClass('08:30', '09:15');
+    const calls = Array.from({ length: 20 }, (_, i) => classCall(i % 2 ? a : b, 'publish', { version: 0 }, i % 2));
+    const responses = await f.race(calls, round); codes(responses);
+    expect(responses.filter(row => row.status === 200)).toHaveLength(1);
+    expect(await count('public_sessions', { trainer_id: f.trainers[0], status: 'PUBLISHED' })).toBe(1);
+    const adjacent = await createClass('10:00', '10:45');
+    ok(await f.send(classCall(adjacent, 'publish', { version: 0 }, 1)), 200);
+    const updates = await f.race(Array.from({ length: 20 }, (_, i) => classCall(adjacent, 'update', { ...classDraft('08:30', '09:15'), version: 1 }, i % 2)), round);
+    updates.forEach(response => expect(response.status).toBe(409));
+    expect((await f.db.collection('public_sessions').findOne({ _id: new ObjectId(adjacent) }))!.start_at).toEqual(new Date(at('10:00')));
+    const winnerIndex = responses.findIndex(result => result.status === 200);
+    const replay = await f.send(calls[winnerIndex]); ok(replay, 200); expect(replay.body).toEqual(responses[winnerIndex].body);
+    expect(await count('public_session_events', { action: 'PUBLISHED', session_id: { $in: [new ObjectId(a), new ObjectId(b)] } })).toBe(1);
+    const rollback = await createClass('12:00', '12:45');
+    const before = await f.checkpoint('class_before_audit_rollback');
+    const failed = classCall(rollback, 'publish', { version: 0 });
+    await f.apps[0].arm('classAudit', 'rollback');
+    expect((await f.send(failed)).status).toBe(503);
+    const after = await f.checkpoint('class_after_audit_rollback');
+    expect(after.counts).toEqual(before.counts); expect(after.scheduleGuard).toBe(before.scheduleGuard);
+    expect(after.classes).toEqual(before.classes);
+    ok(await f.send(failed), 200);
+  }));
+
+  it('TC08: publish versus book; cancel releases busy time after commit', async () => f.run('TC08', async round => {
+    const id = await createClass();
+    const calls = Array.from({ length: 20 }, (_, i) => i % 2 ? f.book(i % 3, '08:00', 0, 1) : classCall(id, 'publish', { version: 0 }, 0));
+    const results = await f.race(calls, round); codes(results);
+    const published = await count('public_sessions', { _id: new ObjectId(id), status: 'PUBLISHED' });
+    const bookings = await count('pt_bookings', { trainer_id: f.trainers[0], status: 'BOOKED' });
+    expect(published + bookings).toBe(1);
+    if (!published) {
+      const booking = await f.db.collection('pt_bookings').findOne({ status: 'BOOKED' });
+      ok(await f.send(f.cancel(String(booking!._id), 1, f.staff)), 200);
+      ok(await f.send(classCall(id, 'publish', { version: 0 })), 200);
+    }
+    const cancelled = await f.race([classCall(id, 'cancel', { version: 1, reason }), f.book(0, '08:00', 0, 1)], round);
+    codes(cancelled); expect(cancelled[0].status).toBe(200);
+    const committed = await count('pt_bookings', { trainer_id: f.trainers[0], status: 'BOOKED' });
+    if (!committed) ok(await f.send(f.book(0, '08:00', 0, 1)), 201);
+    expect(await count('public_sessions', { _id: new ObjectId(id), status: 'CANCELLED' })).toBe(1);
+    expect(await count('pt_bookings', { trainer_id: f.trainers[0], status: 'BOOKED' })).toBe(1);
+    expect((await f.send({ app: 0, path: `/public-sessions/${id}`, method: 'GET' })).status).toBe(404);
+  }));
+
+  it('TC10: trainer create/version/deactivate races with shift, booking, class publish and account lock', async () => f.run('TC10', async round => {
     const trainerCall = (id: string, body: object, app: number): Call => ({ app, actor: f.admin, path: `/trainers${id ? `/${id}` : ''}`,
       method: id ? 'PATCH' : 'POST', operation: id ? 'TRAINER_UPDATE' : 'TRAINER_CREATE', key: f.key(), body });
     // Two independent processes link the same account: one profile and one CREATED audit.
@@ -135,7 +184,29 @@ describe('EN-05: two Node processes / committed MongoDB oracle', () => {
     const bookRace = await f.race([trainerCall(id, { version, status: 'INACTIVE' }, 0), f.book(0, '08:00', 0, 1)], round);
     expect(bookRace.map(result => result.status).sort()).toEqual([201, 409]);
     expect((await f.db.collection('trainers').findOne({ _id: f.trainers[0] }))!.status).toBe('ACTIVE');
-  }, 2, 'US-23 create/version/deactivate versus US-24/25/28 executed; publish-class race still requires US-66.'));
+    const classId = await createClass('11:00', '11:45', newId);
+    const trainerVersion = Number((await f.db.collection('trainers').findOne({ _id: new ObjectId(newId) }))!.version);
+    const classRace = await f.race([trainerCall(newId, { version: trainerVersion, status: 'INACTIVE' }, 0), classCall(classId, 'publish', { version: 0 }, 1)], round);
+    expect(classRace.map(result => result.status).sort()).toEqual([200, 409]);
+    const classTrainer = await f.db.collection('trainers').findOne({ _id: new ObjectId(newId) });
+    expect(await count('public_sessions', { _id: new ObjectId(classId), status: 'PUBLISHED' })).toBe(classTrainer!.status === 'ACTIVE' ? 1 : 0);
+    await f.checkpoint('trainer_deactivate_vs_publish');
+    if (classTrainer!.status === 'INACTIVE') ok(await f.send(trainerCall(newId, { version: classTrainer!.version, status: 'ACTIVE' }, 0)), 200);
+    const lockClass = await createClass('12:00', '12:45', newId);
+    await f.apps[0].arm('guard');
+    const publishing = f.send(classCall(lockClass, 'publish', { version: 0 }, 0));
+    void publishing.catch(() => undefined);
+    await f.apps[0].hit('guard');
+    try {
+      ok(await f.send({ app: 1, actor: f.admin, path: `/users/${account.body.id}/status`, method: 'PATCH',
+        body: { version: 0, status: 'LOCKED', reason } }), 200);
+    } finally { await f.apps[0].rpc('release'); }
+    const locked = await publishing;
+    expect(locked.status).toBe(409); expect((locked.body.error as { code: string }).code).toBe('TRAINER_UNAVAILABLE');
+    // Already published history remains, even when the account is subsequently locked.
+    expect(await count('public_sessions', { _id: new ObjectId(classId) })).toBe(1);
+    await f.checkpoint('account_lock_vs_publish');
+  }));
 
   it('TC11: 20 cancellation commands, mixed actors and keys, one transition', async () => f.run('TC11', async round => {
     const id = await created(), key = f.key();
