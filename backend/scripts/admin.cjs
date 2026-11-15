@@ -71,6 +71,8 @@ async function run() {
       const session = connection.model('AuthSession', AuthSessionSchema);
       const rateLimit = connection.model('AuthRateLimit', AuthRateLimitSchema);
       const passwordReset = connection.model('PasswordReset', PasswordResetSchema);
+      // US-15: retain historical money/creator; old service sales came from the counter.
+      await connection.collection('service_sales').updateMany({ channel: { $exists: false } }, { $set: { channel: 'COUNTER' } });
       // EN-02 bước 2: unique index (actor_id, operation, client_key); collection mới nên chưa có dữ liệu trùng.
       const operationRequest = connection.model('OperationRequest', OperationRequestSchema);
       await Promise.all([account.createIndexes(), role.createIndexes(), members.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),

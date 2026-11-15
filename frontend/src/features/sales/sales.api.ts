@@ -10,6 +10,7 @@ export interface SalePreview {
   expectedEndDate: string; canProceed: boolean; blockingCode?: string;
 }
 export interface SaleDetail {
+  operation?: 'REGISTER' | 'RENEW' | 'UPGRADE'; previousSaleId?: string; planId?: string; channel?: 'COUNTER' | 'SELF_SERVICE';
   saleId: string; transactionId: string; transactionCode: string; transactionStatus: 'PENDING' | 'SETTLED' | 'CANCELLED';
   transactionVersion: number; amountDue: string; planName: string; benefits: string; sessions: number;
   requestedStartDate: string; startDate: string; endDate: string; membershipId?: string; invoiceId?: string; invoiceNumber?: string;

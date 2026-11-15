@@ -28,6 +28,7 @@ export interface OperationResult { status: number; body: Record<string, unknown>
 // Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca làm việc S04 chỉ dành cho TRAINER (US-24-F01, US-25).
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   SALE_REGISTER: ACCESS_POLICY['serviceSales.create'].roles,
+  SALE_RENEW: ['ADMIN', 'STAFF', 'MEMBER'], // US-19 adapter must check ownership before invoking the shared RenewalService.
   SALE_CANCEL: ACCESS_POLICY['serviceSales.cancel'].roles,
   PAYMENT_CONFIRM: ACCESS_POLICY['transactions.confirmPayment'].roles,
   MEMBER_CREATE: ACCESS_POLICY['members.create'].roles,
