@@ -77,6 +77,8 @@ export function ServiceRegistrationPage() {
   // Hướng dẫn thanh toán.
   const [guide, setGuide] = useState<PaymentInstructions | null>(null);
   const [guideError, setGuideError] = useState('');
+  // Hướng dẫn đang hiện là của giao dịch nào; null = không hiện vùng hướng dẫn.
+  const [guideTransactionId, setGuideTransactionId] = useState<string | null>(null);
 
   // Tự hủy yêu cầu.
   const [cancelTarget, setCancelTarget] = useState<MySale | null>(null);
@@ -108,18 +110,21 @@ export function ServiceRegistrationPage() {
     }
   }, [accountId]);
 
-  const loadHistory = useCallback(async () => {
+  // Trả về danh sách vừa tải (null nếu lỗi hoặc đã có lần tải mới hơn) để handleCancel đọc trạng thái mới.
+  const loadHistory = useCallback(async (): Promise<MySale[] | null> => {
     const loadNumber = ++historyLoad.current;
     setHistoryError('');
-    if (!accountId) return;
+    if (!accountId) return null;
     try {
       const page = await serviceRegistrationsApi.listMySales();
-      if (loadNumber !== historyLoad.current) return;
+      if (loadNumber !== historyLoad.current) return null;
       // US-18-TC02: chưa liên kết hồ sơ → hướng dẫn liên hệ quầy, không cho đăng ký.
       setMemberLinked(page.memberLinked);
       setHistory(page.items);
+      return page.items;
     } catch (error) {
       if (loadNumber === historyLoad.current) setHistoryError(describeError(error, 'Không tải được lịch sử mua gói.'));
+      return null;
     }
   }, [accountId]);
 
@@ -127,6 +132,7 @@ export function ServiceRegistrationPage() {
     const loadNumber = ++guideLoad.current;
     setGuide(null);
     setGuideError('');
+    setGuideTransactionId(transactionId);
     try {
       const instructions = await serviceRegistrationsApi.paymentInstructions(transactionId);
       if (loadNumber === guideLoad.current) setGuide(instructions);
@@ -149,6 +155,7 @@ export function ServiceRegistrationPage() {
     setResult(null);
     setGuide(null);
     setGuideError('');
+    setGuideTransactionId(null);
     setCancelTarget(null);
     setCancelError('');
     setCancelNotice('');
@@ -214,6 +221,7 @@ export function ServiceRegistrationPage() {
       setResult(created);
       setGuide(null);
       setGuideError('');
+      setGuideTransactionId(null);
       // US-18-TC06: gói 0đ đã hoàn tất, không cần hướng dẫn thanh toán.
       if (created.transactionStatus === 'PENDING' && created.amountDue !== '0') void loadGuide(created.transactionId);
       void loadHistory();
@@ -243,6 +251,14 @@ export function ServiceRegistrationPage() {
     setCancelNotice('');
   }
 
+  // US-18-TC11, TC12: giao dịch không còn PENDING (đã hủy, hoặc nhân viên đã thu) thì "Kết quả đăng ký" đổi theo trạng thái mới
+  // và ẩn "Hướng dẫn thanh toán" nếu đang hiện cho đúng giao dịch đó – không còn bảo Member trả tiền cho yêu cầu đã kết thúc.
+  function applyFinalStatus(transactionId: string, status: SaleStatus) {
+    if (status === 'PENDING') return;
+    setResult(current => (current && current.transactionId === transactionId ? { ...current, transactionStatus: status } : current));
+    setGuideTransactionId(current => (current === transactionId ? null : current));
+  }
+
   // US-18-TC11, TC12: gửi hủy với version của server và Idempotency-Key.
   async function handleCancel() {
     if (!cancelTarget || cancellingNow.current || !isValidCancelReason(cancelReason)) return;
@@ -258,6 +274,8 @@ export function ServiceRegistrationPage() {
       pendingCancelKey.current = null;
       setCancelNotice(`Yêu cầu "${cancelTarget.planName}" đã được hủy.`);
       setCancelTarget(null);
+      // Hủy thành công thì giao dịch chắc chắn đã CANCELLED.
+      applyFinalStatus(cancelTarget.transactionId, 'CANCELLED');
       await loadHistory();
     } catch (error) {
       setCancelError(describeError(error, 'Không gửi được yêu cầu hủy.'));
@@ -265,7 +283,10 @@ export function ServiceRegistrationPage() {
         // Server từ chối (vd nhân viên vừa thu tiền – 409): đóng ô hủy, tải lại lịch sử để thấy trạng thái mới.
         pendingCancelKey.current = null;
         setCancelTarget(null);
-        await loadHistory();
+        // Trạng thái thật (CANCELLED hay SETTLED) lấy từ lịch sử vừa tải lại, không tự đoán.
+        const fresh = await loadHistory();
+        const latest = fresh?.find(sale => sale.transactionId === cancelTarget.transactionId);
+        if (latest?.status) applyFinalStatus(cancelTarget.transactionId, latest.status);
       }
     } finally {
       cancellingNow.current = false;
@@ -317,14 +338,12 @@ export function ServiceRegistrationPage() {
       {result && <section aria-labelledby="registration-result">
         <h3 id="registration-result">Kết quả đăng ký</h3>
         <p>Mã giao dịch: {result.transactionCode}</p>
-        <p>Số tiền: {formatVnd(result.amountDue)}</p>
+        {result.transactionStatus !== 'CANCELLED' && <p>Số tiền: {formatVnd(result.amountDue)}</p>}
         <p>Thời gian: {formatDay(result.startDate)} – {formatDay(result.endDate)}</p>
-        {result.transactionStatus === 'SETTLED'
-          ? <p>Đăng ký hoàn tất: gói miễn phí đã có hiệu lực, không cần thanh toán.</p>
-          : <p>Chờ nhân viên xác nhận thu. Gói chỉ có hiệu lực sau khi nhân viên xác nhận đã thu đủ tiền.</p>}
+        <p>{resultMessage(result)}</p>
       </section>}
 
-      {(guide || guideError) && <PaymentGuide guide={guide} error={guideError} />}
+      {guideTransactionId && (guide || guideError) && <PaymentGuide guide={guide} error={guideError} />}
 
       <section aria-labelledby="registration-history">
         <h3 id="registration-history">Yêu cầu mua gói của tôi</h3>
@@ -340,6 +359,17 @@ export function ServiceRegistrationPage() {
       {cancelNotice && <p role="status">{cancelNotice}</p>}
     </>}
   </section>;
+}
+
+// Dòng trạng thái của "Kết quả đăng ký" theo trạng thái giao dịch (US-18-TC05, TC06, TC11).
+function resultMessage(result: RegistrationResult) {
+  if (result.transactionStatus === 'CANCELLED') return 'Yêu cầu đã hủy, không cần thanh toán.';
+  if (result.transactionStatus === 'SETTLED') {
+    return result.amountDue === '0'
+      ? 'Đăng ký hoàn tất: gói miễn phí đã có hiệu lực, không cần thanh toán.'
+      : 'Nhân viên đã xác nhận thu đủ tiền, gói đã được ghi nhận.';
+  }
+  return 'Chờ nhân viên xác nhận thu. Gói chỉ có hiệu lực sau khi nhân viên xác nhận đã thu đủ tiền.';
 }
 
 // US-18-TC07, TC08: hướng dẫn thanh toán; mỗi tài khoản nhận là một thẻ. Không có transferOptions thì không hiện tài khoản nào.
