@@ -217,7 +217,9 @@ export class ShiftsService {
   private async requireActiveTrainer(accountId: Types.ObjectId, session: ClientSession): Promise<TrainerProfile> {
     const trainer = await this.repository.findTrainerByAccount(accountId, session);
     if (!trainer) throw new ApplicationError(409, 'PROFILE_REQUIRED', 'Tài khoản chưa có hồ sơ PT');
-    if (trainer.status !== 'ACTIVE') throw new ApplicationError(409, 'TRAINER_UNAVAILABLE', 'Hồ sơ PT đang ngừng hoạt động');
+    if (trainer.status !== 'ACTIVE' || !await this.repository.isEligibleAccount(accountId, session)) {
+      throw new ApplicationError(409, 'TRAINER_UNAVAILABLE', 'Hồ sơ PT hoặc tài khoản không còn khả dụng');
+    }
     return trainer;
   }
 }

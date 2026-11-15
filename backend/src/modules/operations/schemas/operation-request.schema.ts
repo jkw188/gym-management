@@ -9,7 +9,7 @@ import { Schema, Types } from 'mongoose';
 // PT_REVIEW_CREATE: Member gửi đánh giá buổi PT đã hoàn tất (US-65).
 export const OPERATIONS = ['SALE_REGISTER', 'SALE_RENEW', 'SALE_UPGRADE', 'SALE_CANCEL', 'PAYMENT_CONFIRM', 'MEMBER_CREATE', 'MEMBER_LINK', 'SHIFT_CREATE', 'SHIFT_UPDATE',
   'SHIFT_CONFIRM', 'SHIFT_CANCEL', 'PT_BOOKING_CREATE', 'PT_BOOKING_CANCEL_OWN', 'PT_BOOKING_CANCEL_SUPPORT',
-  'PT_BOOKING_COMPLETE', 'PT_BOOKING_CORRECT', 'PT_REVIEW_CREATE'] as const;
+  'PT_BOOKING_COMPLETE', 'PT_BOOKING_CORRECT', 'PT_REVIEW_CREATE', 'TRAINER_CREATE', 'TRAINER_UPDATE'] as const;
 export type Operation = (typeof OPERATIONS)[number];
 
 export interface OperationRequest {

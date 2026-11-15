@@ -19,7 +19,7 @@ function pairs(rows: Document[], fields: string[], code: string) {
 // Independent oracle: committed documents, no availability API or HTTP success counting.
 export async function inspectCommitted(db: Db) {
   const names = ['pt_bookings', 'memberships', 'service_sales', 'transactions', 'members', 'trainers', 'work_shifts',
-    'public_sessions', 'operation_requests', 'booking_events', 'notifications', 'notification_recipients', 'notification_outbox'];
+    'public_sessions', 'trainer_events', 'operation_requests', 'booking_events', 'notifications', 'notification_recipients', 'notification_outbox'];
   const loaded = await Promise.all(names.map(name => db.collection(name).find({}, { readConcern: { level: 'majority' } }).toArray()));
   const data = Object.fromEntries(names.map((name, i) => [name, loaded[i]]));
   const find = (name: string, value: unknown) => data[name].find(row => id(row._id) === id(value));
@@ -65,6 +65,9 @@ export async function inspectCommitted(db: Db) {
   unique(data.notification_outbox, ['event_key'], 'OUTBOX_UNIQUE');
   unique(data.notification_recipients, ['notification_id', 'account_id'], 'RECIPIENT_UNIQUE');
   unique(data.booking_events, ['request_key'], 'AUDIT_UNIQUE');
+  unique(data.trainers, ['account_id'], 'TRAINER_ACCOUNT_UNIQUE');
+  unique(data.trainer_events, ['request_key'], 'TRAINER_AUDIT_UNIQUE');
+  for (const audit of data.trainer_events) requireInvariant(find('trainers', audit.trainer_id), 'TRAINER_AUDIT_ORPHAN');
   for (const audit of data.booking_events) requireInvariant(find('pt_bookings', audit.booking_id), 'AUDIT_ORPHAN');
   for (const recipient of data.notification_recipients) requireInvariant(find('notifications', recipient.notification_id), 'RECIPIENT_ORPHAN');
   for (const notification of data.notifications) {
@@ -77,11 +80,15 @@ export async function inspectCommitted(db: Db) {
   for (const job of data.notification_outbox) requireInvariant(find('notifications', job.notification_id), 'OUTBOX_ORPHAN');
   for (const operation of data.operation_requests) {
     if (operation.result_ids?.bookingId) requireInvariant(find('pt_bookings', operation.result_ids.bookingId), 'OPERATION_BOOKING_ORPHAN');
+    if (operation.result_ids?.trainerId) requireInvariant(find('trainers', operation.result_ids.trainerId), 'OPERATION_TRAINER_ORPHAN');
   }
   return {
     scheduleGuard: String((await db.collection('schedule_guards').findOne({ _id: 'global' as unknown as import('mongodb').ObjectId }))?.revision),
     memberRevisions: data.members.map(row => ({ id: id(row._id), revision: String(row.service_revision) })),
     counts: Object.fromEntries(names.map(name => [name, data[name].length])), quota,
+    trainers: data.trainers.map(row => ({ id: id(row._id), accountId: id(row.account_id), status: row.status, version: row.version })),
+    trainerAudits: data.trainer_events.map(row => ({ trainerId: id(row.trainer_id), action: row.action,
+      beforeVersion: row.before?.version, afterVersion: row.after.version, requestKey: row.request_key })),
     bookings: bookings.map(row => ({ id: id(row._id), memberId: id(row.member_id), membershipId: id(row.membership_id),
       trainerId: id(row.trainer_id), shiftId: id(row.shift_id), status: row.status, version: row.version,
       startAt: row.start_at.toISOString(), endAt: row.end_at.toISOString(), completionRevision: row.completion_revision ?? 0 })),
@@ -100,7 +107,7 @@ export async function inspectCommitted(db: Db) {
 
 // Diagnostic fallback must still expose committed state when an invariant itself fails.
 export async function captureFailure(db: Db) {
-  const names = ['pt_bookings', 'memberships', 'service_sales', 'work_shifts', 'public_sessions', 'booking_events', 'operation_requests',
+  const names = ['trainers', 'trainer_events', 'pt_bookings', 'memberships', 'service_sales', 'work_shifts', 'public_sessions', 'booking_events', 'operation_requests',
     'notifications', 'notification_recipients', 'notification_outbox'];
   const projection = Object.fromEntries(['_id', 'member_id', 'membership_id', 'trainer_id', 'shift_id', 'start_at', 'end_at', 'status', 'version',
     'sessions_used', 'service_sale_id', 'sessions_snapshot', 'start_date', 'end_date', 'event_key', 'notification_id', 'booking_id', 'action',

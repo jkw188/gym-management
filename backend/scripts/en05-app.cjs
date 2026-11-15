@@ -96,7 +96,7 @@ async function main() {
         case 'worker': result = await app.get(NotificationOutboxService).runOnce(); break;
         case 'validate': {
           result = {};
-          for (const name of ['Member', 'Plan', 'WorkShift', 'PublicSession', 'Membership', 'ServiceSale', 'Transaction', 'PtBooking']) {
+          for (const name of ['Member', 'Trainer', 'TrainerEvent', 'Plan', 'WorkShift', 'PublicSession', 'Membership', 'ServiceSale', 'Transaction', 'PtBooking']) {
             const model = connection.models[name];
             const rows = await model.collection.find({}).toArray();
             for (const row of rows) await model.hydrate(row).validate();

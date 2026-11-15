@@ -20,7 +20,6 @@ describe('EN-05: two Node processes / committed MongoDB oracle', () => {
     await f.start();
     f.blocked('TC07', 'US-66 production publish/update controller/service are absent; fixtures cannot prove writer isolation.');
     f.blocked('TC08', 'US-66 publish-versus-book cannot execute through a real writer.');
-    f.blocked('TC10', 'TrainersModule has no deactivate writer; US-66 publish dependency is absent too.');
   }, 120000);
   afterAll(async () => { await f.close(); });
 
@@ -97,7 +96,46 @@ describe('EN-05: two Node processes / committed MongoDB oracle', () => {
     expect(await count('pt_bookings', { shift_id: f.shifts[0], status: 'BOOKED' })).toBe(shift!.status === 'CANCELLED' ? 0 : 1);
   }));
 
-  it.todo('TC10: BLOCKED by missing trainer deactivate writer');
+  it('TC10: trainer create/version/deactivate races with real shift and booking writers', async () => f.run('TC10', async round => {
+    const trainerCall = (id: string, body: object, app: number): Call => ({ app, actor: f.admin, path: `/trainers${id ? `/${id}` : ''}`,
+      method: id ? 'PATCH' : 'POST', operation: id ? 'TRAINER_UPDATE' : 'TRAINER_CREATE', key: f.key(), body });
+    // Two independent processes link the same account: one profile and one CREATED audit.
+    const account = await f.send({ app: 0, actor: f.admin, path: '/users', body: { fullName: 'EN05 US23 PT',
+      phone: `+849991230${String(round).padStart(2, '0')}`, password: 'EN05 US23 account 123', roleCode: 'TRAINER' } });
+    ok(account, 201);
+    const creates = await f.race(Array.from({ length: 20 }, (_, i) => trainerCall('', {
+      accountId: String(account.body.id), specialty: 'EN05 US23', status: 'ACTIVE',
+    }, i % 2)), round);
+    expect(creates.filter(result => result.status === 201)).toHaveLength(1);
+    expect(creates.filter(result => result.status === 409)).toHaveLength(19);
+    const newId = String(creates.find(result => result.status === 201)!.body.id);
+    const updates = await f.race([trainerCall(newId, { version: 0, specialty: 'A' }, 0), trainerCall(newId, { version: 0, specialty: 'B' }, 1)], round);
+    expect(updates.map(result => result.status).sort()).toEqual([200, 409]);
+    expect(await count('trainer_events', { trainer_id: new ObjectId(newId) })).toBe(2);
+
+    // No blockers for PT0: deactivate and a new shift may commit in either legal order.
+    await f.db.collection('work_shifts').deleteMany({ trainer_id: f.trainers[0] });
+    const id = String(f.trainers[0]);
+    const responses = await f.race([trainerCall(id, { version: 0, status: 'INACTIVE' }, 0), shiftCall('', draft('08:00', '10:00'), 1)], round);
+    expect(responses.map(result => result.status).sort()).toEqual([responses.some(result => result.status === 201) ? 201 : 200, 409]);
+    const trainer = await f.db.collection('trainers').findOne({ _id: f.trainers[0] });
+    const shifts = await f.db.collection('work_shifts').find({ trainer_id: f.trainers[0] }).toArray();
+    expect(shifts.length).toBe(trainer!.status === 'INACTIVE' ? 0 : 1);
+    await f.checkpoint('trainer_deactivate_vs_create_shift');
+    if (trainer!.status === 'INACTIVE') ok(await f.send(trainerCall(id, { version: 1, status: 'ACTIVE' }, 0)), 200);
+    else ok(await f.send(shiftCall(`/${shifts[0]._id}/cancel`, { version: 0, reason }, 1, 'POST', 'SHIFT_CANCEL')), 200);
+
+    const draftShift = await f.send(shiftCall('', draft('08:00', '10:00'), 1)); ok(draftShift, 201);
+    const version = Number((await f.db.collection('trainers').findOne({ _id: f.trainers[0] }))!.version);
+    const confirmRace = await f.race([trainerCall(id, { version, status: 'INACTIVE' }, 0),
+      shiftCall(`/${draftShift.body.id}/confirm`, { version: 0 }, 1, 'POST', 'SHIFT_CONFIRM')], round);
+    expect(confirmRace.map(result => result.status).sort()).toEqual([200, 409]);
+    expect((confirmRace.find(result => result.status === 409)!.body.error as { code: string }).code).toBe('TRAINER_HAS_ACTIVE_SCHEDULE');
+    f.shifts[0] = new ObjectId(String(draftShift.body.id));
+    const bookRace = await f.race([trainerCall(id, { version, status: 'INACTIVE' }, 0), f.book(0, '08:00', 0, 1)], round);
+    expect(bookRace.map(result => result.status).sort()).toEqual([201, 409]);
+    expect((await f.db.collection('trainers').findOne({ _id: f.trainers[0] }))!.status).toBe('ACTIVE');
+  }, 2, 'US-23 create/version/deactivate versus US-24/25/28 executed; publish-class race still requires US-66.'));
 
   it('TC11: 20 cancellation commands, mixed actors and keys, one transition', async () => f.run('TC11', async round => {
     const id = await created(), key = f.key();
