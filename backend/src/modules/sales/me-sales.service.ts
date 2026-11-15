@@ -2,11 +2,11 @@
 // rồi gọi lại đúng REGISTER_V1/hủy của SalesService (US-14), không viết lại công thức giá/ngày/điều kiện cấp gói (US-18-F02).
 // Bước 2: ghi kênh SELF_SERVICE + cách trả dự kiến, Member tự hủy yêu cầu của mình, hướng dẫn thanh toán.
 import { Injectable } from '@nestjs/common';
-import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ReceivingAccountPolicy } from '../../common/utils/receiving-account';
 import { fromVndDecimal } from '../../common/utils/vnd-money';
 import { MemberOwnerReader } from '../members/member-owner.reader';
+import { isOwnSelfServiceRequest } from '../memberships/me-memberships.service';
 import { MeRegisterSaleDto } from './me-sales.dto';
 import { CancelSaleDto, RegisterSaleDto } from './sales.dto';
 import { SalesRepository } from './sales.repository';
@@ -42,9 +42,8 @@ export class MeSalesService {
     const sale = memberId ? await this.repository.findOwnSale(memberId, id) : null;
     if (!sale) throw new ApplicationError(404, 'SALE_NOT_FOUND', 'Không tìm thấy lần mua gói');
     const transaction = await this.repository.findOwnTransaction(sale.member_id, sale.transaction_id);
-    // Sale tại quầy (hoặc không do chính account này tạo) phải để nhân viên hủy → 403.
-    const createdBySelf = transaction?.created_by?.equals(new Types.ObjectId(accountId)) === true;
-    if (sale.channel !== 'SELF_SERVICE' || !createdBySelf) {
+    // Sale tại quầy (hoặc không do chính account này tạo) phải để nhân viên hủy → 403. Cùng luật với canCancel của US-17.
+    if (!isOwnSelfServiceRequest(sale, transaction, accountId)) {
       throw new ApplicationError(403, 'FORBIDDEN', 'Yêu cầu này do quầy tạo, hãy liên hệ nhân viên để hủy');
     }
     return this.sales.cancel(accountId, saleId, dto, key);

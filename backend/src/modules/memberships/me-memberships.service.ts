@@ -12,8 +12,20 @@ import {
 } from './me-memberships.types';
 import { Membership } from './schemas/membership.schema';
 import { ServiceSale } from './schemas/service-sale.schema';
+import { Transaction } from '../payments/schemas/transaction.schema';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
+
+// US-18-F04: yêu cầu do Member tự tạo – kênh SELF_SERVICE và giao dịch do CHÍNH account này tạo.
+// Dùng chung cho canCancel ở đây và cho MeSalesService.cancel (US-18), để hai nơi không lệch luật.
+export function isOwnSelfServiceRequest(sale: ServiceSale, transaction: Transaction | undefined | null, accountId: string): boolean {
+  return sale.channel === 'SELF_SERVICE' && transaction?.created_by?.equals(new Types.ObjectId(accountId)) === true;
+}
+
+// US-18-TC11: server tính sẵn nút "Hủy yêu cầu": yêu cầu tự tạo VÀ giao dịch còn PENDING (chưa thu, chưa hủy).
+function canMemberCancel(sale: ServiceSale, transaction: Transaction | undefined, accountId: string): boolean {
+  return isOwnSelfServiceRequest(sale, transaction, accountId) && transaction?.status === 'PENDING';
+}
 
 // Một kỳ gói cùng sale nguồn của nó (sale đã lọc theo member_id).
 interface MembershipWithSale { membership: Membership; sale: ServiceSale }
@@ -90,11 +102,11 @@ export class MeMembershipsService {
     const total = await this.repository.countSales(memberId);
     const transactions = await this.repository.findOwnTransactionsByIds(memberId, sales.map(sale => sale.transaction_id));
     const memberships = await this.repository.findMembershipsBySaleIds(sales.map(sale => sale._id));
-    const items = sales.map(sale => toMeServiceSale(
-      sale,
-      transactions.find(item => item._id.equals(sale.transaction_id)),
-      memberships.find(item => item.service_sale_id.equals(sale._id)),
-    ));
+    const items = sales.map(sale => {
+      const transaction = transactions.find(item => item._id.equals(sale.transaction_id));
+      const membership = memberships.find(item => item.service_sale_id.equals(sale._id));
+      return toMeServiceSale(sale, transaction, membership, canMemberCancel(sale, transaction, accountId));
+    });
     return toPage(items, query, total);
   }
 
@@ -109,7 +121,7 @@ export class MeMembershipsService {
     // Spec mục 2: chuỗi sale→transaction phải cùng chủ; lệch chủ thì coi như không tìm thấy.
     if (!transaction) throw notFound('lần mua gói');
     const [membership] = await this.repository.findMembershipsBySaleIds([sale._id]);
-    return toMeServiceSale(sale, transaction, membership);
+    return toMeServiceSale(sale, transaction, membership, canMemberCancel(sale, transaction, accountId));
   }
 
   // US-17-TC01, US-17-TC02: chi tiết giao dịch của member, kèm khoản thu/chứng từ/kỳ gói nếu có.

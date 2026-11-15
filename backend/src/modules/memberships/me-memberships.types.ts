@@ -1,6 +1,6 @@
 // Tầng kiểu dữ liệu (US-17 bước 1): dữ liệu API cá nhân /api/me/* trả cho Member (camelCase, tiền là chuỗi VND).
 // Chỉ gồm field Member được xem; không có request_key, created_by, reference, verified_by (US-17-F04).
-import { SaleOperation } from './schemas/service-sale.schema';
+import { SaleChannel, SaleOperation } from './schemas/service-sale.schema';
 import { MembershipStatus } from './schemas/membership.schema';
 import { PaymentMethod } from '../payments/schemas/payment.schema';
 import { TransactionKind, TransactionStatus } from '../payments/schemas/transaction.schema';
@@ -51,6 +51,10 @@ export interface MeServiceSaleDto {
   creditAmount: string;
   amountDue?: string;
   sessionsQuota: number;
+  // US-18 bước 3: kênh tạo, server báo có được tự hủy không, và version giao dịch để gửi khi hủy.
+  channel: SaleChannel;
+  canCancel: boolean;
+  transactionVersion?: number;
 }
 
 // Khoản thu của chính Member: chỉ method, amount, paidAt (US-17-F04).
