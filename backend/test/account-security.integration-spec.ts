@@ -74,6 +74,11 @@ describe('US-07: real replica set, two independent Nest apps/connections, JWT an
       const limiter = new LoginLimiter();
       jest.spyOn(instance.get(LoginLimiter), 'consume').mockImplementation(limiter.consume.bind(limiter));
     }
+    // TC01 intentionally writes incomplete sentinel records to prove locking preserves related data.
+    // Isolate them per case before deleting accounts; otherwise later migration tests inherit orphan profiles.
+    for (const name of ['trainers', 'memberships', 'pt_bookings', 'orders']) {
+      await connection.collection(name).deleteMany({ test: 'US07' });
+    }
     await Promise.all([accounts.deleteMany({}), roles.deleteMany({}), sessions.deleteMany({}), events.deleteMany({}), state.deleteMany({})]);
     for (const code of ROLE_CODES) await repository.ensureRole(code, code);
     await state.create({ _id: ACCOUNT_ADMINISTRATION, revision: 0n });
@@ -323,8 +328,6 @@ describe('US-07: real replica set, two independent Nest apps/connections, JWT an
 
   it('ensure-indexes initializes Int64 security_state idempotently and preserves revision and audit indexes', async () => {
     await state.deleteMany({});
-    // US-28 bước 2: migration lịch coi booking không có membership là mồ côi và dừng lệnh; dọn booking "rác" do TC01–03 để lại.
-    await connection.collection('pt_bookings').deleteMany({ test: 'US07' });
     // Chạy BẤT ĐỒNG BỘ để Jest vẫn đọc log của mongod (execFileSync làm đầy pipe log, lệnh có thể treo; xem US-28 scheduling-migration).
     const command = () => new Promise<string>((resolve, reject) => execFile(process.execPath, ['scripts/admin.cjs', 'ensure-indexes'], {
       cwd: path.resolve(__dirname, '..'), env: process.env, encoding: 'utf8', timeout: 30000, windowsHide: true,

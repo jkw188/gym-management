@@ -28,7 +28,8 @@ function en05(): { cases: En05Case[]; setupFailed?: boolean } {
 }
 function incomplete() {
   const report = en05();
-  for (const id of ['TC07', 'TC08', 'TC10']) Object.assign(report.cases.find(tc => tc.id === id)!, { status: 'BLOCKED', rounds: [] });
+  for (const id of ['TC07', 'TC08']) Object.assign(report.cases.find(tc => tc.id === id)!, { status: 'BLOCKED', rounds: [] });
+  report.cases.find(tc => tc.id === 'TC10')!.status = 'PARTIAL';
   report.cases.find(tc => tc.id === 'TC13')!.status = 'PARTIAL';
   return report;
 }
@@ -82,5 +83,11 @@ describe('EN-05 regression is distinct from full acceptance', () => {
     expect(assessEn05Report(failed, 0, 0).regressionPassed).toBe(false);
     const noDb = incomplete(); noDb.cases[0].rounds[0].after.invariants = 'FAILED';
     expect(assessEn05Report(noDb, 0, 0).regressionPassed).toBe(false);
+  });
+  it('requires real US-23 race evidence even while the US-66 branch of TC10 is partial', () => {
+    const report = incomplete(), partial = report.cases.find(tc => tc.id === 'TC10')!;
+    partial.rounds.pop(); expect(assessEn05Report(report, 0, 0).regressionPassed).toBe(false);
+    partial.status = 'BLOCKED'; partial.rounds = [];
+    expect(assessEn05Report(report, 0, 0).regressionPassed).toBe(false);
   });
 });

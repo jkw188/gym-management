@@ -63,6 +63,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {/* Trang chính chỉ có lời chào và các chức năng; thông tin tài khoản nằm ở trang riêng (thẻ "Thông tin tài khoản"). */}
     <div className="quick-links">
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
+    {role === 'ADMIN' && <Link to="/admin/trainers">Quản lý huấn luyện viên</Link>}
     {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/transactions`}>Đối chiếu thanh toán</Link>}

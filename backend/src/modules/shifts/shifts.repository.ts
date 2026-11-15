@@ -58,6 +58,15 @@ export class ShiftsRepository {
     return this.connection.db!.collection<TrainerProfile>('trainers').findOne({ account_id: accountId }, { session });
   }
 
+  // US-23-F04: recheck account inside the guarded writer transaction, beyond the HTTP guard.
+  async isEligibleAccount(accountId: Types.ObjectId, session: ClientSession): Promise<boolean> {
+    const account = await this.connection.db!.collection('accounts').findOne({ _id: accountId, status: 'ACTIVE' },
+      { session, projection: { role_id: 1 } });
+    if (!account) return false;
+    return await this.connection.db!.collection('roles').findOne({ _id: account.role_id, code: 'TRAINER' },
+      { session, projection: { _id: 1 } }) !== null;
+  }
+
   // US-27-F02: ca của một PT có trạng thái do service truyền vào, bắt đầu trong [from, to), sắp giờ bắt đầu rồi _id.
   // Ca không qua nửa đêm Việt Nam (US-24) nên luôn nằm gọn trong một ngày.
   findShiftsByStatus(trainerId: Types.ObjectId, status: ShiftStatus, from: Date, to: Date): Promise<WorkShift[]> {

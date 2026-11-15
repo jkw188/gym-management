@@ -124,13 +124,14 @@ export class En05Fixture {
     await Promise.all(this.apps.map(app => app.rpc('clear'))); await this.clock(NOW);
     this.namespace = `${process.env.EN04_RUN_ID}_${id}_${round}`; this.sequence = 0;
     const collections = ['members', 'trainers', 'plans', 'plan_conversion_policies', 'transactions', 'service_sales', 'memberships', 'work_shifts',
-      'shift_events', 'pt_bookings', 'booking_events', 'public_sessions', 'notifications', 'notification_recipients', 'notification_outbox', 'operation_requests', 'payments', 'invoices'];
+      'shift_events', 'trainer_events', 'pt_bookings', 'booking_events', 'public_sessions', 'notifications', 'notification_recipients', 'notification_outbox', 'operation_requests', 'payments', 'invoices'];
     for (const name of collections) await this.db.collection(name).deleteMany({});
     await this.db.collection('schedule_guards').updateOne({ _id: 'global' as unknown as ObjectId }, { $set: { revision: Long.ZERO } }, { upsert: true });
     await this.db.collection('security_state').updateOne({ _id: 'account-administration' as unknown as ObjectId }, { $set: { revision: Long.ZERO } }, { upsert: true });
     this.trainers = []; this.memberIds = []; this.memberships = []; this.shifts = [];
     for (const [i, actor] of this.pts.entries()) {
-      const trainer = await this.insert('trainers', { account_id: new ObjectId(actor.id), specialty: 'EN05', status: 'ACTIVE', version: 0 });
+      const trainer = await this.insert('trainers', { account_id: new ObjectId(actor.id), specialty: 'EN05', status: 'ACTIVE', version: 0,
+        created_by: new ObjectId(this.admin.id), updated_by: new ObjectId(this.admin.id) });
       this.trainers.push(trainer); this.shifts.push(await this.shift(i, '00:00', '22:00'));
     }
     for (const [i, actor] of this.members.entries()) {

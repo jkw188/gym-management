@@ -26,7 +26,7 @@ function assessQualityReport(raw, requiredFiles, root) {
 const EN05_INCOMPLETE = Object.freeze({
   TC07: { status: 'BLOCKED', reason: 'US-66 publish/update writer missing' },
   TC08: { status: 'BLOCKED', reason: 'US-66 publish writer missing' },
-  TC10: { status: 'BLOCKED', reason: 'Trainer deactivate writer missing' },
+  TC10: { status: 'PARTIAL', reason: 'US-66 publish versus deactivate dependency missing; US-23/24/25/28 races executed' },
   TC13: { status: 'PARTIAL', reason: 'US-20 self-service adapter missing' },
 });
 function assessEn05Report(report, jestExitCode, clientExitCode) {
