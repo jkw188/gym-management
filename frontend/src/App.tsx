@@ -30,6 +30,7 @@ import { PlansPage } from './features/plans/PlansPage';
 import { TraineesPage } from './features/trainees/TraineesPage';
 import { TrainerReviewsPage } from './features/trainer-reviews/TrainerReviewsPage';
 import { TransactionsPage } from './features/payments/TransactionsPage';
+import { RetailCatalogPage } from './features/retail/RetailCatalogPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
@@ -60,6 +61,8 @@ export default function App() {
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/classes" element={<AdminClassesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/categories" element={<RetailCatalogPage key="categories" kind="categories" />} />
+        <Route path="/admin/products" element={<RetailCatalogPage key="products" kind="products" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/transactions" element={<TransactionsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/transactions" element={<TransactionsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>

@@ -66,6 +66,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'ADMIN' && <Link to="/admin/trainers">Quản lý huấn luyện viên</Link>}
     {role === 'ADMIN' && <Link to="/admin/classes">Quản lý lớp miễn phí</Link>}
     {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
+    {role === 'ADMIN' && <Link to="/admin/categories">Danh mục bán lẻ</Link>}
+    {role === 'ADMIN' && <Link to="/admin/products">Sản phẩm bán lẻ</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/transactions`}>Đối chiếu thanh toán</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}

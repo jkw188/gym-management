@@ -9,7 +9,7 @@ export function resolveReturnTo(value: unknown, role: RoleCode): string {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000-\u0020]/.test(value)) return home;
   try {
     const parsed = new URL(value, 'https://gym.invalid');
-    const allowed = [home, ...(role === 'ADMIN' ? ['/admin/users'] : []),
+    const allowed = [home, ...(role === 'ADMIN' ? ['/admin/users', '/admin/categories', '/admin/products'] : []),
       ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/members`, `${home}/members/new`] : []),
       ...(role === 'MEMBER' || role === 'TRAINER' ? [`${home}/profile`, `${home}/security`] : [])];
     const memberDetail = (role === 'ADMIN' || role === 'STAFF') &&
