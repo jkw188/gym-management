@@ -2,10 +2,8 @@
 // US-18-F01: KHÔNG có memberId/accountId/createdBy/role/channel; field lạ bị ValidationPipe (forbidNonWhitelisted) chặn 400.
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsInt, IsMongoId, IsString, Matches, Max, Min } from 'class-validator';
-
-// US-18-F03: phương thức dự kiến chỉ là ý định thanh toán, không phải đã trả.
-export const PREFERRED_PAYMENT_METHODS = ['CASH', 'TRANSFER'] as const;
-export type PreferredPaymentMethod = typeof PREFERRED_PAYMENT_METHODS[number];
+// US-18-F03: danh sách cách trả dự kiến khai báo ở schema service_sales, DTO chỉ dùng lại để kiểm tra.
+import { PREFERRED_PAYMENT_METHODS, PreferredPaymentMethod } from '../memberships/schemas/service-sale.schema';
 
 export class MeRegisterSaleDto {
   @ApiProperty() @IsMongoId() planId!: string;

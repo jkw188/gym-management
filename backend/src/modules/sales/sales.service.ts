@@ -13,8 +13,7 @@ import { SalesRepository } from './sales.repository';
 import { SaleActivationService, invalidState } from './sale-activation.service';
 import { ZeroSettlement } from './zero-settlement.service';
 import { PlansReader } from '../plans/plans.reader';
-import { SaleChannel } from '../memberships/schemas/service-sale.schema';
-import { PreferredPaymentMethod } from './me-sales.dto';
+import { PreferredPaymentMethod, SaleChannel } from '../memberships/schemas/service-sale.schema';
 
 // Nguồn tạo sale do server đặt: kênh bán và cách trả dự kiến của Member (US-18-F05).
 export interface SaleOrigin { channel: SaleChannel; preferredPaymentMethod?: PreferredPaymentMethod }
