@@ -78,6 +78,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {role === 'TRAINER' && <Link to="/trainer/reviews">Đánh giá của học viên</Link>}
     {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
     {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
+    {/* US-18: member tự đăng ký mua gói. */}
+    {role === 'MEMBER' && <Link to="/member/service-registrations">Đăng ký gói tập</Link>}
     {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
     {role === 'MEMBER' && <Link to="/member/pt-bookings">Lịch PT của tôi</Link>}
     {/* Admin/Staff xem thông tin ở trang /account (chỉ đọc); Member/PT dùng trang /profile có sẵn (sửa được). */}
