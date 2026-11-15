@@ -1,0 +1,50 @@
+sequenceDiagram
+  actor Staff as Staff/Admin
+  participant UI as Member history / Upgrade panel
+  participant Upgrade as UpgradeService
+  participant Plan as PlansReader US12
+  participant Command as EN02 Idempotency/Transaction
+  participant DB as MongoDB replica set
+  participant Settlement as US22 / SaleActivation
+  participant Booking as UpgradeBookingsAdapter
+  participant Event as EN03 Notifications
+  Staff->>UI: Chọn kỳ CURRENT và gói đích theo policy
+  UI->>Upgrade: Preview source/version + target/version + policyVersion
+  Upgrade->>DB: Snapshot source CURRENT/ACTIVE, future periods và pending
+  Upgrade->>Plan: Đọc policy ACTIVE và điều khoản đích
+  Upgrade->>Booking: Đếm/kiểm BOOKED và used
+  Upgrade->>Upgrade: Decimal HALF_UP, cap applied, discard excess
+  Upgrade-->>UI: Quote credit/due/quota, expiry=00:00VN kế tiếp
+  Staff->>Upgrade: Xác nhận create + SALE_UPGRADE key
+  Upgrade->>Command: Hash actor/channel/input, replay nếu đã commit
+  Command->>DB: Khóa source/target plans rồi member
+  Upgrade->>DB: Kiểm lại nguồn/version/policy/pending, insert UPGRADE_V1 frozen quote
+  alt amountDue bằng 0
+    Upgrade->>Upgrade: ZeroSettlement callback activateWithinSession
+    Upgrade->>DB: Nguồn SUPERSEDED + đích ACTIVE/used carried + invoice0
+    Upgrade->>Booking: Chuyển chỉ BOOKED trong cùng session
+    Upgrade->>Event: SERVICE_SALE_SETTLED, recipient/outbox
+  else amountDue lớn hơn 0
+    Note over Upgrade,DB: Transaction PENDING; nguồn/booking giữ nguyên
+  end
+  Command->>DB: Operation result + commit
+  Command-->>UI: 201 SaleResult + quote
+  opt Nghĩa vụ có phí
+    Staff->>Settlement: US22 preview/confirm-payment + PAYMENT_CONFIRM key
+    Settlement->>DB: Khóa member rồi transaction
+    Settlement->>Upgrade: Kiểm frozen quote còn trong ngày, source/usage/BOOKED mới nhất
+    Note over Upgrade,Plan: Không đọc hoặc khóa plan/policy live khi settle
+    alt Quote hết hạn hoặc source/quota/booking xung đột
+      Upgrade-->>Settlement: 409, rollback, không tự sửa tiền hoặc hủy PENDING
+    else Hợp lệ
+      Settlement->>DB: Payment nếu>0 + invoice cùng session
+      Settlement->>Upgrade: Dispatch UPGRADE activateWithinSession
+      Upgrade->>DB: CAS nguồn SUPERSEDED/version+1, membership mới used hiện tại
+      Upgrade->>Booking: BOOKED đổi membership_id/version+1; COMPLETED/CANCELLED giữ nguyên
+      Settlement->>DB: SETTLED, ngày actual và operation result
+      Settlement->>Event: SERVICE_SALE_SETTLED, recipient/outbox cùng session
+      DB-->>UI: Commit toàn bộ / lỗi bất kỳ rollback toàn bộ
+    end
+  end
+  Note over UI,Command: Mất response giữ key; lookup404 không tạo key mới; expiry cần hủy chờ có lý do và báo giá mới
+  Note over Booking,DB: Create/cancel/complete/correct dùng member gate; không cộng used lịch sử và used carried thành hai lần sử dụng

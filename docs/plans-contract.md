@@ -1,5 +1,7 @@
 # US-12 / UC-30 — Danh mục gói tập và chính sách chuyển đổi
 
+Tích hợp US-16: PlansReader đọc cạnh conversion policy và đích cho UpgradeService; controller targets chỉ cho STAFF/ADMIN đọc lựa chọn hợp lệ, không mở quyền quản trị policy. Tạo upgrade lấy guard cả hai đầu plan giống writer policy US-12, kiểm policyVersion/targetPlanVersion rồi chụp quote. Settlement chỉ dùng snapshot, không lấy khóa/read live plan sau member. Chi tiết [upgrades-contract.md](upgrades-contract.md).
+
 Nguồn: `Requirement_US-12.docx`, phiên bản 1.0, 27/10/2026, được cung cấp trong phiên triển khai. Hợp đồng này bổ sung UC-30 và mô hình dữ liệu mục 4.2; không thay đổi mã US-12-F01–F05, AC01–AC04 hoặc TC01–TC15. Không triển khai nghiệp vụ nâng cấp US-16.
 
 ## UC-30: tác nhân và luồng quản trị

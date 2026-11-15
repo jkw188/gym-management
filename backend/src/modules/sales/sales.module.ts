@@ -19,16 +19,22 @@ import { SaleReader } from './sale-reader.service';
 import { RenewalService } from './renewal.service';
 import { RenewalsRepository } from './renewals.repository';
 import { RenewalsController } from './renewals.controller';
+import { UpgradeService } from './upgrade.service';
+import { UpgradesRepository } from './upgrades.repository';
+import { UpgradesController } from './upgrades.controller';
+import { UpgradeBookingsAdapter } from './upgrade-bookings.adapter';
+import { PtBookingSchema } from '../bookings/schemas/pt-booking.schema';
 
 @Module({
   imports: [TransactionModule, MembersDataModule, OperationsModule, NotificationsModule, PlansModule, MongooseModule.forFeature([
     { name: 'ServiceSale', schema: ServiceSaleSchema },
     { name: 'Membership', schema: MembershipSchema }, { name: 'Transaction', schema: TransactionSchema },
     { name: 'Invoice', schema: InvoiceSchema }, { name: 'Payment', schema: PaymentSchema },
+    { name: 'PtBooking', schema: PtBookingSchema },
   ])],
-  controllers: [SalesController, RenewalsController],
-  providers: [SalesRepository, SaleReader, SalesService, RenewalService, RenewalsRepository, SaleActivationService,
+  controllers: [SalesController, RenewalsController, UpgradesController],
+  providers: [SalesRepository, SaleReader, SalesService, RenewalService, RenewalsRepository, SaleActivationService, UpgradeService, UpgradesRepository, UpgradeBookingsAdapter,
     { provide: SaleActivation, useExisting: SaleActivationService }, { provide: ZeroSettlement, useClass: ZeroSettlementService }],
-  exports: [SaleActivation, SalesRepository, RenewalService, RenewalsRepository],
+  exports: [SaleActivation, SalesRepository, RenewalService, RenewalsRepository, UpgradeService],
 })
 export class SalesModule {}

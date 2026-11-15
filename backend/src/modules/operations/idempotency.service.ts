@@ -29,6 +29,7 @@ export interface OperationResult { status: number; body: Record<string, unknown>
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   SALE_REGISTER: ACCESS_POLICY['serviceSales.create'].roles,
   SALE_RENEW: ['ADMIN', 'STAFF', 'MEMBER'], // US-19 adapter must check ownership before invoking the shared RenewalService.
+  SALE_UPGRADE: ['ADMIN', 'STAFF', 'MEMBER'], // US-20 owns the self-service ownership adapter.
   SALE_CANCEL: ACCESS_POLICY['serviceSales.cancel'].roles,
   PAYMENT_CONFIRM: ACCESS_POLICY['transactions.confirmPayment'].roles,
   MEMBER_CREATE: ACCESS_POLICY['members.create'].roles,

@@ -5,8 +5,9 @@ import { ApplicationError } from '../../common/errors/application-error';
 import { fromVndDecimal } from '../../common/utils/vnd-money';
 import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { SalesRepository } from './sales.repository';
+import { readUpgradeQuote } from './upgrade-valuation';
 
-// Shared response contract for REGISTER/RENEW and idempotency results, read from one snapshot.
+// Shared response contract for REGISTER/RENEW/UPGRADE and idempotency results, read from one snapshot.
 @Injectable()
 export class SaleReader {
   constructor(private readonly repository: SalesRepository, private readonly transactions: TransactionRunner) {}
@@ -22,12 +23,16 @@ export class SaleReader {
     const invoice = await this.repository.invoices.findOne({ transaction_id: transaction._id }).session(session).lean().exec();
     const payment = await this.repository.payments.findOne({ transaction_id: transaction._id, status: 'SUCCEEDED' }).session(session).lean().exec();
     const notificationState = await this.repository.notificationState(id.toLowerCase(), session);
+    const quote = sale.operation === 'UPGRADE' ? readUpgradeQuote(sale.policy_snapshot) : null;
     return { saleId: sale._id.toHexString(), memberId: sale.member_id.toHexString(), planId: sale.plan_id.toHexString(),
       transactionId: transaction._id.toHexString(), transactionCode: transaction.code, transactionStatus: transaction.status,
       transactionVersion: transaction.version ?? 0, amountDue: fromVndDecimal(transaction.amount_due),
       kind: sale.kind_snapshot ?? transaction.kind, operation: sale.operation, planName: sale.plan_name_snapshot,
       channel: sale.channel ?? 'COUNTER',
       ...(sale.previous_sale_id ? { previousSaleId: sale.previous_sale_id.toHexString() } : {}),
+      ...(sale.source_membership_id ? { sourceMembershipId: sale.source_membership_id.toHexString() } : {}),
+      ...(quote ? { quote } : {}),
+      ...(sale.carried_sessions_used_snapshot === undefined ? {} : { carriedSessionsUsed: sale.carried_sessions_used_snapshot }),
       ...(sale.preferred_payment_method ? { preferredPaymentMethod: sale.preferred_payment_method } : {}),
       benefits: sale.benefits_snapshot, sessions: sale.sessions_snapshot, listPrice: fromVndDecimal(sale.list_price_snapshot),
       creditAmount: fromVndDecimal(sale.credit_amount), policySnapshot: sale.policy_snapshot,

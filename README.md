@@ -278,6 +278,8 @@ Kiểm thử backend dùng MongoDB replica set và SMTP sandbox thật: `npm run
 
 ## Quy ước và tham khảo
 
+US-16 / UC-22: Staff/Admin chọn **Nâng cấp** từ kỳ CURRENT trong lịch sử hội viên, chọn đích theo policy và xác nhận quote. Khấu trừ HALF_UP theo ngày VN, không hoàn dư; quote chỉ trong ngày. Thanh toán US-22 chuyển nguồn SUPERSEDED, mang used và chỉ chuyển BOOKED hợp lệ trong cùng transaction. Chi tiết API/schema/member gate, migration, US-20 port và TC01–TC17: [upgrades-contract.md](docs/upgrades-contract.md), [sequence](docs/upgrades-sequence.mmd). Chạy `npm run ensure-indexes` trước production để tạo index nguồn nâng cấp; không backfill tài chính/quote cũ, không thêm env/dependency.
+
 US-15 / UC-21: Staff/Admin gia hạn từ kỳ SETTLED mới nhất tại chi tiết hội viên → Lịch sử gói. Preview và tạo qua `/api/service-renewals`, key SALE_RENEW; dùng cùng thu US-21/22, giữ nguyên kỳ/quota/booking cũ và cấp kỳ mới riêng sau hoàn tất (gói0 có invoice0, không payment0). Hợp đồng API/schema/khóa, truy vết AC/TC và hướng dẫn US-19 adapter: [renewals-contract.md](docs/renewals-contract.md); [sequence](docs/renewals-sequence.mmd). Chạy `npm run ensure-indexes` trong backend sau backup/dừng writer để backfill channel COUNTER cho sale lịch sử. Không thêm env/dependency.
 
 Frontend giữ `api`, `components`, `features`, `hooks`, `layouts`, `pages`, `routes`, `types`, `utils`, xác thực nằm trong features/auth. Backend giữ các module nghiệp vụ; controller xử lý HTTP, service/repository quản lý nghiệp vụ/dữ liệu, common chứa tiện ích dùng chung. Transaction nhiều document thuộc EN-02; US-02 dùng CAS một document, không yêu cầu replica set.

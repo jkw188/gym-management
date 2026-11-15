@@ -28,6 +28,15 @@ export interface ServiceSale {
   kind_snapshot?: 'GYM' | 'PT';
   plan_version_snapshot?: number;
   created_at?: Date;
+  source_membership_id?: Types.ObjectId;
+  source_version_snapshot?: number;
+  conversion_policy_id?: Types.ObjectId;
+  conversion_policy_version_snapshot?: number;
+  valuation_date?: string;
+  quote_expires_at?: Date;
+  raw_credit_snapshot?: Types.Decimal128;
+  excess_credit_snapshot?: Types.Decimal128;
+  carried_sessions_used_snapshot?: number;
 }
 
 export const ServiceSaleSchema = new Schema<ServiceSale>({
@@ -37,7 +46,7 @@ export const ServiceSaleSchema = new Schema<ServiceSale>({
   plan_id: { type: Schema.Types.ObjectId, required: true },
   operation: { type: String, required: true, maxlength: 20, enum: ['REGISTER', 'RENEW', 'UPGRADE'] },
   previous_sale_id: { type: Schema.Types.ObjectId, ref: 'ServiceSale',
-    required: function () { return this.operation === 'RENEW'; } },
+    required: function () { return this.operation === 'RENEW' || this.operation === 'UPGRADE'; } },
   channel: { type: String, enum: ['COUNTER', 'SELF_SERVICE'], required: true, default: 'COUNTER' },
   preferred_payment_method: { type: String, enum: ['CASH', 'TRANSFER'] },
   start_date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
@@ -53,9 +62,24 @@ export const ServiceSaleSchema = new Schema<ServiceSale>({
   kind_snapshot: { type: String, enum: ['GYM', 'PT'] },
   plan_version_snapshot: { type: Number, min: 0, validate: Number.isSafeInteger },
   created_at: { type: Date },
+  source_membership_id: { type: Schema.Types.ObjectId, ref: 'Membership', required: upgradeRequired },
+  source_version_snapshot: { type: Number, min: 0, validate: Number.isSafeInteger, required: upgradeRequired },
+  conversion_policy_id: { type: Schema.Types.ObjectId, ref: 'PlanPolicy', required: upgradeRequired },
+  conversion_policy_version_snapshot: { type: Number, min: 0, validate: Number.isSafeInteger, required: upgradeRequired },
+  valuation_date: { type: String, match: /^\d{4}-\d{2}-\d{2}$/, required: upgradeRequired },
+  quote_expires_at: { type: Date, required: upgradeRequired },
+  raw_credit_snapshot: { type: Schema.Types.Decimal128, required: upgradeRequired, validate: validCredit },
+  excess_credit_snapshot: { type: Schema.Types.Decimal128, required: upgradeRequired, validate: validCredit },
+  carried_sessions_used_snapshot: { type: Schema.Types.Int32, min: 0, required: upgradeRequired },
 }, { collection: 'service_sales', id: false, versionKey: false });
 
 // Spec US-17 mục 2: index service_sales.member_id để lọc theo chủ sở hữu ngay trong DB, xếp mới nhất trước.
 ServiceSaleSchema.index({ member_id: 1, _id: -1 }, { name: 'service_sales_member_desc' });
 ServiceSaleSchema.index({ transaction_id: 1 }, { unique: true, name: 'service_sales_transaction_unique' });
 ServiceSaleSchema.index({ member_id: 1, kind_snapshot: 1 }, { name: 'service_sales_member_kind' });
+ServiceSaleSchema.index({ source_membership_id: 1, created_at: -1 }, { name: 'service_sales_upgrade_source' });
+
+function upgradeRequired(this: ServiceSale) { return this.operation === 'UPGRADE'; }
+function validCredit(value: Types.Decimal128 | undefined) {
+  return value === undefined || /^\d+$/.test(value.toString()) && BigInt(value.toString()) <= 999999999999n;
+}
