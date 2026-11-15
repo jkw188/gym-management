@@ -1,5 +1,7 @@
 # US-22 / UC-23 — Xác nhận khoản thu và lập chứng từ
 
+US-16: dispatch UPGRADE gọi UpgradeService trong cùng session sau member→transaction. Review/activation kiểm quoteExpiresAt và valuation_date, nguồn CURRENT/ACTIVE, quota/BOOKED mới nhất; không đọc plan/policy live hoặc tính lại nghĩa vụ. Credit0 không còn là điều kiện chung của mọi operation: UPGRADE yêu cầu amountDue+appliedCredit=listPrice. Invoice total=amountDue; invoice0 do credit cap không tạo payment0. Source SUPERSEDED, used carried, BOOKED chuyển và outbox cùng commit/rollback. Xem [upgrades-contract.md](upgrades-contract.md), [sequence](upgrades-sequence.mmd).
+
 Tích hợp US-15: PaymentReview đọc previous_sale_id và kiểm nguồn/đuôi/pending cho RENEW; SaleActivation dispatch đến RenewalService.activateWithinSession trong cùng session sau khóa member→transaction. RENEW_V1 dùng ngày hoàn tất VN nối endNguồn+1 hoặc hôm nay khi hết hạn; không dùng receivedAt, không áp CURRENT_SERVICE_EXISTS và không đọc giá/khóa plan live. Nhánh0 dùng cùng dispatch theo callback, không payment0. Event ghi RENEW/kỳ mới và recipient cố định. Chi tiết: [renewals-contract.md](renewals-contract.md), [renewals-sequence.mmd](renewals-sequence.mmd).
 
 Nguồn: `docs/PM/SPRINT2/Requirement_US-22.docx` v1.0 ngày27/10/2026, đầy đủ văn bản/bảng, không có sơ đồ hoặc ảnh nhúng; đối chiếu US-21, US-14 và EN-02/03. Giữ nguyên F01–F08, AC01–AC04, TC01–TC17. Đây là hợp đồng triển khai nhánh xác nhận UC-23 theo Q05; không sửa bản Requirement hoặc trạng thái tracker.

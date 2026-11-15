@@ -1,4 +1,5 @@
 import { apiClient } from '../../api/client';
+import type { UpgradeQuote } from './upgrades.api';
 
 export interface SalePlan {
   id: string; name: string; kind: 'GYM' | 'PT'; planVersion: number; durationDays: number;
@@ -10,6 +11,7 @@ export interface SalePreview {
   expectedEndDate: string; canProceed: boolean; blockingCode?: string;
 }
 export interface SaleDetail {
+  sourceMembershipId?: string; quote?: UpgradeQuote; carriedSessionsUsed?: number;
   operation?: 'REGISTER' | 'RENEW' | 'UPGRADE'; previousSaleId?: string; planId?: string; channel?: 'COUNTER' | 'SELF_SERVICE';
   saleId: string; transactionId: string; transactionCode: string; transactionStatus: 'PENDING' | 'SETTLED' | 'CANCELLED';
   transactionVersion: number; amountDue: string; planName: string; benefits: string; sessions: number;

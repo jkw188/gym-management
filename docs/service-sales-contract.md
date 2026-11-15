@@ -1,5 +1,7 @@
 # US-14 / UC-20 — Đăng ký và kích hoạt gói tại quầy
 
+US-16 bổ sung [nâng cấp UC-22 / UPGRADE_V1](upgrades-contract.md), giữ REGISTER_V1/RENEW_V1. Dispatch UPGRADE dùng frozen quote trong ngày, applied credit và member gate; ZeroSettlement hỗ trợ amountDue0 do khấu trừ hợp lệ dù listPrice>0. Chỉ commit hoàn tất mới thay nguồn/chuyển BOOKED. SaleResult thêm sourceMembershipId/quote/carriedSessionsUsed; EN-02 thêm SALE_UPGRADE.
+
 US-15 bổ sung [gia hạn UC-21 / RENEW_V1](renewals-contract.md). REGISTER_V1 giữ nguyên; SaleActivation dispatch REGISTER hoặc RenewalService.activateWithinSession theo operation. RENEW dùng cùng pending constraint/member lock, hủy chờ, nhánh0 và SaleReader; không áp CURRENT_SERVICE_EXISTS của REGISTER cho gia hạn. Sale detail thêm channel và previousSaleId nếu có. EN02-D01 thêm SALE_RENEW; schema/migration channel COUNTER/SELF_SERVICE và preferred_payment_method được mô tả trong hợp đồng US-15.
 
 Tích hợp US-22: `PaymentsModule` gọi port `SaleActivation` hiện có; prepareSettlement chạy sau khóa member→transaction và ghi payment/invoice cùng session, activation/outbox/operation cùng commit. Trang bán gói dẫn sang đối chiếu thanh toán; nhánh miễn phí nội bộ giữ nguyên. Xem [settlement-contract.md](settlement-contract.md) và test API thật `settlement.integration-spec.ts` (phần thanh toán không còn chỉ kiểm bằng fixture).

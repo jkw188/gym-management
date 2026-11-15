@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ClientSession } from 'mongodb';
 import { Types } from 'mongoose';
 import { ServerClock } from '../../common/utils/business-date';
-import { fromVndDecimal, toVndDecimal } from '../../common/utils/vnd-money';
+import { addVnd, fromVndDecimal, toVndDecimal } from '../../common/utils/vnd-money';
 import { MembersRepository } from '../members/members.repository';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationState } from '../notifications/notifications.types';
@@ -24,8 +24,9 @@ export class ZeroSettlementService extends ZeroSettlement {
     activate: () => Promise<ActivationResult>) {
     const sale = await this.repository.sales.findById(target.saleId).session(session).lean().exec();
     const transaction = await this.repository.transactions.findById(target.transactionId).session(session).lean().exec();
-    if (!session.inTransaction() || !sale || !transaction || !['REGISTER', 'RENEW'].includes(sale.operation) ||
-      fromVndDecimal(sale.list_price_snapshot) !== '0' || fromVndDecimal(sale.credit_amount) !== '0' ||
+    if (!session.inTransaction() || !sale || !transaction || !['REGISTER', 'RENEW', 'UPGRADE'].includes(sale.operation) ||
+      addVnd(fromVndDecimal(transaction.amount_due), fromVndDecimal(sale.credit_amount)) !== fromVndDecimal(sale.list_price_snapshot) ||
+      (sale.operation !== 'UPGRADE' && fromVndDecimal(sale.credit_amount) !== '0') ||
       fromVndDecimal(transaction.amount_due) !== '0' || transaction.status !== 'PENDING') throw invalidState();
     const member = await this.members.findById(target.memberId, session);
     if (!member) throw invalidState();
@@ -38,8 +39,8 @@ export class ZeroSettlementService extends ZeroSettlement {
       { $set: { status: 'SETTLED', settled_at: this.clock.now() }, $inc: { version: 1 } }, { session });
     if (changed.modifiedCount !== 1) throw invalidState();
     const event = await this.notifications.persistBusinessEvent(session, {
-      eventKey: `SERVICE_SALE_SETTLED:${target.saleId.toHexString()}`, title: sale.operation === 'RENEW' ? 'Gia hạn gói thành công' : 'Đăng ký gói thành công',
-      body: `${sale.operation === 'RENEW' ? 'RENEW · ' : ''}Gói ${sale.plan_name_snapshot}: ${activated.startDate} – ${activated.endDate}. Giao dịch ${transaction.code}.`,
+      eventKey: `SERVICE_SALE_SETTLED:${target.saleId.toHexString()}`, title: sale.operation === 'UPGRADE' ? 'Nâng cấp gói thành công' : sale.operation === 'RENEW' ? 'Gia hạn gói thành công' : 'Đăng ký gói thành công',
+      body: `${sale.operation !== 'REGISTER' ? sale.operation + ' · ' : ''}Gói ${sale.plan_name_snapshot}: ${activated.startDate} – ${activated.endDate}. Giao dịch ${transaction.code}.`,
       memberId: target.memberId.toHexString(), transactionId: target.transactionId.toHexString(), createdBy: actorId,
     }, member.account_id ? [member.account_id.toHexString()] : []);
     return { ...activated, invoiceId: id.toHexString(), notificationState: event.notificationState };
