@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "ensure-indexes": "npm run build && node scripts/admin.cjs ensure-indexes",
     "check-environment": "npm run build && node scripts/admin.cjs check-environment",
+    "reconcile:inventory": "npm run build && node scripts/admin.cjs reconcile-inventory",
     "seed:admin": "npm run build && node scripts/admin.cjs seed-admin",
     "seed:access": "npm run build && node scripts/admin.cjs seed-access",
     "retry-notification": "npm run build && node scripts/admin.cjs retry-notification",

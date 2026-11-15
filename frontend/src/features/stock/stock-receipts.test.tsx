@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import { ApiError, apiClient } from '../../api/client';
@@ -91,7 +92,7 @@ describe('US-36 TC16: receipt UI and operation recovery', () => {
     expect(screen.getByRole('button', { name: 'Đóng form' })).toHaveProperty('disabled', false);
   });
   it('list handles loading, literal filters, empty/error/retry and detail loading', async () => {
-    render(<StockReceiptsPage />); expect(screen.getByRole('status').textContent).toContain('Đang tải');
+    render(<MemoryRouter><StockReceiptsPage /></MemoryRouter>); expect(screen.getByRole('status').textContent).toContain('Đang tải');
     await screen.findByRole('button', { name: `Mở ${row.code}` });
     vi.mocked(stockReceiptsApi.list).mockResolvedValueOnce(page([]));
     fireEvent.change(screen.getByLabelText('Tìm mã phiếu / chứng từ'), { target: { value: 'SOURCE.*' } });
@@ -103,6 +104,13 @@ describe('US-36 TC16: receipt UI and operation recovery', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Tải lại danh sách' }));
     await userEvent.click(await screen.findByRole('button', { name: `Mở ${row.code}` }));
     await screen.findByRole('heading', { name: row.code }); expect(stockReceiptsApi.detail).toHaveBeenCalledWith(row.id);
+  });
+  it('opens the exact committed receipt from inventory source navigation', async () => {
+    vi.mocked(stockReceiptsApi.detail).mockResolvedValue(postedDetail);
+    render(<MemoryRouter initialEntries={[`/staff/stock-receipts?documentId=${row.id}`]}><StockReceiptsPage /></MemoryRouter>);
+    await screen.findByRole('heading', { name: row.code });
+    expect(stockReceiptsApi.detail).toHaveBeenCalledWith(row.id, expect.any(AbortSignal));
+    expect(screen.getByText(posted.movementIds[0])).toBeDefined(); expect(screen.queryByRole('button', { name: 'Lưu nháp' })).toBeNull();
   });
   it.each(['TRAINER', 'MEMBER'] as const)('rejects %s at Staff/Admin routes before loading receipts', async roleCode => {
     vi.spyOn(apiClient, 'getSnapshot').mockReturnValue({ status: 'authenticated', user: { id: 'c'.repeat(24), fullName: 'Test', phone: '0901234567', roleCode } });

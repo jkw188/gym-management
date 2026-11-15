@@ -1,12 +1,22 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ReceiptEditor, stockIssue } from './ReceiptEditor';
 import { stockReceiptsApi, stockDate, stockMoney, type Receipt, type ReceiptSummary, type StockPage } from './stock-receipts.api';
 
 export function StockReceiptsPage() {
+  const [search] = useSearchParams(), sourceId = search.get('documentId');
   const [q, setQ] = useState(''), [status, setStatus] = useState(''), [fromDate, setFromDate] = useState(''), [toDate, setToDate] = useState('');
   const [query, setQuery] = useState({ q: '', status: '', fromDate: '', toDate: '', page: 1, limit: 20 });
   const [data, setData] = useState<StockPage<ReceiptSummary>>(), [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [revision, setRevision] = useState(0), [editor, setEditor] = useState<Receipt | 'new' | null>(null), [opening, setOpening] = useState(false);
+  useEffect(() => {
+    if (!sourceId) return;
+    const controller = new AbortController(); setOpening(true); setError('');
+    stockReceiptsApi.detail(sourceId, controller.signal).then(result => { if (!controller.signal.aborted) setEditor(result); })
+      .catch(failure => { if (!controller.signal.aborted) setError(stockIssue(failure).message); })
+      .finally(() => { if (!controller.signal.aborted) setOpening(false); });
+    return () => controller.abort();
+  }, [sourceId]);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true); setError('');
     stockReceiptsApi.list(query, controller.signal).then(result => { if (!controller.signal.aborted) setData(result); })

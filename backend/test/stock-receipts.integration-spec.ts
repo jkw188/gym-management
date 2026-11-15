@@ -69,6 +69,15 @@ describe('US-36 AC01–03: real replica set, HTTP, rollback, two processes and l
   const update = (id: string, body: object, key = randomUUID(), index = 0) => http(index).put(`${base}/${id}`).set('Authorization', `Bearer ${staff.token}`).set('Idempotency-Key', key).send(body);
   const post = (id: string, version = 0, key = randomUUID(), index = 0) => http(index).post(`${base}/${id}/post`).set('Authorization', `Bearer ${staff.token}`).set('Idempotency-Key', key).send({ version });
   const balance = (id: string) => db().collection('inventory').findOne({ product_id: new ObjectId(id) });
+  // Explicit test-only opening evidence. US-37 now blocks legacy nonzero stock without a complete ledger.
+  async function openingFixture(id: string, hand: number, reserved = 0) {
+    const product_id = new ObjectId(id), source_id = new ObjectId();
+    await db().collection('stock_movements').insertOne({ product_id, source_id, actor_id: new ObjectId(staff.id),
+      kind: 'FIXTURE_OPENING', event_key: `FIXTURE_OPENING:${source_id}`, sequence: new Int32(1), on_hand_delta: new Int32(hand), reserved_delta: new Int32(reserved),
+      before_on_hand: new Int32(0), before_reserved: new Int32(0), after_on_hand: new Int32(hand), after_reserved: new Int32(reserved),
+      sku_snapshot: 'FIXTURE', name_snapshot: 'Explicit test opening', created_at: new Date() });
+    await db().collection('inventory').updateOne({ product_id }, { $set: { on_hand: new Int32(hand), reserved: new Int32(reserved), version: new Int32(1) } });
+  }
   async function processPost(index: number, id: string, key = randomUUID()) {
     return request(processes[index].url).post(`${base}/${id}/post`).set('Authorization', `Bearer ${staff.token}`).set('Idempotency-Key', key).send({ version: 0 });
   }
@@ -139,15 +148,15 @@ describe('US-36 AC01–03: real replica set, HTTP, rollback, two processes and l
   });
 
   it('TC05/06: posting preserves reserved; snapshots, Int32 sequence, event/source chain and immutable history match', async () => {
-    await db().collection('inventory').updateOne({ product_id: new ObjectId(products[0]) }, { $set: { on_hand: new Int32(12), reserved: new Int32(3) } });
+    await openingFixture(products[0], 12, 3);
     const row = (await create().expect(201)).body;
     await db().collection('products').updateOne({ _id: new ObjectId(products[0]) }, { $set: { name: 'Tên tại ghi sổ' } });
     const posted = await post(row.id).expect(200);
     expect(posted.body).toMatchObject({ status: 'POSTED', version: 1, totalCost: '50000', postedBy: staff.id }); expect(posted.body.movementIds).toHaveLength(2);
-    expect(await balance(products[0])).toMatchObject({ on_hand: 22, reserved: 3, version: 1 });
+    expect(await balance(products[0])).toMatchObject({ on_hand: 22, reserved: 3, version: 2 });
     expect(await balance(products[1])).toMatchObject({ on_hand: 5, reserved: 0, version: 1 });
-    const movement = await db().collection('stock_movements').findOne({ product_id: new ObjectId(products[0]) });
-    expect(movement).toMatchObject({ event_key: `RECEIPT_POST:${row.items[0].id}`, sequence: 1, kind: 'RECEIPT_POST',
+    const movement = await db().collection('stock_movements').findOne({ product_id: new ObjectId(products[0]), kind: 'RECEIPT_POST' });
+    expect(movement).toMatchObject({ event_key: `RECEIPT_POST:${row.items[0].id}`, sequence: 2, kind: 'RECEIPT_POST',
       before_on_hand: 12, before_reserved: 3, after_on_hand: 22, after_reserved: 3, on_hand_delta: 10, reserved_delta: 0, name_snapshot: 'Tên tại ghi sổ' });
     expect(String(movement!.source_id)).toBe(row.id); expect(String(movement!.document_item_id)).toBe(row.items[0].id);
     const types = await db().collection('stock_movements').aggregate([{ $project: { sequence: { $type: '$sequence' }, delta: { $type: '$on_hand_delta' } } }]).toArray();
@@ -155,7 +164,7 @@ describe('US-36 AC01–03: real replica set, HTTP, rollback, two processes and l
     await db().collection('products').updateOne({ _id: new ObjectId(products[0]) }, { $set: { name: 'Tên sau ghi sổ' } });
     const detail = (await get(`/${row.id}`).expect(200)).body;
     expect(detail.items[0]).toMatchObject({ id: row.items[0].id, nameSnapshot: 'Tên tại ghi sổ' });
-    expect(detail.movements[0]).toMatchObject({ id: String(movement!._id), documentItemId: row.items[0].id, sequence: 1, sourceId: row.id, sourceCode: row.code, beforeOnHand: 12, afterOnHand: 22 });
+    expect(detail.movements[0]).toMatchObject({ id: String(movement!._id), documentItemId: row.items[0].id, sequence: 2, sourceId: row.id, sourceCode: row.code, beforeOnHand: 12, afterOnHand: 22 });
     expect(await db().collection('stock_document_events').countDocuments({ document_id: new ObjectId(row.id), action: 'POSTED' })).toBe(1);
   });
 
@@ -290,7 +299,7 @@ describe('US-36 AC01–03: real replica set, HTTP, rollback, two processes and l
       expect(await balance(products[0])).toMatchObject({ on_hand: 0, version: 0 }); expect(await db().collection('stock_movements').countDocuments()).toBe(0);
       expect((await get(`/${row.id}`).expect(200)).body.status).toBe('DRAFT');
     }
-    await collection.deleteOne({ product_id }); await collection.insertOne({ ...good, on_hand: new Int32(2147483642) });
+    await collection.deleteOne({ product_id }); await collection.insertOne(good); await openingFixture(products[1], 2147483642);
     await post(row.id).expect(200); expect(await balance(products[1])).toMatchObject({ on_hand: 2147483647 });
   });
 

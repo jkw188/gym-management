@@ -42,6 +42,20 @@ const { mapError } = require('../dist/common/http/http-error.filter');
 async function run() {
   // ConfigModule chỉ nạp .env vào process.env (không in giá trị); mỗi lệnh tự kiểm đúng các biến nó cần.
   await ConfigModule.forRoot();
+  if (process.argv[2] === 'reconcile-inventory') {
+    const config = readMongoConfiguration(process.env);
+    const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
+      serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
+    try {
+      await connection.asPromise();
+      const { TransactionRunner } = require('../dist/infrastructure/transaction/transaction-runner');
+      const { reconcileInventory } = require('../dist/modules/inventory/inventory-reconciliation');
+      const result = await reconcileInventory(connection, new TransactionRunner(connection));
+      console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INVENTORY_RECONCILIATION', ...result }));
+      if (!result.consistent) process.exitCode = 1;
+    } finally { await connection.close(); }
+    return;
+  }
   if (process.argv[2] === 'ensure-indexes') {
     // Chỉ cần MONGODB_URI, MONGODB_DB; không bắt buộc JWT/SMTP.
     const config = readMongoConfiguration(process.env);
