@@ -45,13 +45,16 @@ export type Us18World = {
 export type Us18App = {
   mongo: MongoMemoryReplSet;
   app: INestApplication;
+  // Mọi instance ứng dụng (cùng một database); apps[0] === app.
+  apps: INestApplication[];
   connection: Connection;
   savedEnv: NodeJS.ProcessEnv;
   setNow: (value: Date) => void;
 };
 
 // Khởi động app. extraEnv dùng để bật/tắt cấu hình tài khoản nhận chuyển khoản.
-export async function startUs18App(databaseName: string, extraEnv: Record<string, string>): Promise<Us18App> {
+// instances > 1: dựng thêm instance dùng chung database để kiểm khóa thật giữa hai server (US-18 bước 4).
+export async function startUs18App(databaseName: string, extraEnv: Record<string, string>, instances = 1): Promise<Us18App> {
   const savedEnv = { ...process.env };
   const mongo = await MongoMemoryReplSet.create({ binary: { version: '8.0.17' }, replSet: { count: 1, storageEngine: 'wiredTiger' } });
   Object.assign(process.env, {
@@ -66,19 +69,25 @@ export async function startUs18App(databaseName: string, extraEnv: Record<string
   let now = new Date('2026-11-01T03:00:00Z');
   const clock = { now: () => now, today: () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(now) };
   const { AppModule } = await import('../../src/app.module');
-  const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ServerClock).useValue(clock).compile();
-  const app = module.createNestApplication({ logger: false, bodyParser: false });
-  configureHttp(app);
+  const apps: INestApplication[] = [];
+  for (let index = 0; index < instances; index++) {
+    const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ServerClock).useValue(clock).compile();
+    const instance = module.createNestApplication({ logger: false, bodyParser: false });
+    configureHttp(instance);
+    const instanceConnection = instance.get<Connection>(getConnectionToken());
+    await ensureFinancialIntegrity(instanceConnection);
+    await instance.init();
+    await Promise.all(Object.values(instanceConnection.models).map(model => model.init()));
+    apps.push(instance);
+  }
+  const app = apps[0];
   const connection = app.get<Connection>(getConnectionToken());
-  await ensureFinancialIntegrity(connection);
-  await app.init();
-  await Promise.all(Object.values(connection.models).map(model => model.init()));
-  return { mongo, app, connection, savedEnv, setNow: value => { now = value; } };
+  return { mongo, app, apps, connection, savedEnv, setNow: value => { now = value; } };
 }
 
 export async function stopUs18App(started: Us18App | undefined) {
   if (!started) return;
-  await started.app.close();
+  for (const app of started.apps) await app.close();
   await started.mongo.stop();
   process.env = started.savedEnv;
 }

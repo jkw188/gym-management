@@ -536,3 +536,109 @@ describe('US-18 bước 3: trang /member/service-registrations', () => {
     expect(callsTo('POST', '/me/service-sales/:id/cancel')).toHaveLength(1);
   });
 });
+
+// ---------------- US-18 bước 4: làm chắc giao diện sau khi hủy hoặc bị thu tiền ----------------
+describe('US-18 bước 4: kết quả và hướng dẫn theo trạng thái mới của giao dịch', () => {
+  // Lịch sử có đúng yêu cầu vừa tạo (cùng saleId/transactionId với kết quả 201).
+  const createdItem = (extra: Record<string, unknown> = {}) => historyItem(saleId, 'Gym vừa tạo', { transactionId, ...extra });
+  const transferGuide = () => cashInstructions({ preferredPaymentMethod: 'TRANSFER', transferOptions: [
+    { receivingAccountCode: 'GYM_MAIN', bankName: 'Vietcombank', accountNumber: '0123456789', accountName: 'CONG TY GYM', transferContent: code },
+  ] });
+
+  async function createThenOpenCancel(user: ReturnType<typeof userEvent.setup>) {
+    await previewThenConfirm(user, { method: 'TRANSFER' });
+    await screen.findByRole('region', { name: 'Hướng dẫn thanh toán' });
+    const card = await within(region('Yêu cầu mua gói của tôi')).findByRole('article', { name: 'Gym vừa tạo' });
+    await user.click(within(card).getByRole('button', { name: 'Hủy yêu cầu' }));
+    await user.type(screen.getByLabelText('Lý do hủy'), 'Chọn sai ngày bắt đầu');
+  }
+
+  it('US-18-TC11: hủy chính yêu cầu vừa tạo → kết quả ghi đã hủy, không còn số tiền/hướng dẫn/số tài khoản', async () => {
+    handlers['POST /me/service-registrations'] = () => { history = [createdItem()]; return pendingResult(); };
+    handlers['GET /me/transactions/:id/payment-instructions'] = transferGuide;
+    handlers['POST /me/service-sales/:id/cancel'] = () => {
+      history = [createdItem({ status: 'CANCELLED', canCancel: false, transactionVersion: 1 })];
+      return { saleId, transactionId, status: 'CANCELLED' };
+    };
+    const user = userEvent.setup();
+    renderPage();
+    await createThenOpenCancel(user);
+    await user.click(screen.getByRole('button', { name: 'Xác nhận hủy' }));
+
+    await within(region('Yêu cầu mua gói của tôi')).findByText(/Đã hủy/);
+    const result = region('Kết quả đăng ký');
+    expect(within(result).getByText(/đã hủy, không cần thanh toán/i)).toBeDefined();
+    expect(within(result).queryByText(/Chờ nhân viên xác nhận thu/)).toBeNull();
+    expect(within(result).queryByText(/300\.000/)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Hướng dẫn thanh toán' })).toBeNull();
+    expect(screen.queryByText(/0123456789/)).toBeNull();
+  });
+
+  it('US-18-TC12: hủy bị 409 vì nhân viên vừa thu → kết quả theo trạng thái thật SETTLED, ẩn hướng dẫn, không ghi miễn phí', async () => {
+    handlers['POST /me/service-registrations'] = () => { history = [createdItem()]; return pendingResult(); };
+    handlers['GET /me/transactions/:id/payment-instructions'] = transferGuide;
+    handlers['POST /me/service-sales/:id/cancel'] = () => {
+      history = [createdItem({ status: 'SETTLED', canCancel: false, transactionVersion: 1 })];
+      throw apiError(409, 'INVALID_TRANSACTION_STATE', 'Trạng thái giao dịch không cho phép thao tác');
+    };
+    const user = userEvent.setup();
+    renderPage();
+    await createThenOpenCancel(user);
+    await user.click(screen.getByRole('button', { name: 'Xác nhận hủy' }));
+
+    await within(region('Yêu cầu mua gói của tôi')).findByText(/Đã thanh toán/);
+    const result = region('Kết quả đăng ký');
+    expect(within(result).queryByText(/Chờ nhân viên xác nhận thu/)).toBeNull();
+    expect(within(result).queryByText(/miễn phí/i)).toBeNull();
+    expect(within(result).queryByText(/đã hủy/i)).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Hướng dẫn thanh toán' })).toBeNull();
+  });
+
+  it('US-18-TC12: hủy bị lỗi mạng (chưa rõ kết quả) → giữ nguyên chờ thu và hướng dẫn, gửi lại dùng CÙNG key', async () => {
+    let attempts = 0;
+    handlers['POST /me/service-registrations'] = () => { history = [createdItem()]; return pendingResult(); };
+    handlers['GET /me/transactions/:id/payment-instructions'] = transferGuide;
+    handlers['POST /me/service-sales/:id/cancel'] = () => {
+      attempts += 1;
+      if (attempts === 1) throw networkError();
+      history = [createdItem({ status: 'CANCELLED', canCancel: false, transactionVersion: 1 })];
+      return { saleId, transactionId, status: 'CANCELLED' };
+    };
+    const user = userEvent.setup();
+    renderPage();
+    await createThenOpenCancel(user);
+    await user.click(screen.getByRole('button', { name: 'Xác nhận hủy' }));
+
+    expect(await screen.findByRole('alert')).toBeDefined();
+    expect(within(region('Kết quả đăng ký')).getByText(/Chờ nhân viên xác nhận thu/)).toBeDefined();
+    expect(screen.getByRole('region', { name: 'Hướng dẫn thanh toán' })).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: 'Xác nhận hủy' }));
+    await within(region('Yêu cầu mua gói của tôi')).findByText(/Đã hủy/);
+    const keys = callsTo('POST', '/me/service-sales/:id/cancel').map(call => call.headers.get('Idempotency-Key'));
+    expect(keys).toHaveLength(2);
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it('US-18-TC11: hủy một yêu cầu cũ khác trong lịch sử → kết quả của yêu cầu vừa tạo vẫn giữ nguyên', async () => {
+    const olderId = '6'.repeat(24);
+    history = [historyItem(olderId, 'PT yêu cầu cũ', { kind: 'PT' })];
+    handlers['POST /me/service-registrations'] = () => { history = [createdItem(), ...history]; return pendingResult(); };
+    handlers['POST /me/service-sales/:id/cancel'] = () => {
+      history = [createdItem(), historyItem(olderId, 'PT yêu cầu cũ', { status: 'CANCELLED', canCancel: false, transactionVersion: 1 })];
+      return { saleId: olderId, transactionId: `${olderId.slice(0, 23)}9`, status: 'CANCELLED' };
+    };
+    const user = userEvent.setup();
+    renderPage();
+    await previewThenConfirm(user);
+    await screen.findByRole('region', { name: 'Hướng dẫn thanh toán' });
+    const older = await within(region('Yêu cầu mua gói của tôi')).findByRole('article', { name: 'PT yêu cầu cũ' });
+    await user.click(within(older).getByRole('button', { name: 'Hủy yêu cầu' }));
+    await user.type(screen.getByLabelText('Lý do hủy'), 'Không còn nhu cầu tập PT');
+    await user.click(screen.getByRole('button', { name: 'Xác nhận hủy' }));
+
+    await within(within(region('Yêu cầu mua gói của tôi')).getByRole('article', { name: 'PT yêu cầu cũ' })).findByText(/Đã hủy/);
+    expect(within(region('Kết quả đăng ký')).getByText(/Chờ nhân viên xác nhận thu/)).toBeDefined();
+    expect(screen.getByRole('region', { name: 'Hướng dẫn thanh toán' })).toBeDefined();
+  });
+});
