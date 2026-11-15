@@ -134,7 +134,7 @@ export class StockReceiptsService {
           const refreshed = await this.repository.items.updateOne({ _id: persisted._id, document_id: target }, { $set: line }, { session, runValidators: true });
           if (refreshed.matchedCount !== 1) throw inventoryIntegrityError();
           await this.writer.apply(balances.get(String(line.product_id))!, { product_id: line.product_id, document_item_id: persisted._id,
-            event_key: `RECEIPT_POST:${persisted._id}`, kind: 'RECEIPT_POST', source_id: target, actor_id: actor,
+            event_key: `RECEIPT_POST:${persisted._id}`, kind: 'RECEIPT_POST', source_id: target, source_type: 'STOCK_RECEIPT', source_code: old.code, actor_id: actor,
             on_hand_delta: line.quantity_delta, reserved_delta: 0, sku_snapshot: line.sku_snapshot, name_snapshot: line.name_snapshot, created_at: now }, session);
         }
         const body = await this.postedResult(row, session);

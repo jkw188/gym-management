@@ -30,6 +30,7 @@ sequenceDiagram
       Service->>DB: Tái kiểm dòng, sản phẩm và cost
       Service->>Writer: Khóa inventory theo productId tăng
       Writer->>DB: Tăng guard_revision thật rồi đọc balances
+      Writer->>DB: Đối chiếu ledger từ 0, sequence và nguồn POSTED cùng snapshot
       Writer->>Writer: Kiểm tất cả balances và trần Int32
       Service->>DB: CAS document version/status
       Service->>DB: Làm mới snapshot các dòng

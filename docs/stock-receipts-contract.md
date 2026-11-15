@@ -22,7 +22,7 @@ Member/PT không được xem phiếu hoặc giá nhập. Không DELETE, sửa P
 Picker nhận quyền `inventory.read` hoặc `stockReceipts.manage` (cả hai hiện là STAFF/ADMIN).
 Trả identity/status/effectiveActive/inventoryState VALID/MISSING/INCONSISTENT.
 Đọc picker/list/detail dùng snapshot transaction, không tăng catalog revision hoặc sửa dữ liệu.
-Các màn hình tồn kho/history khác của US-37 không nằm trong thay đổi US-36.
+Các màn hình tồn kho/history US-37 và hợp đồng S05-I01 được mô tả trong [inventory-contract.md](inventory-contract.md).
 
 Các command yêu cầu UUID v4 Idempotency-Key: STOCK_RECEIPT_CREATE/UPDATE/POST.
 Scope actor + operation + key; hash payload chuẩn hóa gồm target/version; replay giữ HTTP/body gốc,
@@ -56,6 +56,9 @@ StockModule quản lý phiếu; InventoryModule export InventoryWriter cho write
 Writer không upsert inventory khi post. Inventory thiếu, BSON sai kiểu, reserved bất thường trả
 409 INVENTORY_INTEGRITY_ERROR; trần tồn/sequence trả 409 STOCK_LIMIT_EXCEEDED.
 Writer lấy guard theo productId tăng, kiểm tất cả balances trước cập nhật, ghi có điều kiện và một movement/mỗi lần version tăng.
+US-37 bổ sung kiểm chuỗi ledger từ 0 và tham chiếu nguồn sau khóa: tồn cũ thiếu ledger hoặc chain sai chặn writer,
+không tự công nhận tồn cũ làm mốc mở đầu. Chạy `npm run reconcile:inventory` để đối chiếu chỉ đọc.
+Movement nhập mới giữ source_type STOCK_RECEIPT/source_code tại ghi sổ; tham chiếu document_item_id vẫn bắt buộc.
 Guard tăng không tăng sequence. Tạo/sửa nháp không đổi on_hand/reserved/version và không tạo movement.
 
 UnitOfWork EN-02: catalog_state tăng revision thật → đọc catalog/phiếu/dòng → inventory.guard_revision theo id tăng
