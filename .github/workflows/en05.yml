@@ -1,0 +1,50 @@
+name: EN-05 concurrency acceptance
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main, develop, 'feature/jikang/sprint1']
+
+permissions:
+  contents: read
+
+jobs:
+  concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Pin npm
+        run: npm install --global npm@11.11.1
+      - uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongod-${{ runner.os }}-${{ runner.arch }}-8.0.17
+      - run: npm ci
+        working-directory: backend
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run typecheck:test
+        working-directory: backend
+      - name: Run all EN-05 cases and client dedupe checks
+        run: npm run test:en05
+        working-directory: backend
+      - name: Preserve acceptance evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: en05-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/en05-*/
+          retention-days: 14
+          if-no-files-found: warn

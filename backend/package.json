@@ -20,7 +20,8 @@
     "test:unit": "jest --config jest.unit.config.cjs --runInBand",
     "test:integration": "jest --config jest.integration.config.cjs --runInBand",
     "typecheck:test": "tsc --project tsconfig.test.json --noEmit",
-    "test:e2e": "node scripts/test-e2e.cjs"
+    "test:e2e": "node scripts/test-e2e.cjs",
+    "test:en05": "npm run build && node scripts/test-en05.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
