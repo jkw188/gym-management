@@ -11,6 +11,7 @@ const { StockRepository } = require('../dist/modules/stock/stock.repository');
 const { SettlementRepository } = require('../dist/modules/payments/settlement.repository');
 const { NotificationsRepository } = require('../dist/modules/notifications/notifications.repository');
 const { NotificationOutboxService } = require('../dist/modules/notifications/notification-outbox.service');
+const { OrderExpiryWorker } = require('../dist/modules/orders/order-expiry.worker');
 const { OperationRequestsRepository } = require('../dist/modules/operations/operation-requests.repository');
 const { AccessCatalogService } = require('../dist/modules/users/access-catalog.service');
 const { UsersRepository } = require('../dist/modules/users/users.repository');
@@ -79,6 +80,9 @@ async function main() {
   wrap(app.get(NotificationsRepository), 'insertRecipients', 'recipient');
   wrap(app.get(NotificationsRepository), 'insertOutbox', 'outbox');
   wrap(app.get(OperationRequestsRepository), 'insert', 'operation');
+  wrap(connection.models.Refund, 'create', 'refund');
+  wrap(connection.models.Payment, 'create', 'latePayment');
+  wrap(connection.models.OrderEvent, 'create', 'orderAudit');
   await app.listen(0, '127.0.0.1');
   process.send({ event: 'ready', pid: process.pid, url: await app.getUrl() });
   process.on('message', async message => {
@@ -92,7 +96,7 @@ async function main() {
         case 'release': release?.(); release = undefined; break;
         case 'clear': hook = undefined; release?.(); release = undefined; break;
         case 'outboxWorker': result = await app.get(NotificationOutboxService).runOnce(); break;
-        // No pretend expiry worker: US45 does not exist yet.
+        case 'expiryWorker': result = await app.get(OrderExpiryWorker).runOnce(); break;
         case 'accounts': {
           const users = app.get(UsersRepository), hash = await app.get(PasswordService).hash(message.value.password);
           result = [];

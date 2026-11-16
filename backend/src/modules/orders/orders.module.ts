@@ -10,7 +10,18 @@ import { OrdersRepository } from './orders.repository';
 import { OrdersService } from './orders.service';
 import { FulfillOrderService } from './fulfill-order.service';
 import { InventoryModule } from '../inventory/inventory.module';
+import { RefundsModule } from '../refunds/refunds.module';
+import { CancelOrderService } from './cancel-order.service';
+import { LateReceiptService } from './late-receipt.service';
+import { OrderExpiryWorker } from './order-expiry.worker';
+import { MeOrdersController, OrderCancellationController } from './order-cancellation.controller';
+import { MeOrdersService } from './me-orders.service';
+import { PaymentSchema } from '../payments/schemas/payment.schema';
+import { ReceivingAccountPolicy } from '../../common/utils/receiving-account';
 
-@Module({ imports: [TransactionModule, OperationsModule, NotificationsModule, InventoryModule, MongooseModule.forFeature(ORDER_MODELS)],
-  controllers: [OrdersController], providers: [OrdersRepository, OrdersService, FulfillOrderService, ServerClock], exports: [FulfillOrderService] })
+@Module({ imports: [TransactionModule, OperationsModule, NotificationsModule, InventoryModule, RefundsModule,
+  MongooseModule.forFeature([...ORDER_MODELS, { name: 'Payment', schema: PaymentSchema }])],
+  controllers: [OrdersController, OrderCancellationController, MeOrdersController],
+  providers: [OrdersRepository, OrdersService, FulfillOrderService, CancelOrderService, LateReceiptService, OrderExpiryWorker, MeOrdersService, ReceivingAccountPolicy, ServerClock],
+  exports: [FulfillOrderService] })
 export class OrdersModule {}

@@ -10,6 +10,7 @@ export interface Order {
   created_by: Types.ObjectId; created_at: Date; updated_at: Date; version: number; guard_revision: bigint;
   confirmed_at?: Date; confirmed_by?: Types.ObjectId; fulfilled_at?: Date; fulfilled_by?: Types.ObjectId;
   cancelled_at?: Date; cancelled_by?: Types.ObjectId; cancellation_reason?: string; cancellation_source?: 'USER' | 'EXPIRED';
+  expiry_retry_at?: Date; expiry_attempts?: number;
 }
 export interface OrderItem {
   _id: Types.ObjectId; id: Types.ObjectId; order_id: Types.ObjectId; product_id: Types.ObjectId;
@@ -40,6 +41,7 @@ export const OrderSchema = new Schema<Order>({
   confirmed_at: Date, confirmed_by: Schema.Types.ObjectId, fulfilled_at: Date, fulfilled_by: Schema.Types.ObjectId,
   cancelled_at: Date, cancelled_by: Schema.Types.ObjectId, cancellation_reason: { type: String, maxlength: 500 },
   cancellation_source: { type: String, enum: ['USER', 'EXPIRED'] },
+  expiry_retry_at: Date, expiry_attempts: { type: Number, min: 0 },
 }, { ...options, collection: 'orders' });
 OrderSchema.index({ code: 1 }, { unique: true, name: 'orders_code_unique' });
 OrderSchema.index({ transaction_id: 1 }, { unique: true, name: 'orders_transaction_unique' });

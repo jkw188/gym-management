@@ -32,6 +32,12 @@ export class OperationRequestsRepository implements OnModuleInit {
       .session(session ?? null).maxTimeMS(5000).lean().exec();
   }
 
+  async ownsOrder(accountId: string, orderId: unknown): Promise<boolean> {
+    if (!(orderId instanceof Types.ObjectId) && !(typeof orderId === 'string' && /^[a-f\d]{24}$/i.test(orderId))) return false;
+    const member = await this.requests.db.collection('members').findOne({ account_id: new Types.ObjectId(accountId) }, { projection: { _id: 1 } });
+    return Boolean(member && await this.requests.db.collection('orders').findOne({ _id: new Types.ObjectId(String(orderId)), member_id: member._id }, { projection: { _id: 1 } }));
+  }
+
   // EN-02-D01: chỉ insert trong transaction của lệnh, nên lệnh lỗi rollback thì cũng không còn record.
   async insert(record: NewOperationRequest, session: ClientSession): Promise<void> {
     if (!session.inTransaction()) throw new Error('OPERATION_REQUEST_TRANSACTION_REQUIRED');

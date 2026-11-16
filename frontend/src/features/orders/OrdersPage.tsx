@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { ordersApi, orderDate, orderMoney, orderStatus, transactionStatus, type OrderDetail, type OrderQuery } from './orders.api';
 import { OrderFulfillment } from './OrderFulfillment';
+import { OrderCancellation } from './OrderCancellation';
 
 const initialQuery: OrderQuery = { channel: 'WEBSITE', status: 'PENDING', transactionStatus: '', q: '', memberId: '', fromDate: '', toDate: '', page: 1, limit: 20 };
 const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Không thực hiện được yêu cầu';
@@ -12,6 +13,7 @@ export function OrdersPage() {
   const [row, setRow] = useState<OrderDetail | null>(null), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const [checked, setChecked] = useState(false), [pending, setPending] = useState(false), [unknown, setUnknown] = useState(false), [elapsed, setElapsed] = useState(0);
   const [fulfillmentLocked, setFulfillmentLocked] = useState(false);
+  const [cancellationLocked, setCancellationLocked] = useState(false);
   const busy = useRef(false), command = useRef<Command | null>(null);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true);
@@ -60,6 +62,7 @@ export function OrdersPage() {
   }
   function apply(event: FormEvent) { event.preventDefault(); setError(''); setQuery({ ...filter, q: filter.q.trim(), page: 1 }); }
   return <section><h2>Chuẩn bị và bàn giao đơn hàng website</h2><p>Kiểm tra hàng thực tế trước khi xác nhận. Chuẩn bị không xác nhận thu tiền hoặc bàn giao và không gia hạn giữ hàng.</p>
+    <p>Hủy hỗ trợ áp dụng cho đơn Website/POS chưa bàn giao. Đơn đã hủy có khoản chuyển được phát hiện muộn cần ghi nhận và đối soát riêng.</p>
     {error && <p role="alert">{error}</p>}{success && <p role="status">{success}</p>}
     {opening && <p role="status">Đang tải chi tiết đơn…</p>}
     {row ? <section aria-label={`Chi tiết ${row.code}`}><h3>{row.code}</h3>
@@ -73,18 +76,20 @@ export function OrdersPage() {
       {row.confirmedAt && <p>Đã chuẩn bị lúc {orderDate(row.confirmedAt)} · Người xác nhận: {row.confirmedBy}</p>}
       {row.invoice && <p>Chứng từ {row.invoice.invoiceNo} · {orderMoney(row.invoice.totalAmount)}</p>}
       {row.refunds.map(refund => <p key={refund.id}>Khoản hoàn: {orderMoney(refund.amount)} · {refund.status === 'PENDING' ? 'Chờ hoàn' : refund.status === 'SUCCEEDED' ? 'Đã hoàn' : 'Hoàn thất bại'}</p>)}
-      {row.permittedActions.prepare && !expired && <><label><input type="checkbox" checked={checked} disabled={pending || unknown} onChange={event => setChecked(event.target.checked)} />Tôi đã kiểm tra và chuẩn bị đủ hàng thực tế</label>
-        <button type="button" disabled={!checked || pending || unknown} onClick={() => {
-          if (busy.current || unknown) return;
+      {row.permittedActions.prepare && !expired && <><label><input type="checkbox" checked={checked} disabled={pending || unknown || cancellationLocked || fulfillmentLocked} onChange={event => setChecked(event.target.checked)} />Tôi đã kiểm tra và chuẩn bị đủ hàng thực tế</label>
+        <button type="button" disabled={!checked || pending || unknown || cancellationLocked || fulfillmentLocked} onClick={() => {
+          if (busy.current || unknown || cancellationLocked || fulfillmentLocked) return;
           const next = { id: row.id, version: row.version, key: crypto.randomUUID() }; command.current = next; void send(next);
         }}>Xác nhận đã chuẩn bị</button></>}
       {row.permittedActions.prepareBlockedReason === 'ORDER_INTEGRITY_ERROR' && <p role="alert">Dữ liệu đơn cần đối chiếu trước khi thao tác.</p>}
-      <OrderFulfillment key={row.id} order={row} expired={expired} onLockedChange={setFulfillmentLocked}
+      <fieldset disabled={cancellationLocked || pending || unknown}><OrderFulfillment key={row.id} order={row} expired={expired} onLockedChange={setFulfillmentLocked}
         onConflict={async message => { setError(message); await refresh(row.id); }} onCompleted={async result => {
           setError(''); setSuccess(`Đã bàn giao đủ sản phẩm lúc ${orderDate(result.fulfilledAt)} · Nhân viên: ${result.fulfilledBy}.`); await refresh(result.id);
-        }} />
-      <button type="button" disabled={pending || unknown || fulfillmentLocked} onClick={() => void open(row.id)}>Tải lại đơn</button>
-      <button type="button" disabled={pending || unknown || fulfillmentLocked} onClick={() => { setRow(null); setChecked(false); setError(''); }}>Về danh sách</button>
+        }} /></fieldset>
+      <OrderCancellation key={`cancel:${row.id}`} order={row} disabled={pending || unknown || fulfillmentLocked} onLockedChange={setCancellationLocked}
+        onChanged={async () => { setRow(await ordersApi.detail(row.id)); setRevision(value => value + 1); }} />
+      <button type="button" disabled={pending || unknown || fulfillmentLocked || cancellationLocked} onClick={() => void open(row.id)}>Tải lại đơn</button>
+      <button type="button" disabled={pending || unknown || fulfillmentLocked || cancellationLocked} onClick={() => { setRow(null); setChecked(false); setError(''); }}>Về danh sách</button>
     </section> : !opening && <><form onSubmit={apply}>
       <label>Mã đơn<input value={filter.q} maxLength={120} onChange={event => setFilter({ ...filter, q: event.target.value })} /></label>
       <label>Kênh<select value={filter.channel} onChange={event => setFilter({ ...filter, channel: event.target.value })}><option value="WEBSITE">Website</option><option value="POS">Tại quầy</option><option value="">Tất cả</option></select></label>
@@ -93,12 +98,12 @@ export function OrdersPage() {
       <label>ID hội viên<input value={filter.memberId} onChange={event => setFilter({ ...filter, memberId: event.target.value })} /></label>
       <label>Từ ngày<input type="date" value={filter.fromDate} onChange={event => setFilter({ ...filter, fromDate: event.target.value })} /></label>
       <label>Đến ngày<input type="date" value={filter.toDate} onChange={event => setFilter({ ...filter, toDate: event.target.value })} /></label>
-      <p>Ngày Việt Nam; để trống dùng 30 ngày gần nhất, tối đa 366 ngày.</p><button disabled={pending || unknown} type="submit">Lọc đơn</button>
+      <p>Ngày Việt Nam; để trống dùng 30 ngày gần nhất, tối đa 366 ngày.</p><button disabled={pending || unknown || cancellationLocked || fulfillmentLocked} type="submit">Lọc đơn</button>
       <button type="button" disabled={loading || pending || unknown} onClick={() => { setError(''); setRevision(value => value + 1); }}>Tải lại danh sách</button></form>
       {loading && <p role="status">Đang tải đơn…</p>}{!loading && data?.items.length === 0 && <p>Không có đơn phù hợp.</p>}
       {!loading && Boolean(data?.items.length) && <table><thead><tr><th>Mã đơn</th><th>Chuẩn bị / bàn giao</th><th>Thanh toán</th><th>Hạn giữ</th><th>Thao tác</th></tr></thead><tbody>
         {data?.items.map(item => <tr key={item.id}><td>{item.code}</td><td>{orderStatus[item.status]}{item.expired && item.reservationState === 'HELD' && ['PENDING', 'CONFIRMED'].includes(item.status) && ' · Hết hạn, chờ xử lý hủy'}</td><td>{item.transactionStatus ? transactionStatus[item.transactionStatus] : 'Cần đối chiếu'}</td>
-          <td>{orderDate(item.reservationExpiresAt)}</td><td><button type="button" disabled={pending || unknown} onClick={() => void open(item.id)}>Mở {item.code}</button></td></tr>)}</tbody></table>}
+          <td>{orderDate(item.reservationExpiresAt)}</td><td><button type="button" disabled={pending || unknown || cancellationLocked || fulfillmentLocked} onClick={() => void open(item.id)}>Mở {item.code}</button></td></tr>)}</tbody></table>}
       <div className="user-actions"><button disabled={loading || query.page <= 1 || pending || unknown} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
         <span>Trang {query.page} / {data?.totalPages ?? 0} · {data?.total ?? 0} đơn</span><button disabled={loading || !data || query.page >= data.totalPages || pending || unknown} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
     </>}

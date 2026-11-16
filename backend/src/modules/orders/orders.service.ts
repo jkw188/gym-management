@@ -47,6 +47,7 @@ export class OrdersService {
       return { ...summary, recipient: { name: row.recipient_name, phone: row.recipient_phone }, pickupLocation: row.pickup_location_snapshot,
         confirmedAt: row.confirmed_at?.toISOString() ?? null, confirmedBy: row.confirmed_by ? String(row.confirmed_by) : null,
         fulfilledAt: row.fulfilled_at?.toISOString() ?? null, fulfilledBy: row.fulfilled_by ? String(row.fulfilled_by) : null,
+        cancelledAt: row.cancelled_at?.toISOString() ?? null, cancellationReason: row.cancellation_reason ?? null, cancellationSource: row.cancellation_source ?? null,
         movementIds: (await this.repository.fulfillmentMovements(target, session)).map(movement => String(movement._id)),
         items: (await this.repository.lines(target, session)).map(line => ({ id: String(line._id), productId: String(line.product_id),
           skuSnapshot: line.sku_snapshot, nameSnapshot: line.name_snapshot, quantity: line.quantity,
