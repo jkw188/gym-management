@@ -13,12 +13,14 @@ import { PaymentReviewService } from './payment-review.service';
 import { PaymentsQueryRepository } from './payments-query.repository';
 import { parseTransactionId } from './payments-query.service';
 import { SettlementRepository } from './settlement.repository';
+import { RetailSettlementService } from '../orders/retail-settlement.service';
 
 @Injectable()
 export class SettlementService {
   constructor(private readonly commands: IdempotencyService, private readonly query: PaymentsQueryRepository,
     private readonly repository: SettlementRepository, private readonly review: PaymentReviewService,
-    private readonly activation: SaleActivation, private readonly notifications: NotificationsService, private readonly clock: ServerClock) {}
+    private readonly activation: SaleActivation, private readonly notifications: NotificationsService, private readonly clock: ServerClock,
+    private readonly retail: RetailSettlementService) {}
 
   async confirm(actorId: string, id: string, input: PaymentReviewDto, key: string) {
     const transactionId = parseTransactionId(id);
@@ -28,7 +30,7 @@ export class SettlementService {
         targetId: transactionId.toHexString(), payload: { ...intent } }, async session => {
         const transaction = await this.query.transaction(transactionId, session);
         if (!transaction) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy giao dịch');
-        if (transaction.kind === 'RETAIL') throw new ApplicationError(400, 'UNSUPPORTED_KIND', 'S02 chỉ hỗ trợ GYM/PT');
+        if (transaction.kind === 'RETAIL') return this.retail.confirmWithinSession(session, actorId, transactionId, input);
         if (transaction.status === 'SETTLED') throw await this.alreadySettled(transactionId, session);
         if (transaction.status !== 'PENDING' || fromVndDecimal(transaction.amount_due) === '0') throw invalidState();
         const sale = await this.query.sale(transactionId, session);

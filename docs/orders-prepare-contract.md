@@ -1,5 +1,12 @@
 # US-43/44 — Chuẩn bị và bàn giao đơn website
 
+Tích hợp US-53: đã mở `/api/pos/orders/:id/fulfill` với permission pos.fulfill và
+operation ORDER_FULFILL_POS; gọi cùng `FulfillOrderService` policy POS. Summary chọn
+policy theo channel để đơn POS SETTLED có action bàn giao hợp lệ. Prepare/fulfill
+website vẫn từ chối POS409. POS factory và RETAIL settlement thật nằm trong US-53;
+các suite US-43/44 cũ vẫn dùng fixture lịch sử như mô tả bên dưới, suite POS kiểm
+writer mới và race thu/hủy/giao. Xem [pos-contract.md](pos-contract.md).
+
 Nguồn: `PM/SPRINT6/[GM]Requirement_US-43.docx` v1.0, hợp đồng schema/H01/O01
 trong US-41 và EN-06. Đã đọc toàn bộ văn bản và bảng của ba DOCX; không có ảnh
 nhúng. Tham chiếu schema refund của US-45 để chỉ trả summary an toàn.

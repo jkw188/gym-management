@@ -18,10 +18,19 @@ import { MeOrdersController, OrderCancellationController } from './order-cancell
 import { MeOrdersService } from './me-orders.service';
 import { PaymentSchema } from '../payments/schemas/payment.schema';
 import { ReceivingAccountPolicy } from '../../common/utils/receiving-account';
+import { JwtModule } from '@nestjs/jwt';
+import { TransactionSchema } from '../payments/schemas/transaction.schema';
+import { InvoiceSchema } from '../payments/schemas/invoice.schema';
+import { RetailQuoteService } from './retail-quote.service';
+import { RetailOrderFactory } from './retail-order.factory';
+import { RetailSettlementService } from './retail-settlement.service';
+import { PosController } from './pos.controller';
 
 @Module({ imports: [TransactionModule, OperationsModule, NotificationsModule, InventoryModule, RefundsModule,
-  MongooseModule.forFeature([...ORDER_MODELS, { name: 'Payment', schema: PaymentSchema }])],
-  controllers: [OrdersController, OrderCancellationController, MeOrdersController],
-  providers: [OrdersRepository, OrdersService, FulfillOrderService, CancelOrderService, LateReceiptService, OrderExpiryWorker, MeOrdersService, ReceivingAccountPolicy, ServerClock],
-  exports: [FulfillOrderService] })
+  JwtModule.register({}), MongooseModule.forFeature([...ORDER_MODELS, { name: 'Payment', schema: PaymentSchema },
+    { name: 'Transaction', schema: TransactionSchema }, { name: 'Invoice', schema: InvoiceSchema }])],
+  controllers: [OrdersController, OrderCancellationController, MeOrdersController, PosController],
+  providers: [OrdersRepository, OrdersService, FulfillOrderService, CancelOrderService, LateReceiptService, OrderExpiryWorker, MeOrdersService, ReceivingAccountPolicy, ServerClock,
+    RetailQuoteService, RetailOrderFactory, RetailSettlementService],
+  exports: [FulfillOrderService, RetailSettlementService, OrdersRepository] })
 export class OrdersModule {}

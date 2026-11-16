@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { paymentsApi, type InvoiceDetail, type SettlementResult } from './payments.api';
+import { paymentsApi, type InvoiceDetail, type PaymentSettlementResult } from './payments.api';
 import { money, paymentError, timestamp } from './payments-format';
 
 function buyerLabel(snapshot: string) {
@@ -32,6 +32,9 @@ export function InvoiceDetails({ id }: { id: string }) {
         <h4>Chứng từ {invoice.invoiceNo}</h4><p>Giao dịch: {invoice.transactionCode}</p>
         <p>Ngày lập: {timestamp(invoice.issuedAt)} · Tổng tiền: {money(invoice.totalAmount)}</p>
         <p>Người mua lúc lập: {buyerLabel(invoice.buyerSnapshot)}</p>
+        {invoice.orderCode && <p>Đơn {invoice.orderCode} · {invoice.orderStatus}</p>}
+        {invoice.retailLines?.map(line => <p key={line.productId}>{line.sku} · {line.name} · {line.quantity} × {money(line.unitPrice)} = {money(line.lineTotal)}</p>)}
+        {invoice.refunds?.map(refund => <p key={refund.id}>Nghĩa vụ hoàn: {money(refund.amount)} · {refund.status}</p>)}
         {invoice.serviceLine && <><p>{invoice.serviceLine.kind} · {invoice.serviceLine.planName}</p>
           <p>{invoice.serviceLine.benefits} · {invoice.serviceLine.sessions} buổi</p>
           <p>Kỳ dịch vụ: {invoice.serviceLine.startDate} – {invoice.serviceLine.endDate} (bao gồm ngày cuối)</p>
@@ -42,11 +45,11 @@ export function InvoiceDetails({ id }: { id: string }) {
   </section>;
 }
 
-export function SettlementSummary({ result }: { result: SettlementResult }) {
+export function SettlementSummary({ result }: { result: PaymentSettlementResult }) {
   return <section aria-label="Kết quả xác nhận thu"><h3>Đã xác nhận khoản thu</h3>
     <p>{result.transactionCode} · Đã hoàn tất (SETTLED)</p><p>Chứng từ: {result.invoiceNo}</p>
-    <p>Kỳ gói thực tế: {result.startDate} – {result.endDate} (bao gồm ngày cuối)</p>
-    <p>Mã gói hội viên: {result.membershipId}</p>
+    {result.kind === 'RETAIL' ? <p>Đơn {result.orderCode} đã thanh toán. Bàn giao là bước riêng.</p> : <><p>Kỳ gói thực tế: {result.startDate} – {result.endDate} (bao gồm ngày cuối)</p>
+    <p>Mã gói hội viên: {result.membershipId}</p></>}
     <p>{result.notificationState === 'NO_LINKED_ACCOUNT' ? 'Thông báo đã lưu; hội viên chưa có tài khoản nhận.' : 'Thông báo đã được lưu.'}</p>
     <InvoiceDetails id={result.invoiceId} />
   </section>;

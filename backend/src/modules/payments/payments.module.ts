@@ -18,9 +18,10 @@ import { InvoiceSchema } from './schemas/invoice.schema';
 import { PaymentSchema } from './schemas/payment.schema';
 import { TransactionSchema } from './schemas/transaction.schema';
 import { TransactionsController } from './transactions.controller';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
-  imports: [TransactionModule, SalesModule, OperationsModule, NotificationsModule, MongooseModule.forFeature([
+  imports: [TransactionModule, SalesModule, OperationsModule, NotificationsModule, OrdersModule, MongooseModule.forFeature([
     { name: 'Member', schema: MemberSchema },
     { name: 'Transaction', schema: TransactionSchema }, { name: 'Payment', schema: PaymentSchema },
     { name: 'Invoice', schema: InvoiceSchema }, { name: 'ServiceSale', schema: ServiceSaleSchema },

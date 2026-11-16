@@ -1,5 +1,16 @@
 # US-22 / UC-23 — Xác nhận khoản thu và lập chứng từ
 
+US-53 mở rộng nhánh RETAIL theo US-41-P01–P04: API preview/confirm và key PAYMENT_CONFIRM
+giữ nguyên; dispatch `RetailSettlementService` sau kiểm replay trong session US-22.
+Khóa member nếu có → transaction → order; thu đủ khi còn hạn/HELD, invoice từ snapshot
+đơn, tăng version tiền/đơn, giữ status đơn và tồn. Không gọi SaleActivation cho RETAIL.
+Đơn0 đồng dùng completion/invoice nội bộ tại create, không payment0. Response RETAIL
+trả kind/orderId/orderCode/paymentId/invoiceId, không saleId/membershipId/kỳ gói.
+GET invoice trả retailLines/orderStatus/refunds, chấp nhận buyer Khách lẻ và không phone.
+Danh sách/chi tiết giao dịch đã hỗ trợ RETAIL, kể cả không member. Phần bên dưới mô tả
+nhánh GYM/PT ban đầu; phạm vi loại trừ RETAIL lịch sử đã được mở bởi US-53.
+Chi tiết và giới hạn nghiệm thu: [pos-contract.md](pos-contract.md).
+
 US-16: dispatch UPGRADE gọi UpgradeService trong cùng session sau member→transaction. Review/activation kiểm quoteExpiresAt và valuation_date, nguồn CURRENT/ACTIVE, quota/BOOKED mới nhất; không đọc plan/policy live hoặc tính lại nghĩa vụ. Credit0 không còn là điều kiện chung của mọi operation: UPGRADE yêu cầu amountDue+appliedCredit=listPrice. Invoice total=amountDue; invoice0 do credit cap không tạo payment0. Source SUPERSEDED, used carried, BOOKED chuyển và outbox cùng commit/rollback. Xem [upgrades-contract.md](upgrades-contract.md), [sequence](upgrades-sequence.mmd).
 
 Tích hợp US-15: PaymentReview đọc previous_sale_id và kiểm nguồn/đuôi/pending cho RENEW; SaleActivation dispatch đến RenewalService.activateWithinSession trong cùng session sau khóa member→transaction. RENEW_V1 dùng ngày hoàn tất VN nối endNguồn+1 hoặc hôm nay khi hết hạn; không dùng receivedAt, không áp CURRENT_SERVICE_EXISTS và không đọc giá/khóa plan live. Nhánh0 dùng cùng dispatch theo callback, không payment0. Event ghi RENEW/kỳ mới và recipient cố định. Chi tiết: [renewals-contract.md](renewals-contract.md), [renewals-sequence.mmd](renewals-sequence.mmd).

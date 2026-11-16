@@ -27,7 +27,7 @@ const unsigned = { type: Schema.Types.Int32, required: true, min: 0, max: 214748
 const identity = { ...objectId, immutable: true, default: function (this: { _id: Types.ObjectId }) { return this._id; },
   validate: function (this: { _id: Types.ObjectId }, id: Types.ObjectId) { return id.equals(this._id); } };
 const options = { id: false as const, versionKey: false as const, strict: 'throw' as const };
-// Shared S06 fields follow US-41. This module does not create orders or reservations.
+// Shared S06 fields follow US-41/53. POS may have no contact phone.
 export const OrderSchema = new Schema<Order>({
   id: identity, transaction_id: { ...objectId, immutable: true }, member_id: { type: Schema.Types.ObjectId, immutable: true },
   code: { type: String, required: true, maxlength: 40, match: /^ORD-[a-f\d]{24}$/ },
@@ -35,7 +35,7 @@ export const OrderSchema = new Schema<Order>({
   reservation_state: { type: String, required: true, enum: ['HELD', 'CONSUMED', 'RELEASED'] },
   reservation_expires_at: { type: Date, required: true, immutable: true }, preferred_payment_method: { type: String, required: true, enum: ['CASH', 'TRANSFER'] },
   recipient_name: { type: String, required: true, minlength: 2, maxlength: 120, immutable: true },
-  recipient_phone: { type: String, required: true, immutable: true }, pickup_location_snapshot: { type: String, required: true, immutable: true },
+  recipient_phone: { type: String, required: function (this: Order) { return this.channel === 'WEBSITE'; }, immutable: true }, pickup_location_snapshot: { type: String, required: true, immutable: true },
   created_by: objectId, created_at: { type: Date, required: true, immutable: true }, updated_at: { type: Date, required: true },
   version: unsigned, guard_revision: { type: Schema.Types.BigInt, required: true, default: 0n, validate: (v: bigint) => v >= 0n },
   confirmed_at: Date, confirmed_by: Schema.Types.ObjectId, fulfilled_at: Date, fulfilled_by: Schema.Types.ObjectId,

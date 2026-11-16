@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { apiClient } from '../../api/client';
-import { paymentsApi, type SettlementResult, type TransactionDetail, type TransactionFilters, type TransactionPage } from './payments.api';
+import { paymentsApi, type PaymentSettlementResult, type TransactionDetail, type TransactionFilters, type TransactionPage } from './payments.api';
 import { PaymentReviewForm } from './PaymentReviewForm';
 import { money, paymentError, timestamp } from './payments-format';
 import { InvoiceDetails, SettlementSummary } from './InvoiceDetails';
@@ -24,7 +24,7 @@ function TransactionsContent() {
   const [detail, setDetail] = useState<TransactionDetail | null>(null);
   const [detailError, setDetailError] = useState('');
   const [detailRetry, setDetailRetry] = useState(0);
-  const [settlement, setSettlement] = useState<SettlementResult | null>(null);
+  const [settlement, setSettlement] = useState<PaymentSettlementResult | null>(null);
   const sequence = useRef(0);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ function TransactionsContent() {
       <label>Mã giao dịch <input value={form.q} maxLength={40} onChange={e => setForm({ ...form, q: e.target.value })} /></label>
       <label>ID hội viên <input value={form.memberId} onChange={e => setForm({ ...form, memberId: e.target.value })} /></label>
       <label>Loại dịch vụ <select value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value })}>
-        <option value="">Tất cả</option><option value="GYM">GYM</option><option value="PT">PT</option></select></label>
+        <option value="">Tất cả</option><option value="GYM">GYM</option><option value="PT">PT</option><option value="RETAIL">Bán lẻ</option></select></label>
       <label>Trạng thái <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
         <option value="">Tất cả</option><option value="PENDING">Chờ thu</option><option value="SETTLED">Đã hoàn tất</option><option value="CANCELLED">Đã hủy</option></select></label>
       <label>Tạo từ ngày <input type="date" value={form.createdFrom} onChange={e => setForm({ ...form, createdFrom: e.target.value })} /></label>
@@ -60,7 +60,7 @@ function TransactionsContent() {
       {error ? <div role="alert">{error} <button onClick={() => setRetry(value => value + 1)}>Thử lại</button></div>
         : !page ? <p role="status">Đang tải danh sách…</p> : !page.items.length ? <p>Không có giao dịch phù hợp.</p>
           : <><table><thead><tr><th>Mã</th><th>Khách hàng</th><th>Loại</th><th>Phải thu</th><th>Trạng thái</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
-            <tbody>{page.items.map(item => <tr key={item.id}><td>{item.code}</td><td>{item.member?.memberCode} – {item.member?.fullName ?? 'Thiếu hồ sơ'}</td>
+            <tbody>{page.items.map(item => <tr key={item.id}><td>{item.code}</td><td>{item.member?.memberCode} – {item.member?.fullName ?? (item.kind === 'RETAIL' ? 'Khách lẻ' : 'Thiếu hồ sơ')}</td>
               <td>{item.kind}</td><td>{money(item.amountDue)}</td><td>{statusLabels[item.status]}</td><td>{timestamp(item.createdAt)}</td>
               <td><button onClick={() => { setDetail(null); setSettlement(null); setSelected(item.id); setDetailRetry(value => value + 1); }}>Chi tiết {item.code}</button></td></tr>)}</tbody></table>
             <p>Trang {page.page}/{page.totalPages} · {page.total} giao dịch</p>

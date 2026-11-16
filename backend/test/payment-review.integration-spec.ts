@@ -74,7 +74,7 @@ describe('US-21 real MongoDB, HTTP/RBAC and read-only payment review', () => {
     return { ...result.body, memberId: member._id.toHexString() } as typeof sale;
   }
 
-  it('TC01/03: real Staff/Admin reads and previews; guest/Member/PT denied; RETAIL unsupported', async () => {
+  it('TC01/03: real Staff/Admin reads and previews; guest/Member/PT denied; US53 enables RETAIL filtering', async () => {
     for (const role of ['STAFF', 'ADMIN'] as const) {
       await get('', role).expect(200); await get(`/${sale.transactionId}`, role).expect(200); await preview(cash(), sale.transactionId, role).expect(200);
     }
@@ -82,7 +82,7 @@ describe('US-21 real MongoDB, HTTP/RBAC and read-only payment review', () => {
       await get('', role).expect(403); await get(`/${sale.transactionId}`, role).expect(403); await preview(cash(), sale.transactionId, role).expect(403);
     }
     await request(app.getHttpServer()).get('/api/transactions').expect(401);
-    expect((await get('?kind=RETAIL').expect(400)).body.error.code).toBe('UNSUPPORTED_KIND');
+    expect((await get('?kind=RETAIL').expect(200)).body).toMatchObject({ items: [], total: 0 });
   });
 
   it('TC02: paginates stable ties; combines status/kind/member/code, returns empty totalPages=0 and safe projections', async () => {

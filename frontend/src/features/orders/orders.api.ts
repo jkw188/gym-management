@@ -29,11 +29,11 @@ export const ordersApi = {
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify({ version }) });
   },
   lookup(key: string) { return apiClient.request<{ status: 'COMMITTED'; responseBody: PreparedOrder }>(`/operations/ORDER_PREPARE/${encodeURIComponent(key)}`); },
-  fulfill(id: string, version: number, key: string) {
-    return apiClient.request<FulfilledOrder>(`/orders/${encodeURIComponent(id)}/fulfill`, { method: 'POST',
+  fulfill(id: string, version: number, key: string, channel: 'WEBSITE' | 'POS' = 'WEBSITE') {
+    return apiClient.request<FulfilledOrder>(`${channel === 'POS' ? '/pos' : ''}/orders/${encodeURIComponent(id)}/fulfill`, { method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify({ version }) });
   },
-  lookupFulfillment(key: string) { return apiClient.request<{ status: 'COMMITTED'; responseBody: FulfilledOrder }>(`/operations/ORDER_FULFILL_WEBSITE/${encodeURIComponent(key)}`); },
+  lookupFulfillment(key: string, channel: 'WEBSITE' | 'POS' = 'WEBSITE') { return apiClient.request<{ status: 'COMMITTED'; responseBody: FulfilledOrder }>(`/operations/ORDER_FULFILL_${channel}/${encodeURIComponent(key)}`); },
 };
 export const orderDate = (value: string) => new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 export const orderMoney = (value: string) => `${new Intl.NumberFormat('vi-VN').format(BigInt(value))} VND`;
