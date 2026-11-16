@@ -27,6 +27,7 @@ export interface OperationResult { status: number; body: Record<string, unknown>
 
 // Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca làm việc S04 chỉ dành cho TRAINER (US-24-F01, US-25).
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
+  ORDER_PREPARE: ACCESS_POLICY['orders.prepare'].roles,
   STOCK_RECEIPT_CREATE: ACCESS_POLICY['stockReceipts.manage'].roles,
   STOCK_RECEIPT_UPDATE: ACCESS_POLICY['stockReceipts.manage'].roles,
   STOCK_RECEIPT_POST: ACCESS_POLICY['stockReceipts.manage'].roles,
