@@ -11,7 +11,7 @@ import { TransactionRunner } from '../../infrastructure/transaction/transaction-
 import { IdempotencyService } from '../operations/idempotency.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Order } from './order.schema';
-import { assertOrderIntegrity, orderConflict, orderIntegrityError, prepareBlockedReason } from './order.policy';
+import { assertOrderIntegrity, fulfillBlockedReason, orderConflict, orderIntegrityError, prepareBlockedReason } from './order.policy';
 import { OrderQueryDto, PrepareOrderDto } from './orders.dto';
 import { OrdersRepository } from './orders.repository';
 
@@ -46,6 +46,8 @@ export class OrdersService {
       const invoice = await this.repository.invoice(row.transaction_id, session), refunds = await this.repository.refunds(target, session);
       return { ...summary, recipient: { name: row.recipient_name, phone: row.recipient_phone }, pickupLocation: row.pickup_location_snapshot,
         confirmedAt: row.confirmed_at?.toISOString() ?? null, confirmedBy: row.confirmed_by ? String(row.confirmed_by) : null,
+        fulfilledAt: row.fulfilled_at?.toISOString() ?? null, fulfilledBy: row.fulfilled_by ? String(row.fulfilled_by) : null,
+        movementIds: (await this.repository.fulfillmentMovements(target, session)).map(movement => String(movement._id)),
         items: (await this.repository.lines(target, session)).map(line => ({ id: String(line._id), productId: String(line.product_id),
           skuSnapshot: line.sku_snapshot, nameSnapshot: line.name_snapshot, quantity: line.quantity,
           unitPrice: fromVndDecimal(line.unit_price), lineTotal: fromVndDecimal(line.line_total) })),
@@ -55,15 +57,16 @@ export class OrdersService {
   }
   private async summary(row: Order, session: ClientSession, asOf: Date) {
     const transaction = await this.repository.transaction(row.transaction_id, session), lines = await this.repository.lines(row._id, session);
-    let reason: string | null = null;
-    try { assertOrderIntegrity(row, transaction, lines); await this.repository.assertPaymentIntegrity(transaction, session); reason = prepareBlockedReason(row, transaction, asOf); }
-    catch { reason = 'ORDER_INTEGRITY_ERROR'; }
+    let reason: string | null = null, fulfillReason: string | null = null;
+    try { assertOrderIntegrity(row, transaction, lines); await this.repository.assertPaymentIntegrity(transaction, session);
+      reason = prepareBlockedReason(row, transaction, asOf); fulfillReason = fulfillBlockedReason(row, transaction, asOf); }
+    catch { reason = 'ORDER_INTEGRITY_ERROR'; fulfillReason = 'ORDER_INTEGRITY_ERROR'; }
     return { id: String(row._id), code: row.code, channel: row.channel, status: row.status, version: row.version,
       memberId: row.member_id ? String(row.member_id) : null, transactionId: String(row.transaction_id), transactionStatus: transaction?.status ?? null,
       total: transaction ? fromVndDecimal(transaction.amount_due) : null, reservationState: row.reservation_state,
       reservationExpiresAt: row.reservation_expires_at.toISOString(), expired: asOf.getTime() >= row.reservation_expires_at.getTime(),
       createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
-      permittedActions: { prepare: reason === null, prepareBlockedReason: reason } };
+      permittedActions: { prepare: reason === null, prepareBlockedReason: reason, fulfill: fulfillReason === null, fulfillBlockedReason: fulfillReason } };
   }
   async prepare(actorId: string, id: string, input: PrepareOrderDto, key: string) {
     const target = idOf(id);

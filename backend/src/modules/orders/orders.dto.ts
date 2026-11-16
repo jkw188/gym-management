@@ -9,6 +9,18 @@ export class EmptyOrderQueryDto {}
 export class PrepareOrderDto {
   @ApiProperty({ minimum: 0, maximum: 2147483647 }) @IsInt() @Min(0) @Max(2147483647) version!: number;
 }
+export class FulfillOrderDto extends PrepareOrderDto {}
+export class FulfillOrderResponseDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty({ enum: ['COMPLETED'] }) status!: 'COMPLETED';
+  @ApiProperty({ enum: ['CONSUMED'] }) reservationState!: 'CONSUMED';
+  @ApiProperty() version!: number;
+  @ApiProperty() fulfilledAt!: string;
+  @ApiProperty() fulfilledBy!: string;
+  @ApiProperty({ type: [String] }) movementIds!: string[];
+  @ApiProperty({ enum: ['STORED', 'NO_LINKED_ACCOUNT'] }) notificationState!: string;
+}
 export class OrderQueryDto {
   @ApiPropertyOptional({ enum: ['WEBSITE', 'POS'] }) @ValidateIf(optional) @IsIn(['WEBSITE', 'POS']) channel?: 'WEBSITE' | 'POS';
   @ApiPropertyOptional({ enum: ORDER_STATUSES }) @ValidateIf(optional) @IsIn(ORDER_STATUSES) status?: OrderStatus;
@@ -34,6 +46,8 @@ export class PrepareOrderResponseDto {
 export class OrderActionsResponseDto {
   @ApiProperty() prepare!: boolean;
   @ApiProperty({ nullable: true, type: String }) prepareBlockedReason!: string | null;
+  @ApiProperty() fulfill!: boolean;
+  @ApiProperty({ nullable: true, type: String }) fulfillBlockedReason!: string | null;
 }
 export class OrderSummaryResponseDto {
   @ApiProperty() id!: string;
@@ -81,6 +95,9 @@ export class OrderDetailResponseDto extends OrderSummaryResponseDto {
   @ApiProperty() pickupLocation!: string;
   @ApiProperty({ nullable: true, type: String }) confirmedAt!: string | null;
   @ApiProperty({ nullable: true, type: String }) confirmedBy!: string | null;
+  @ApiProperty({ nullable: true, type: String }) fulfilledAt!: string | null;
+  @ApiProperty({ nullable: true, type: String }) fulfilledBy!: string | null;
+  @ApiProperty({ type: [String] }) movementIds!: string[];
   @ApiProperty({ type: [OrderItemResponseDto] }) items!: OrderItemResponseDto[];
   @ApiProperty({ type: OrderInvoiceResponseDto, nullable: true }) invoice!: OrderInvoiceResponseDto | null;
   @ApiProperty({ type: [OrderRefundResponseDto] }) refunds!: OrderRefundResponseDto[];

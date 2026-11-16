@@ -10,10 +10,10 @@ import { ordersApi, orderDate, type OrderDetail, type PreparedOrder } from './or
 const row: OrderDetail = { id: 'a'.repeat(24), code: `ORD-${'a'.repeat(24)}`, channel: 'WEBSITE', status: 'PENDING', version: 0,
   transactionId: 'b'.repeat(24), transactionStatus: 'PENDING', memberId: 'c'.repeat(24), total: '25000', reservationState: 'HELD', reservationExpiresAt: '2035-11-15T17:00:00.000Z',
   createdAt: '2035-11-14T17:00:00.000Z', updatedAt: '2035-11-14T17:00:00.000Z', asOf: '2035-11-14T17:00:00.000Z', expired: false,
-  permittedActions: { prepare: true, prepareBlockedReason: null }, recipient: { name: 'Người nhận snapshot', phone: '+84901234567' }, pickupLocation: 'Quầy fixture', confirmedAt: null, confirmedBy: null,
+  permittedActions: { fulfill: false, fulfillBlockedReason: 'ORDER_NOT_PREPARED', prepare: true, prepareBlockedReason: null }, recipient: { name: 'Người nhận snapshot', phone: '+84901234567' }, pickupLocation: 'Quầy fixture', confirmedAt: null, confirmedBy: null, fulfilledAt: null, fulfilledBy: null, movementIds: [],
   items: [{ id: 'd'.repeat(24), productId: 'e'.repeat(24), skuSnapshot: 'OLD-SKU', nameSnapshot: 'Tên snapshot', quantity: 1, unitPrice: '25000', lineTotal: '25000' }], invoice: null, refunds: [] };
 const prepared: PreparedOrder = { id: row.id, code: row.code, status: 'CONFIRMED', version: 1, confirmedAt: '2035-11-14T18:00:00.000Z', confirmedBy: 'f'.repeat(24), reservationExpiresAt: row.reservationExpiresAt, notificationState: 'STORED' };
-const detail: OrderDetail = { ...row, ...prepared, permittedActions: { prepare: false, prepareBlockedReason: 'ORDER_ALREADY_CONFIRMED' } };
+const detail: OrderDetail = { ...row, ...prepared, permittedActions: { fulfill: false, fulfillBlockedReason: 'ORDER_NOT_PREPARED', prepare: false, prepareBlockedReason: 'ORDER_ALREADY_CONFIRMED' } };
 const page = { items: [row], total: 1, totalPages: 1, page: 1, limit: 20 };
 beforeEach(() => { vi.spyOn(ordersApi, 'list').mockResolvedValue(page); vi.spyOn(ordersApi, 'detail').mockResolvedValue(row); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.pushState({}, '', '/'); });
@@ -78,7 +78,7 @@ describe('US-43 TC12: list/detail, command recovery and separate operational/pay
     await screen.findByText('Không có quyền chuẩn bị'); expect(screen.queryByRole('button', { name: 'Xác nhận đã chuẩn bị' })).toBeNull();
   });
   it.each(['expired', 'POS', 'permission'])('hides prepare when %s', async kind => {
-    vi.mocked(ordersApi.detail).mockResolvedValue({ ...row, expired: kind === 'expired', channel: kind === 'POS' ? 'POS' : 'WEBSITE', permittedActions: { prepare: false, prepareBlockedReason: kind } });
+    vi.mocked(ordersApi.detail).mockResolvedValue({ ...row, expired: kind === 'expired', channel: kind === 'POS' ? 'POS' : 'WEBSITE', permittedActions: { fulfill: false, fulfillBlockedReason: 'ORDER_NOT_PREPARED', prepare: false, prepareBlockedReason: kind } });
     await open(); expect(screen.queryByRole('button', { name: 'Xác nhận đã chuẩn bị' })).toBeNull();
     if (kind === 'expired') expect(screen.getByText(/Đã hết hạn giữ hàng, chờ xử lý hủy/)).toBeDefined();
   });
@@ -88,7 +88,7 @@ describe('US-43 TC12: list/detail, command recovery and separate operational/pay
     expect(screen.getByRole('button', { name: `Mở ${row.code}` })).toBeDefined();
   });
   it('does not describe a completed order as awaiting expiry cancellation', async () => {
-    const completed: OrderDetail = { ...row, status: 'COMPLETED', reservationState: 'CONSUMED', transactionStatus: 'SETTLED', expired: true, permittedActions: { prepare: false, prepareBlockedReason: 'INVALID_ORDER_STATE' } };
+    const completed: OrderDetail = { ...row, status: 'COMPLETED', reservationState: 'CONSUMED', transactionStatus: 'SETTLED', expired: true, permittedActions: { fulfill: false, fulfillBlockedReason: 'ORDER_NOT_PREPARED', prepare: false, prepareBlockedReason: 'INVALID_ORDER_STATE' } };
     vi.mocked(ordersApi.list).mockResolvedValue({ ...page, items: [completed] }); vi.mocked(ordersApi.detail).mockResolvedValue(completed);
     await open(); expect(screen.getByText('Đã bàn giao', { selector: 'strong' })).toBeDefined(); expect(screen.queryByText(/chờ xử lý hủy/)).toBeNull();
   });
@@ -102,6 +102,6 @@ describe('US-43 TC12: list/detail, command recovery and separate operational/pay
     vi.spyOn(apiClient, 'getSnapshot').mockReturnValue({ status: 'authenticated', user: { id: 'f'.repeat(24), fullName: 'Fixture', phone: '0901234567', roleCode } });
     vi.spyOn(apiClient, 'subscribe').mockImplementation(() => () => {}); vi.spyOn(apiClient, 'restore').mockResolvedValue();
     const path = `/${roleCode.toLowerCase()}/orders`; window.history.pushState({}, '', path); render(<App />);
-    await screen.findByRole('heading', { name: 'Chuẩn bị đơn hàng website' }); expect(resolveReturnTo(path, roleCode)).toBe(path);
+    await screen.findByRole('heading', { name: 'Chuẩn bị và bàn giao đơn hàng website' }); expect(resolveReturnTo(path, roleCode)).toBe(path);
   });
 });

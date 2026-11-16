@@ -8,7 +8,12 @@ Giữ nguyên mã TC01–20 và AC01–04. **Chưa đủ điều kiện Done/ngh
 
 US-43 đã bổ sung schema orders/items/events, Staff query và prepare writer,
 UI cùng suite `order-prepare.integration-spec.ts`; xem `orders-prepare-contract.md`.
-Chưa có cart/quote/Order Factory/fulfill/cancel/expiry/late-receipt/refund writer
+US-44 bổ sung shared `FulfillOrderService`, adapter WEBSITE, UI kiểm nhận và
+suite `order-fulfill.integration-spec.ts`: hai process, 10 vòng ×20 request cùng
+key, 10 vòng khác key, DB oracle EN-06, fault từng SKU/event/outbox/key và clock.
+Catalog/receipt dùng API thật; order/reserve/retail payment vẫn là fixture được
+ghi rõ vì chưa có US-41 factory. Chi tiết nằm trong `orders-prepare-contract.md`.
+Chưa có cart/quote/Order Factory/cancel/expiry/late-receipt/refund writer
 của US40–45/53. `SettlementService.confirm` và payment
 preview hiện từ chối RETAIL. Không tạo writer thay thế, mock DB, API người dùng,
 quyền, UI hoặc endpoint payout S07 để làm bộ test xanh.
@@ -63,9 +68,10 @@ Workflow chỉ được thêm vào source, không có nghĩa đã chạy CI từ
 
 - Clock dùng `ServerClock` hiện có (vai trò ClockProvider), override qua Nest
   DI chỉ ở child test. Mốc `2035-11-14T17:00:00.000Z` là 00:00 ngày 15/11 VN;
-  IPC hỗ trợ đổi clock không mở HTTP hook. Suite US-43 riêng kiểm prepare tại
-  deadline−1 ms/đúng deadline/+1 ms bằng snapshot fixture. TC13 toàn EN-06 giữ
-  BLOCKED vì chưa có create/normal RETAIL payment/fulfill để nghiệm thu liên thông.
+  IPC hỗ trợ đổi clock không mở HTTP hook. Suite US-43/44 riêng kiểm prepare và
+  fulfill tại deadline−1 ms/đúng deadline/+1 ms bằng snapshot fixture; US-44
+  kiểm clock sau inventory lock và retry. TC13 toàn EN-06 giữ BLOCKED vì chưa
+  có create/normal RETAIL payment để nghiệm thu liên thông.
 - Client barrier phát tối đa 20 request/batch, chia đều hai process ở các
   batch tranh chấp. IPC pause trước `DataGuardsService.acquire` giúp hai process
   đến điểm khóa thật; đảo thứ tự gửi qua từng vòng nhưng giữ thứ tự kết quả
@@ -104,9 +110,9 @@ Workflow chỉ được thêm vào source, không có nghĩa đã chạy CI từ
 | TC08 | PARTIAL: 20 confirm GYM/PT tranh reference | RETAIL dispatch — US41 |
 | TC09 | PARTIAL: 20 key confirm một transaction | RETAIL SETTLED giữ HELD/chưa giao — US41 |
 | TC10 | BLOCKED | Cancel/normal payment/refund — US41/45 |
-| TC11 | BLOCKED | Cancel/fulfill — US44/45 |
+| TC11 | BLOCKED: fulfill có suite US44 riêng | Cancel/fulfill cần cancel writer thật — US45 |
 | TC12 | BLOCKED | Hai expiry worker thật, paid/unpaid — US45 |
-| TC13 | BLOCKED: prepare kiểm riêng ở suite US43 | Create/payment/fulfill deadline ±1 ms còn thiếu — US41/44 |
+| TC13 | BLOCKED: prepare/fulfill kiểm riêng ở suite US43/44 | Create/normal payment deadline ±1 ms còn thiếu — US41 |
 | TC14 | BLOCKED | Expiry backlog/restart và cô lập lỗi — US45 |
 | TC15 | BLOCKED | Late receipt/refund nghĩa vụ — US45 |
 | TC16 | BLOCKED | Late amount/second payment/duplicate — US45 |

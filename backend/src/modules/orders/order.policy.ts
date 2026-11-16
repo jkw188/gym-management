@@ -38,3 +38,13 @@ export function prepareBlockedReason(order: Order, transaction: Transaction, now
   if (now.getTime() >= order.reservation_expires_at.getTime()) return 'RESERVATION_EXPIRED';
   return null;
 }
+
+export function fulfillBlockedReason(order: Order, transaction: Transaction, now: Date, channel: 'WEBSITE' | 'POS' = 'WEBSITE'): string | null {
+  if (order.channel !== channel) return 'ORDER_CHANNEL_MISMATCH';
+  if (order.status === 'COMPLETED') return 'ORDER_ALREADY_COMPLETED';
+  if (order.status !== 'CONFIRMED') return 'ORDER_NOT_PREPARED';
+  if (order.reservation_state !== 'HELD') return 'INVALID_RESERVATION_STATE';
+  if (now.getTime() >= order.reservation_expires_at.getTime()) return 'RESERVATION_EXPIRED';
+  if (transaction.status !== 'SETTLED') return 'ORDER_NOT_SETTLED';
+  return null;
+}

@@ -1,4 +1,4 @@
-# US-43 — Xác nhận chuẩn bị đơn website
+# US-43/44 — Chuẩn bị và bàn giao đơn website
 
 Nguồn: `PM/SPRINT6/[GM]Requirement_US-43.docx` v1.0, hợp đồng schema/H01/O01
 trong US-41 và EN-06. Đã đọc toàn bộ văn bản và bảng của ba DOCX; không có ảnh
@@ -16,7 +16,7 @@ nhúng. Tham chiếu schema refund của US-45 để chỉ trả summary an toà
 Guard hiện có kiểm JWT, account/session/auth_version và vai trò mỗi request,
 kể cả replay/lookup. Quyền read và prepare có metadata riêng; repo đang áp
 dụng mapping vai trò cố định, không có override quyền từng tài khoản.
-Không thêm quyền hoặc hành động thu tiền/bàn giao khi writer tương ứng chưa có.
+Thu RETAIL còn chờ writer US-41; bàn giao được bổ sung theo US-44 bên dưới.
 
 List mặc định page1/limit20, tối đa100; sắp created_at DESC/_id DESC,
 q tìm literal code đã trim≤120. Ngày Việt Nam bao gồm hai đầu, mặc định30 ngày
@@ -110,6 +110,117 @@ Các fixture này không chứng minh luồng tạo đơn hoặc thu RETAIL đã
 
 Frontend: `npm test -- src/features/orders/orders.test.tsx`.
 US-43-AC01/02 có kiểm thử phạm vi chuẩn bị; **AC03 và Done vẫn chưa đủ bằng chứng**
-cho cạnh tranh liên story. US-41 (create/normal RETAIL settlement), US-44
-(handover) và US-45 (cancel/expiry) chưa có writer. Chạy EN-04 và toàn EN-06 sau
+cho cạnh tranh liên story. US-41 (create/normal RETAIL settlement) và US-45
+(cancel/expiry) chưa có writer; US-44 được triển khai bên dưới. Chạy EN-04 và toàn EN-06 sau
 khi tích hợp các dependency; không đánh dấu Done từ kết quả build hoặc fixture.
+
+## US-44 — UC-24 nhánh bàn giao tại quầy
+
+Nguồn: `PM/SPRINT6/[GM]Requirement_US-44.docx` v1.0; đã đọc văn bản, toàn bộ
+bảng và xác nhận không có drawing/object nhúng. Đối chiếu O01/H01 của US-41,
+US-45 và policy POS/operation của US-53. Không sửa hợp đồng nguồn DOCX.
+
+| API / policy | Hợp đồng |
+| --- | --- |
+| `POST /api/orders/:id/fulfill` | STAFF/ADMIN, `orders.fulfill`, `{version}`, UUID v4; HTTP200 FulfillmentResult |
+| `GET /api/operations/ORDER_FULFILL_WEBSITE/:key` | Chính actor còn quyền; kết quả HTTP/body gốc |
+| `GET /api/orders/:id` | Thêm fulfilledAt/fulfilledBy/movementIds và permittedActions.fulfill/fulfillBlockedReason |
+| Shared service POS | `FulfillOrderService.fulfill(..., 'POS')`, operation ORDER_FULFILL_POS, policy pos.fulfill được khai báo để US-53 tái sử dụng; chưa mở route POS |
+
+FulfillmentResult: `{id, code, status:"COMPLETED", reservationState:"CONSUMED",
+version, fulfilledAt, fulfilledBy, movementIds, notificationState}`. Timestamp
+là server ISO UTC; UI hiển thị giờ Việt Nam. Không trả bank reference/contact
+qua notification, không gọi settlement hoặc phát hành invoice lần nữa.
+
+1. Staff mở đơn CONFIRMED, xem snapshot mã đơn/người nhận/liên hệ/sản phẩm,
+   tổng, chứng từ thu và deadline. Đánh dấu đã đối chiếu và giao đủ hàng thực tế;
+   không QR, không giao từng phần, không tự gọi handover từ SETTLED hoặc socket.
+2. Lệnh chạy trong IdempotencyService/TransactionRunner: replay trước version
+   và preflight. Chỉ tra ID bất biến trước khóa; khóa member nếu có → inventory
+   theo productId tăng qua InventoryWriter → transaction → order. Lấy clock
+   sau tất cả khóa trên mỗi retry; chỉ hợp lệ khi clock < createdAt+24 giờ.
+3. Recheck đúng channel, CONFIRMED/HELD, SETTLED, version và snapshot/tổng.
+   Invoice đúng tổng; total>0 có đúng một payment SUCCEEDED đúng tiền,
+   verifiedBy/paidAt; total0 có invoice0 và không payment. Dữ liệu bất thường
+   trả409 ORDER_INTEGRITY_ERROR để đối chiếu. Không đọc catalog live.
+4. Kiểm inventory/ledger và provenance ORDER_RESERVE của từng item; reserved
+   phải khớp tổng HELD của SKU, reserved≥q và onHand≥reserved. Dữ liệu sai/mất
+   reservation trả409 INVENTORY_INTEGRITY_ERROR; không bù reserved hoặc ép âm.
+5. Mỗi item ghi ORDER_FULFILL:<itemId>, delta(−q,−q), before/after, sequence,
+   actor/source/orderItem cùng session. Không tạo stock_document ISSUE. CAS đơn
+   COMPLETED/CONSUMED, fulfilled_by/at, updated_at, version+1. Giữ nguyên hạn,
+   invoice, payment và transaction business version/status.
+6. Cùng commit ghi audit order_events FULFILLED, event unique
+   ORDER_COMPLETED:<orderId>, notification/recipient/outbox và operation result.
+   Không linked account vẫn lưu source/outbox, trả NO_LINKED_ACCOUNT. Socket
+   worker lỗi/offline sau commit không phủ nhận bàn giao đã hoàn tất.
+7. Cùng key replay200 IDs/thời gian gốc. Key khác khi COMPLETED trả409
+   ORDER_ALREADY_COMPLETED với id/version/fulfilledAt/fulfilledBy/movementIds
+   trong error.details; payload/target khác cùng key trả IDEMPOTENCY_CONFLICT.
+   Mốc expiry bằng/sau trả RESERVATION_EXPIRED; GET chỉ báo expired, không release.
+8. UI lưu key/version theo actor/order trong sessionStorage khi gửi. Mất phản
+   hồi giữ yêu cầu, khóa điều hướng trong trang và cho lookup/replay/đọc trạng
+   thái. Lookup404 không chứng minh thất bại; không giao lại sản phẩm do chưa
+   thấy màn thành công. 409 tải lại state và bắt xác nhận lại; auth thay đổi giữ
+   key để đối chiếu. COMPLETED chỉ đọc lịch sử; trả hàng thuộc S07, chưa có reopen.
+
+```mermaid
+sequenceDiagram
+  actor Staff
+  participant API as OrdersController
+  participant UoW as Idempotency / TransactionRunner
+  participant Fulfill as FulfillOrderService
+  participant DB as MongoDB
+  Staff->>API: Xác nhận giao đủ hàng + version/key
+  API->>UoW: JWT/session/orders.fulfill
+  UoW->>DB: Tra actor/operation/key
+  alt Đã commit cùng payload
+    UoW-->>Staff: HTTP/body gốc
+  else Chưa commit
+    UoW->>Fulfill: Cùng session transaction
+    Fulfill->>DB: member → inventory tăng → transaction → order
+    Fulfill->>DB: Clock + recheck state/tiền/hạn/version/reservation
+    Fulfill->>DB: Movement từng SKU + COMPLETED/CONSUMED
+    Fulfill->>DB: FULFILLED event + notification/recipient/outbox
+    UoW->>DB: Operation result + commit majority
+    UoW-->>Staff: COMPLETED + fulfilledAt/By + movementIds
+  end
+```
+
+Chạy `npm run ensure-indexes` và `npm run seed:access` trước khi vận hành.
+Không thêm collection/field/env/dependency mới; tái sử dụng orders/items/events,
+inventory/movements và khóa EN-02. Mở rộng enum operation và catalog quyền.
+Preflight từ chối index movement/inventory/payment/invoice thiếu hoặc sai;
+không sửa dữ liệu lịch sử để làm bàn giao thành công.
+
+### Kiểm thử US-44 và giới hạn
+
+```powershell
+cd backend
+npm run build
+npm run test:integration -- --runTestsByPath test/order-fulfill.integration-spec.ts test/order-prepare.integration-spec.ts
+cd ../frontend
+npm test -- src/features/orders/orders.test.tsx src/features/orders/order-fulfillment.test.tsx
+```
+
+| Requirement | Kiểm thử đã triển khai | Giới hạn |
+| --- | --- | --- |
+| TC01–06 | JWT/role/session/channel/DTO; paid/free/chứng từ sai; hai SKU, snapshots và metadata; expiry−1/0/+1 ms | Order/reserve/retail payment dùng persisted fixture; catalog/receipt dùng API thật |
+| TC07–08 | Fault SKU2/CAS/audit/notification/recipient/outbox/key; DB trước/sau gồm guard và counter; kho/provenance/ledger sai | Không chứng minh writer tạo reservation US-41 |
+| TC09 | Hai process; 10 vòng ×20 cùng key và 10 vòng hai key khác; oracle EN-06 kiểm ledger/HELD/payment/terminal | Chỉ race handover, không thay TC11 EN-06 |
+| TC10–11 | Pause trước gate rồi đổi fixture cancel/version/payment; clock sau lock và retry | Race với command cancel/expiry/normal RETAIL payment thật chưa chạy được vì writer chưa tồn tại |
+| TC12–13 | Mất response sau commit, lookup/replay/auth thu hồi, REST offline/no-account; UI kiểm nhận/pending/conflict/remount | Cancel COMPLETED phải tích hợp và kiểm lại với US-45; chưa kiểm UI thủ công bằng browser |
+
+CI EN-06 có bước riêng chạy hai suite US-43/44 sau build; chưa khẳng định CI
+từ xa đã chạy. Các AC US-44 có bằng chứng theo phạm vi suite; **chưa đánh dấu
+Done hoặc toàn bộ AC03 đạt** khi thiếu race thật US-41/45. EN-06 tiếp tục giữ
+BLOCKED/PARTIAL ở các dependency tương ứng, không dùng fixture thay writer thật.
+
+Xác minh local ngày 16/11/2026: backend build/typecheck/test typecheck đạt;
+209 unit test, 29 test trong hai suite US-43/44 và 68 E2E EN-04 đạt. Frontend
+build/typecheck và toàn bộ 612 test đạt; một lần chạy đồng thời bị timeout ở
+test quên mật khẩu đã chạy lại nguyên bộ đạt, không sửa test/timeout đó.
+EN-06 runId `9f2644d9a844` (Node24.13.0, MongoDB8.0.17 replica set) có 10 nhóm
+Jest đạt và foundation PASSED, acceptance NOT_ACCEPTED/exit1 do dependency đã
+công bố. Bằng chứng do runner sinh ở `artifacts/en06-9f2644d9a844/report.md`
+và `cases.json`; đây không phải bằng chứng CI từ xa hoặc Done toàn S06.
