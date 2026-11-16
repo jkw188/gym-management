@@ -23,6 +23,7 @@ import { ServicesPage } from './features/services/ServicesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
 import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
 import { PtBookingsPage } from './features/pt-bookings/PtBookingsPage';
+import { ServiceRegistrationPage } from './features/service-registrations/ServiceRegistrationPage';
 import { SupportPtBookingsPage } from './features/pt-bookings/SupportPtBookingsPage';
 import { MemberDetailPage } from './features/members/MemberDetailPage';
 import { MembersPage } from './features/members/MembersPage';
@@ -97,6 +98,8 @@ export default function App() {
         <Route path="/member/notifications" element={<NotificationsPage />} />
         {/* US-17: gói tập, lịch sử mua và chứng từ của member (chỉ đọc). */}
         <Route path="/member/memberships" element={<MyMembershipsPage />} />
+        {/* US-18: member tự đăng ký gói, xem hướng dẫn chờ thu và tự hủy yêu cầu đang chờ. */}
+        <Route path="/member/service-registrations" element={<ServiceRegistrationPage />} />
         {/* US-27: lịch PT riêng và xem giờ trống của PT. */}
         <Route path="/member/pt-bookings" element={<PtBookingsPage />} /></Route>
       <Route element={<ProtectedRoute role="TRAINER" />}><Route path="/trainer/profile" element={<ProfilePage role="TRAINER" />} />

@@ -47,10 +47,11 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   PUBLIC_SESSION_CANCEL: ACCESS_POLICY['publicSessions.manage'].roles,
   TRAINER_CREATE: ACCESS_POLICY['trainers.manage'].roles,
   TRAINER_UPDATE: ACCESS_POLICY['trainers.manage'].roles,
-  SALE_REGISTER: ACCESS_POLICY['serviceSales.create'].roles,
+  // US-18 mục 2: Member tra cứu được kết quả đăng ký/hủy do chính mình tạo (vẫn chỉ tìm theo actor đang đăng nhập).
+  SALE_REGISTER: [...ACCESS_POLICY['serviceSales.create'].roles, ...ACCESS_POLICY['serviceSales.registerOwn'].roles],
   SALE_RENEW: ['ADMIN', 'STAFF', 'MEMBER'], // US-19 adapter must check ownership before invoking the shared RenewalService.
   SALE_UPGRADE: ['ADMIN', 'STAFF', 'MEMBER'], // US-20 owns the self-service ownership adapter.
-  SALE_CANCEL: ACCESS_POLICY['serviceSales.cancel'].roles,
+  SALE_CANCEL: [...ACCESS_POLICY['serviceSales.cancel'].roles, ...ACCESS_POLICY['serviceSales.cancelOwn'].roles],
   PAYMENT_CONFIRM: ACCESS_POLICY['transactions.confirmPayment'].roles,
   MEMBER_CREATE: ACCESS_POLICY['members.create'].roles,
   MEMBER_LINK: ACCESS_POLICY['members.link'].roles,

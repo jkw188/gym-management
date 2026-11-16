@@ -32,14 +32,19 @@ export function toMeMembership(membership: Membership, sale: ServiceSale, state:
 }
 
 // transaction có thể thiếu nếu dữ liệu hỏng (không cùng chủ): khi đó không trả status/amountDue thay vì đoán.
-export function toMeServiceSale(sale: ServiceSale, transaction?: Transaction, membership?: Membership): MeServiceSaleDto {
+// US-18-TC11: canCancel do service tính; mapper chỉ chép. transactionVersion để Member gửi body.version khi hủy.
+export function toMeServiceSale(sale: ServiceSale, transaction: Transaction | undefined, membership: Membership | undefined,
+  canCancel: boolean): MeServiceSaleDto {
   return {
     id: sale._id.toHexString(),
     transactionId: sale.transaction_id.toHexString(),
     ...(sale.previous_sale_id ? { previousSaleId: sale.previous_sale_id.toHexString() } : {}),
     ...(membership ? { membershipId: membership._id.toHexString() } : {}),
     operation: sale.operation,
-    ...(transaction ? { status: transaction.status, amountDue: fromVndDecimal(transaction.amount_due) } : {}),
+    ...(transaction ? { status: transaction.status, amountDue: fromVndDecimal(transaction.amount_due),
+      transactionVersion: transaction.version ?? 0 } : {}),
+    channel: sale.channel ?? 'COUNTER',
+    canCancel,
     planName: sale.plan_name_snapshot,
     benefits: sale.benefits_snapshot,
     policy: sale.policy_snapshot,

@@ -4,6 +4,9 @@ import { Schema, Types } from 'mongoose';
 
 export type SaleOperation = 'REGISTER' | 'RENEW' | 'UPGRADE';
 export type SaleChannel = 'COUNTER' | 'SELF_SERVICE';
+// US-18-F03: cách trả dự kiến của Member, chỉ là ý định thanh toán (không phải đã trả). Quầy và DTO Member dùng chung.
+export const PREFERRED_PAYMENT_METHODS = ['CASH', 'TRANSFER'] as const;
+export type PreferredPaymentMethod = typeof PREFERRED_PAYMENT_METHODS[number];
 
 export interface ServiceSale {
   _id: Types.ObjectId;
@@ -14,7 +17,7 @@ export interface ServiceSale {
   operation: SaleOperation;
   previous_sale_id?: Types.ObjectId;
   channel: SaleChannel;
-  preferred_payment_method?: 'CASH' | 'TRANSFER';
+  preferred_payment_method?: PreferredPaymentMethod;
   start_date: string;                 // YYYY-MM-DD theo giờ Việt Nam
   end_date: string;
   plan_name_snapshot: string;         // US-17-F02: hiển thị theo snapshot lúc bán, không theo gói hiện tại
@@ -48,7 +51,7 @@ export const ServiceSaleSchema = new Schema<ServiceSale>({
   previous_sale_id: { type: Schema.Types.ObjectId, ref: 'ServiceSale',
     required: function () { return this.operation === 'RENEW' || this.operation === 'UPGRADE'; } },
   channel: { type: String, enum: ['COUNTER', 'SELF_SERVICE'], required: true, default: 'COUNTER' },
-  preferred_payment_method: { type: String, enum: ['CASH', 'TRANSFER'] },
+  preferred_payment_method: { type: String, enum: PREFERRED_PAYMENT_METHODS },
   start_date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
   end_date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
   plan_name_snapshot: { type: String, required: true, maxlength: 120 },
