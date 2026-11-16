@@ -33,6 +33,7 @@ import { TransactionsPage } from './features/payments/TransactionsPage';
 import { RetailCatalogPage } from './features/retail/RetailCatalogPage';
 import { StockReceiptsPage } from './features/stock/StockReceiptsPage';
 import { InventoryPage } from './features/inventory/InventoryPage';
+import { OrdersPage } from './features/orders/OrdersPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
@@ -67,6 +68,8 @@ export default function App() {
         <Route path="/admin/products" element={<RetailCatalogPage key="products" kind="products" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/transactions" element={<TransactionsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/transactions" element={<TransactionsPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/orders" element={<OrdersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/orders" element={<OrdersPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/stock-receipts" element={<StockReceiptsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/inventory" element={<InventoryPage />} /></Route>

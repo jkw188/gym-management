@@ -17,6 +17,7 @@ export interface DataGuardTargets {
   schedule?: boolean;
   members?: ObjectId[];
   transactions?: ObjectId[];
+  orders?: ObjectId[];
 }
 
 @Injectable()
@@ -27,7 +28,7 @@ export class DataGuardsService {
   // Được gọi nhiều lần trong một callback (ví dụ US-28: khóa lịch trước, tìm member rồi mới khóa member),
   // miễn là các khóa lấy đúng thứ tự cố định bên dưới và không quay lại khóa đứng trước khóa đã giữ.
   // EN-02/S05-C01: security_state → plans → catalog_state → schedule_guards → members
-  // → cart_states (memberId) → inventory (productId) → transactions → stock_documents → notification_counters.
+  // → cart_states (memberId) → inventory (productId) → transactions → orders → stock_documents → notification_counters (S06-O01).
   async acquire(session: ClientSession, targets: DataGuardTargets): Promise<void> {
     if (!session.inTransaction()) throw new Error('DATA_GUARD_TRANSACTION_REQUIRED');
     if (targets.accountAdministration) {
@@ -55,6 +56,7 @@ export class DataGuardsService {
     }
     await this.bumpRevisions(session, 'members', 'service_revision', targets.members);
     await this.bumpRevisions(session, 'transactions', 'guard_revision', targets.transactions);
+    await this.bumpRevisions(session, 'orders', 'guard_revision', targets.orders);
   }
 
   // Ghi tăng revision của từng document theo _id tăng dần (bỏ trùng) để mọi writer lấy khóa cùng một thứ tự.

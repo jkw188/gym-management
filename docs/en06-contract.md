@@ -6,9 +6,10 @@ Giữ nguyên mã TC01–20 và AC01–04. **Chưa đủ điều kiện Done/ngh
 
 ## Phạm vi source hiện tại
 
-`backend/src/modules/orders/orders.module.ts` đang là module rỗng. Chưa có
-cart/quote/Order Factory/prepare/fulfill/cancel/expiry/late-receipt/refund writer
-hoặc schema đơn hàng của US40–45/53. `SettlementService.confirm` và payment
+US-43 đã bổ sung schema orders/items/events, Staff query và prepare writer,
+UI cùng suite `order-prepare.integration-spec.ts`; xem `orders-prepare-contract.md`.
+Chưa có cart/quote/Order Factory/fulfill/cancel/expiry/late-receipt/refund writer
+của US40–45/53. `SettlementService.confirm` và payment
 preview hiện từ chối RETAIL. Không tạo writer thay thế, mock DB, API người dùng,
 quyền, UI hoặc endpoint payout S07 để làm bộ test xanh.
 
@@ -62,8 +63,9 @@ Workflow chỉ được thêm vào source, không có nghĩa đã chạy CI từ
 
 - Clock dùng `ServerClock` hiện có (vai trò ClockProvider), override qua Nest
   DI chỉ ở child test. Mốc `2035-11-14T17:00:00.000Z` là 00:00 ngày 15/11 VN;
-  IPC hỗ trợ đổi clock không mở HTTP hook. Chưa có writer deadline S06 để
-  chứng minh deadline−1 ms/đúng deadline/+1 ms, TC13 giữ BLOCKED.
+  IPC hỗ trợ đổi clock không mở HTTP hook. Suite US-43 riêng kiểm prepare tại
+  deadline−1 ms/đúng deadline/+1 ms bằng snapshot fixture. TC13 toàn EN-06 giữ
+  BLOCKED vì chưa có create/normal RETAIL payment/fulfill để nghiệm thu liên thông.
 - Client barrier phát tối đa 20 request/batch, chia đều hai process ở các
   batch tranh chấp. IPC pause trước `DataGuardsService.acquire` giúp hai process
   đến điểm khóa thật; đảo thứ tự gửi qua từng vòng nhưng giữ thứ tự kết quả
@@ -104,7 +106,7 @@ Workflow chỉ được thêm vào source, không có nghĩa đã chạy CI từ
 | TC10 | BLOCKED | Cancel/normal payment/refund — US41/45 |
 | TC11 | BLOCKED | Cancel/fulfill — US44/45 |
 | TC12 | BLOCKED | Hai expiry worker thật, paid/unpaid — US45 |
-| TC13 | BLOCKED | Prepare/payment/fulfill deadline ±1 ms — US41/43/44 |
+| TC13 | BLOCKED: prepare kiểm riêng ở suite US43 | Create/payment/fulfill deadline ±1 ms còn thiếu — US41/44 |
 | TC14 | BLOCKED | Expiry backlog/restart và cô lập lỗi — US45 |
 | TC15 | BLOCKED | Late receipt/refund nghĩa vụ — US45 |
 | TC16 | BLOCKED | Late amount/second payment/duplicate — US45 |

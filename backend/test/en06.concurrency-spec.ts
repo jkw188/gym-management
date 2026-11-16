@@ -16,7 +16,7 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     f.blocked('TC10', 'US41/US45', 'No retail normal settlement/cancel/refund transition. GYM cancel is not retail cancel.');
     f.blocked('TC11', 'US44/US45', 'No fulfill/cancel order writers.');
     f.blocked('TC12', 'US45', 'No expiry service: two real expiry workers cannot be started.');
-    f.blocked('TC13', 'US41/US43/US44', 'Clock hook ready; no order prepare/payment/fulfill deadline checks to exercise.');
+    f.blocked('TC13', 'US41/US44', 'Prepare deadline checks have a separate US43 integration suite; retail normal payment/fulfill writers and end-to-end create fixtures are still missing.');
     f.blocked('TC14', 'US45', 'No expiry backlog/restart service; outbox worker is not an expiry substitute.');
     f.blocked('TC15', 'US45', 'No late receipt endpoint/refund obligation writer.');
     f.blocked('TC16', 'US45', 'No late receipt amount/second-payment reconciliation handler.');
