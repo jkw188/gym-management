@@ -11,12 +11,13 @@ import { PaymentReviewDto } from './payment-review.dto';
 import { normalizePaymentReview, paymentReviewResult } from './payment-review.policy';
 import { PaymentsQueryRepository } from './payments-query.repository';
 import { parseTransactionId } from './payments-query.service';
+import { RetailSettlementService } from '../orders/retail-settlement.service';
 
 @Injectable()
 export class PaymentReviewService {
   constructor(private readonly repository: PaymentsQueryRepository, private readonly sales: SalesRepository,
     private readonly accounts: ReceivingAccountPolicy, private readonly clock: ServerClock,
-    private readonly renewals: RenewalsRepository, private readonly upgrades: UpgradeService) {}
+    private readonly renewals: RenewalsRepository, private readonly upgrades: UpgradeService, private readonly retail: RetailSettlementService) {}
 
   // US-22 can repeat the same review inside its existing session after acquiring member/transaction guards.
   // This method only reads: no lock, reservation, operation record, payment or event is created.
@@ -24,7 +25,7 @@ export class PaymentReviewService {
     const asOf = this.clock.now();
     const transaction = await this.repository.transaction(parseTransactionId(id), session);
     if (!transaction) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy giao dịch');
-    if (transaction.kind === 'RETAIL') throw new ApplicationError(400, 'UNSUPPORTED_KIND', 'S02 chỉ hỗ trợ giao dịch GYM/PT');
+    if (transaction.kind === 'RETAIL') return this.retail.review(transaction._id, input, session);
     const normalized = normalizePaymentReview(input, transaction.created_at, asOf);
     if (normalized.receivingAccountCode) this.accounts.assertTransferAllowed(normalized.receivingAccountCode);
     const member = transaction.member_id ? await this.repository.member(transaction.member_id, session) : null;

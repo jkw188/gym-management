@@ -5,6 +5,21 @@ import { RoleCode } from './schemas/role.schema';
 // Fixed module policy: decorators and the explanatory DB catalog use this same source.
 // Other modules add their permissions only with their own requirements and tests.
 export const ACCESS_POLICY = {
+  'pos.create': { name: 'Lập đơn bán sản phẩm tại quầy', roles: ['STAFF', 'ADMIN'] },
+  'orders.cancelOwn': { name: 'Hủy đơn hàng của mình', roles: ['MEMBER'] },
+  'orders.readOwn': { name: 'Xem đơn hàng của mình', roles: ['MEMBER'] },
+  'orders.cancelSupport': { name: 'Hủy đơn hàng hỗ trợ', roles: ['STAFF', 'ADMIN'] },
+  'refunds.read': { name: 'Đối soát nghĩa vụ hoàn tiền', roles: ['STAFF', 'ADMIN'] },
+  'orders.read': { name: 'Tra cứu đơn hàng nội bộ', roles: ['STAFF', 'ADMIN'] },
+  'orders.prepare': { name: 'Xác nhận chuẩn bị đơn website', roles: ['STAFF', 'ADMIN'] },
+  'orders.fulfill': { name: 'Xác nhận bàn giao đơn website', roles: ['STAFF', 'ADMIN'] },
+  'pos.fulfill': { name: 'Xác nhận bàn giao đơn tại quầy', roles: ['STAFF', 'ADMIN'] },
+  'stockReceipts.manage': { name: 'Lập và ghi sổ phiếu nhập', roles: ['STAFF', 'ADMIN'] },
+  'inventory.read': { name: 'Tra cứu kho nội bộ', roles: ['STAFF', 'ADMIN'] },
+  'categories.manage': { name: 'Quản lý danh mục bán lẻ', roles: ['ADMIN'] },
+  'products.manage': { name: 'Quản lý sản phẩm bán lẻ', roles: ['ADMIN'] },
+  'publicSessions.manage': { name: 'Quản lý lớp tập miễn phí', roles: ['ADMIN'] },
+  'trainers.manage': { name: 'Quản lý hồ sơ và trạng thái PT', roles: ['ADMIN'] },
   'accounts.read': { name: 'Xem tài khoản và danh mục vai trò', roles: ['ADMIN'] },
   'accounts.create': { name: 'Tạo tài khoản', roles: ['ADMIN'] },
   'accounts.update': { name: 'Sửa thông tin tài khoản', roles: ['ADMIN'] },

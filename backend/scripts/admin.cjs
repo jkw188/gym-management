@@ -27,6 +27,12 @@ const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction
 const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-query.indexes');
 const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/scheduling-migration');
 const { ensureTrainerReviewsIntegrity } = require('../dist/modules/reviews/trainer-reviews-migration');
+const { ensureTrainersIntegrity } = require('../dist/modules/trainers/trainers-migration');
+const { ensurePublicSessionsIntegrity } = require('../dist/modules/public-sessions/public-sessions-migration');
+const { ensureRetailCatalogIntegrity } = require('../dist/modules/catalog/retail-catalog.migration');
+const { STOCK_MODELS } = require('../dist/modules/stock/stock.schema');
+const { ensureOrdersIntegrity } = require('../dist/modules/orders/orders-migration');
+const { ensureRefundsIntegrity } = require('../dist/modules/refunds/refunds-migration');
 const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
 const { MembershipSchema } = require('../dist/modules/memberships/schemas/membership.schema');
@@ -38,6 +44,20 @@ const { mapError } = require('../dist/common/http/http-error.filter');
 async function run() {
   // ConfigModule chỉ nạp .env vào process.env (không in giá trị); mỗi lệnh tự kiểm đúng các biến nó cần.
   await ConfigModule.forRoot();
+  if (process.argv[2] === 'reconcile-inventory') {
+    const config = readMongoConfiguration(process.env);
+    const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
+      serverSelectionTimeoutMS: 10000, autoIndex: false, autoCreate: false });
+    try {
+      await connection.asPromise();
+      const { TransactionRunner } = require('../dist/infrastructure/transaction/transaction-runner');
+      const { reconcileInventory } = require('../dist/modules/inventory/inventory-reconciliation');
+      const result = await reconcileInventory(connection, new TransactionRunner(connection));
+      console.info(JSON.stringify({ timestamp: new Date().toISOString(), code: 'INVENTORY_RECONCILIATION', ...result }));
+      if (!result.consistent) process.exitCode = 1;
+    } finally { await connection.close(); }
+    return;
+  }
   if (process.argv[2] === 'ensure-indexes') {
     // Chỉ cần MONGODB_URI, MONGODB_DB; không bắt buộc JWT/SMTP.
     const config = readMongoConfiguration(process.env);
@@ -48,6 +68,13 @@ async function run() {
       // EN-02: preflight duplicates, install constraints, backfill missing BSON Int64 revisions.
       await ensureFinancialIntegrity(connection);
       await ensureMembersQueryIndexes(connection);
+      await ensureTrainersIntegrity(connection);
+      await ensurePublicSessionsIntegrity(connection);
+      await ensureRetailCatalogIntegrity(connection);
+      await ensureOrdersIntegrity(connection);
+      await ensureRefundsIntegrity(connection);
+      // US-36: indexes are installed without rewriting any historical receipt or movement.
+      for (const { name, schema } of STOCK_MODELS) await connection.model(name, schema).createIndexes();
       // US-14: keep old sale terms intact; only backfill absent business versions.
       for (const [name, schema] of [['Plan', PlanSchema], ['ServiceSale', ServiceSaleSchema],
         ['Membership', MembershipSchema], ['Transaction', TransactionSchema]]) {
@@ -162,7 +189,7 @@ run().catch(error => {
   const en02 = error instanceof Error && /^EN02_(DUPLICATE_DATA|INVALID_REVISION|INDEX_CONFLICT): [a-z_]+\/[a-z_]+$/.test(error.message);
   // US-28-G01: dữ liệu lịch vi phạm → in mã SCHEDULE_DATA_INVALID kèm loại vi phạm và id để người vận hành đối chiếu.
   // US-65 bước 1: đánh giá cũ mồ côi hoặc không khớp booking → in REVIEW_DATA_INVALID kèm loại vi phạm và id.
-  const dataInvalid = error instanceof Error && /^(SCHEDULE|REVIEW)_DATA_INVALID: [a-z_]+\/[0-9a-f]{24}$/.test(error.message);
+  const dataInvalid = error instanceof Error && /^(SCHEDULE|REVIEW|TRAINER|PUBLIC_SESSION|CATALOG)_DATA_INVALID: [a-z_]+\/([0-9a-f]{24}|retail)$/.test(error.message);
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), requestId: randomUUID(),
     code: en02 || dataInvalid ? error.message.split(':')[0] : error instanceof ConfigurationError ? 'CONFIGURATION_ERROR' : mapped.code,
     message: en02 || dataInvalid || error instanceof ConfigurationError ? error.message : mapped.message }));

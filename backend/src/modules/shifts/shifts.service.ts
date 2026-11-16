@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { ClientSession } from 'mongodb';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
+import { ServerClock } from '../../common/utils/business-date';
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { IdempotencyService, WorkResult } from '../operations/idempotency.service';
 import { Operation } from '../operations/schemas/operation-request.schema';
@@ -27,6 +28,7 @@ export class ShiftsService {
     private readonly idempotency: IdempotencyService,
     // US-28-G02: writer ca lấy cùng khóa lịch schedule_guards với đặt lịch PT (S04-G01), không tự upsert guard riêng.
     private readonly guards: DataGuardsService,
+    private readonly clock: ServerClock,
   ) {}
 
   // POST /api/me/work-shifts: tạo ca SCHEDULED version 0 thuộc PT của principal (US-24-TC01).
@@ -40,7 +42,7 @@ export class ShiftsService {
       async (session): Promise<WorkResult> => {
         // US-24-TC03: kiểm "bắt đầu ở tương lai" TRONG callback: callback chỉ chạy khi key chưa có kết quả,
         // nên gửi lại cùng key sau giờ bắt đầu vẫn nhận 201 gốc (US-24-TC10, EN-02). Lấy giờ server ở mỗi lần chạy.
-        this.interval.assertFutureStart(draft.startAt, new Date());
+        this.interval.assertFutureStart(draft.startAt, this.clock.now());
         // US-24-F05: tăng guard TRƯỚC khi kiểm chồng ca (US-24-TC09).
         await this.guards.acquire(session, { schedule: true });
         const trainer = await this.requireActiveTrainer(actorId, session);
@@ -50,7 +52,7 @@ export class ShiftsService {
         const shift = await this.repository.insertShift(trainer._id, draft, actorId, session);
         await this.repository.insertEvent({
           shiftId: shift._id, actorId, action: 'CREATED', after: snapshotOf(shift),
-          occurredAt: new Date(), requestKey: requestKey('SHIFT_CREATE', accountId, clientKey),
+          occurredAt: this.clock.now(), requestKey: requestKey('SHIFT_CREATE', accountId, clientKey),
         }, session);
         // US-24-TC01: ca nháp chưa công bố nên KHÔNG tạo thông báo cho Member.
         const body = toShiftResponse(shift);
@@ -71,7 +73,7 @@ export class ShiftsService {
       { actorId: accountId, operation: 'SHIFT_UPDATE', clientKey, payload: { ...draft, version: dto.version }, targetId: shiftId },
       async (session): Promise<WorkResult> => {
         // Giống create: kiểm giờ mới TRONG callback để gửi lại cùng key vẫn nhận 200 gốc (EN-02).
-        this.interval.assertFutureStart(draft.startAt, new Date());
+        this.interval.assertFutureStart(draft.startAt, this.clock.now());
         await this.guards.acquire(session, { schedule: true });
         const trainer = await this.requireActiveTrainer(actorId, session);
         // US-24-TC02: ca của PT khác hoặc không tồn tại → 404, không lộ ca đó có hay không.
@@ -80,7 +82,7 @@ export class ShiftsService {
 
         // US-24-TC07: chỉ sửa ca SCHEDULED chưa bắt đầu; CONFIRMED/COMPLETED/CANCELLED bất biến ở route này.
         // Lấy giờ server ở mỗi lần chạy (driver có thể chạy lại callback).
-        if (current.status !== 'SCHEDULED' || current.start_at.getTime() <= Date.now()) {
+        if (current.status !== 'SCHEDULED' || current.start_at.getTime() <= this.clock.now().getTime()) {
           throw new ApplicationError(409, 'SHIFT_NOT_EDITABLE', 'Chỉ sửa được ca nháp chưa bắt đầu');
         }
         // US-24-TC10: client đang xem bản cũ → 409, giao diện cho tải lại ca.
@@ -97,7 +99,7 @@ export class ShiftsService {
         if (!updated) throw versionConflict();
         await this.repository.insertEvent({
           shiftId: id, actorId, action: 'UPDATED', before: snapshotOf(current), after: snapshotOf(updated),
-          occurredAt: new Date(), requestKey: requestKey('SHIFT_UPDATE', accountId, clientKey),
+          occurredAt: this.clock.now(), requestKey: requestKey('SHIFT_UPDATE', accountId, clientKey),
         }, session);
         return { status: 200, body: { ...toShiftResponse(updated) }, resultIds: { shiftId: id } };
       },
@@ -122,7 +124,7 @@ export class ShiftsService {
         if (!current) throw notFound();
 
         // US-25-TC01, US-25-TC03: luật trạng thái và giờ; lấy giờ server ở mỗi lần chạy callback.
-        const plan = this.transition.planConfirm(toTransitionShift(current), new Date());
+        const plan = this.transition.planConfirm(toTransitionShift(current), this.clock.now());
         // US-25-TC03: client đang xem bản cũ → 409.
         if (current.version !== dto.version) throw versionConflict();
         // US-25-F01: ca không được chồng ca còn hiệu lực khác của cùng PT (loại chính ca này).
@@ -162,7 +164,7 @@ export class ShiftsService {
         // US-25-TC05: đếm BOOKED trong cùng transaction, không tin số liệu GET trước đó.
         const bookedCount = await this.repository.countBookedReferences(id, session);
         // US-25-TC04, US-25-TC05, US-25-TC07: luật trạng thái, giờ và BOOKED.
-        const plan = this.transition.planCancel(toTransitionShift(current), { reason, bookedCount }, new Date());
+        const plan = this.transition.planCancel(toTransitionShift(current), { reason, bookedCount }, this.clock.now());
         if (current.version !== dto.version) throw versionConflict();
 
         // US-25-TC10: CAS theo version. Không tự hủy booking hay trả quota (US-25-TC05).
@@ -194,7 +196,7 @@ export class ShiftsService {
   // GET /api/me/work-shifts: lịch của chính PT theo khoảng ngày Việt Nam, có phân trang.
   async listOwn(accountId: string, query: ShiftListQueryDto): Promise<ShiftPage> {
     // US-24-TC03: ngày không có thật hoặc quá 31 ngày → 400.
-    const range = this.interval.vietnamDateRange(query.fromDate, query.toDate, new Date());
+    const range = this.interval.vietnamDateRange(query.fromDate, query.toDate, this.clock.now());
     const trainer = await this.repository.findTrainerByAccount(new Types.ObjectId(accountId));
     // US-24-TC02: account TRAINER chưa liên kết hồ sơ PT → 200 profileLinked=false, danh sách rỗng.
     if (!trainer) return { profileLinked: false, items: [], page: query.page, limit: query.limit, total: 0, totalPages: 0 };
@@ -215,7 +217,9 @@ export class ShiftsService {
   private async requireActiveTrainer(accountId: Types.ObjectId, session: ClientSession): Promise<TrainerProfile> {
     const trainer = await this.repository.findTrainerByAccount(accountId, session);
     if (!trainer) throw new ApplicationError(409, 'PROFILE_REQUIRED', 'Tài khoản chưa có hồ sơ PT');
-    if (trainer.status !== 'ACTIVE') throw new ApplicationError(409, 'TRAINER_UNAVAILABLE', 'Hồ sơ PT đang ngừng hoạt động');
+    if (trainer.status !== 'ACTIVE' || !await this.repository.isEligibleAccount(accountId, session)) {
+      throw new ApplicationError(409, 'TRAINER_UNAVAILABLE', 'Hồ sơ PT hoặc tài khoản không còn khả dụng');
+    }
     return trainer;
   }
 }

@@ -1,0 +1,31 @@
+sequenceDiagram
+  actor Operator as Staff/Admin
+  participant UI as Inventory UI
+  participant Guard as JWT / inventory.read
+  participant Query as InventoryQueryService
+  participant Runner as TransactionRunner
+  participant DB as MongoDB replica set
+  Operator->>UI: Tìm SKU, xem tồn hiện tại
+  UI->>Guard: GET /inventory?filters&page&limit
+  Guard->>Query: Phiên/role hiện hành và DTO hợp lệ
+  Query->>Runner: run(session)
+  Runner->>DB: Snapshot transaction
+  Query->>DB: Products + category/inventory lookup + filter + facet
+  Query-->>UI: Số dư thực tế/giữ/khả dụng, state/version/asOf
+  Note over Query,DB: GET không sửa thiếu inventory hoặc sửa số dư lỗi
+  Operator->>UI: Chọn kỳ theo ngày Việt Nam, mở sổ
+  UI->>Guard: GET /inventory/:productId/movements
+  Guard->>Query: inventory.read; kiểm ngày/allowlist
+  Query->>Runner: run(session)
+  Query->>DB: Kiểm product, count rồi page sequence ASC trong kỳ
+  Query->>DB: Kiểm receipt item và nguồn POSTED cùng snapshot
+  Query-->>UI: Snapshots/deltas/before/after + source metadata + range/asOf
+  Note over UI: Current balance độc lập kỳ, không cộng delta riêng trang
+  Operator->>UI: Xem chi tiết movement rồi mở nguồn
+  UI->>Guard: GET /stock-movements/:id
+  Guard->>Query: inventory.read
+  Query->>DB: Snapshot movement và nguồn theo allowlist
+  Query-->>UI: Metadata kho, sourcePath nội bộ; không cost
+  UI->>Guard: GET /stock-receipts/:id
+  Note over UI,Guard: Endpoint nguồn kiểm stockReceipts.manage riêng
+  Guard-->>UI: Receipt gồm cost nếu có quyền, hoặc 403

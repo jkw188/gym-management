@@ -1,0 +1,61 @@
+name: EN-06 retail concurrency evidence
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop, 'feature/jikang/sprint1']
+  workflow_dispatch:
+    inputs:
+      full_acceptance:
+        description: Require all EN06 retail cases and both expiry workers
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: EN-06 two-process integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm install --global npm@11.11.1
+      - uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongod-${{ runner.os }}-${{ runner.arch }}-8.0.17
+      - run: npm ci
+        working-directory: backend
+      - run: npm run typecheck:test
+        working-directory: backend
+      - name: Check website preparation and handover with two processes
+        run: |
+          npm run build
+          npm run test:integration -- --runTestsByPath test/order-prepare.integration-spec.ts test/order-fulfill.integration-spec.ts
+        working-directory: backend
+      - name: Check implemented foundation and report missing retail acceptance
+        if: ${{ !inputs.full_acceptance }}
+        run: npm run test:en06:foundation
+        working-directory: backend
+      - name: Require full EN06 acceptance
+        if: ${{ inputs.full_acceptance }}
+        run: npm run test:en06
+        working-directory: backend
+      - name: Preserve evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: en06-${{ github.sha }}-${{ github.run_attempt }}
+          path: artifacts/en06-*/
+          retention-days: 14
+          if-no-files-found: error

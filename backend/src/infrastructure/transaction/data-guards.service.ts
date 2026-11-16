@@ -12,10 +12,12 @@ export const SCHEDULE_GUARD_ID = 'global';
 export interface DataGuardTargets {
   accountAdministration?: boolean;
   plans?: ObjectId[];
+  catalog?: boolean;
   // US-28-G01: writer lịch (đặt/hủy booking, ca, lớp, PT) lấy khóa global trước khi kiểm xung đột.
   schedule?: boolean;
   members?: ObjectId[];
   transactions?: ObjectId[];
+  orders?: ObjectId[];
 }
 
 @Injectable()
@@ -25,7 +27,8 @@ export class DataGuardsService {
   // Gọi bên trong callback của transaction (mỗi lần driver chạy lại đều gọi lại), không gọi ngoài TransactionRunner.run().
   // Được gọi nhiều lần trong một callback (ví dụ US-28: khóa lịch trước, tìm member rồi mới khóa member),
   // miễn là các khóa lấy đúng thứ tự cố định bên dưới và không quay lại khóa đứng trước khóa đã giữ.
-  // US-28-G01: thứ tự cố định security_state → plans → schedule_guards → members → transactions, không quay lại khóa trước.
+  // EN-02/S05-C01: security_state → plans → catalog_state → schedule_guards → members
+  // → cart_states (memberId) → inventory (productId) → transactions → orders → stock_documents → notification_counters (S06-O01).
   async acquire(session: ClientSession, targets: DataGuardTargets): Promise<void> {
     if (!session.inTransaction()) throw new Error('DATA_GUARD_TRANSACTION_REQUIRED');
     if (targets.accountAdministration) {
@@ -36,6 +39,12 @@ export class DataGuardsService {
       if (result.modifiedCount !== 1) throw guardNotReady();
     }
     await this.bumpRevisions(session, 'plans', 'guard_revision', targets.plans);
+    if (targets.catalog) {
+      const result = await this.connection.db!.collection<{ _id: string; revision: Long }>('catalog_state').updateOne(
+        { _id: 'retail', revision: { $type: 'long', $gte: Long.ZERO, $lt: Long.MAX_VALUE } },
+        { $inc: { revision: Long.ONE } }, { session });
+      if (result.modifiedCount !== 1) throw new ApplicationError(503, 'CATALOG_NOT_READY', 'Cần chạy migration danh mục trước khi ghi');
+    }
     if (targets.schedule) {
       // US-28-G01: ghi tăng THẬT revision (không no-op). Hai transaction cùng ghi một document thì MongoDB báo
       // write conflict cho transaction đến sau, nó phải retry → các writer lịch được xếp hàng ngay trong DB.
@@ -47,6 +56,7 @@ export class DataGuardsService {
     }
     await this.bumpRevisions(session, 'members', 'service_revision', targets.members);
     await this.bumpRevisions(session, 'transactions', 'guard_revision', targets.transactions);
+    await this.bumpRevisions(session, 'orders', 'guard_revision', targets.orders);
   }
 
   // Ghi tăng revision của từng document theo _id tăng dần (bỏ trùng) để mọi writer lấy khóa cùng một thứ tự.

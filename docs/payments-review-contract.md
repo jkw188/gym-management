@@ -1,5 +1,11 @@
 # US-21 / UC-23 — Tra cứu và đối chiếu khoản thanh toán
 
+US-53 mở RETAIL cho danh sách/chi tiết và payment-preview trong cùng API/quyền US-21.
+Preview dispatch `RetailSettlementService.review`, tái kiểm snapshot, trạng thái, HELD,
+hạn giữ, số tiền và reference; không bắt Member với POS khách lẻ. Confirm US-22 kiểm lại
+dưới khóa và không tin preview READY. Các mô tả GYM/PT bên dưới giữ cho nhánh dịch vụ;
+giới hạn RETAIL trước đây được thay bằng hợp đồng [pos-contract.md](pos-contract.md).
+
 Nguồn: `docs/PM/SPRINT2/Requirement_US-21.docx` v1.0 (27/10/2026), toàn bộ văn bản và bảng; không có ảnh/sơ đồ nhúng. Đối chiếu hợp đồng US-22, EN-02/03, EN-04 và `service-sales-contract.md`. Bổ sung nhánh đối chiếu UC-23 theo Q05, giữ nguyên mã yêu cầu, AC và TC. Không sửa bản Requirement DOCX hoặc trạng thái nghiệm thu.
 
 ## API và dữ liệu

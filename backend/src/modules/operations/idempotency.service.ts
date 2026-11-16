@@ -27,6 +27,26 @@ export interface OperationResult { status: number; body: Record<string, unknown>
 
 // Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca làm việc S04 chỉ dành cho TRAINER (US-24-F01, US-25).
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
+  ORDER_CREATE_POS: ACCESS_POLICY['pos.create'].roles,
+  ORDER_CANCEL_OWN: ACCESS_POLICY['orders.cancelOwn'].roles,
+  ORDER_CANCEL_SUPPORT: ACCESS_POLICY['orders.cancelSupport'].roles,
+  RETAIL_LATE_RECEIPT: ACCESS_POLICY['transactions.confirmPayment'].roles,
+  ORDER_PREPARE: ACCESS_POLICY['orders.prepare'].roles,
+  ORDER_FULFILL_WEBSITE: ACCESS_POLICY['orders.fulfill'].roles,
+  ORDER_FULFILL_POS: ACCESS_POLICY['pos.fulfill'].roles,
+  STOCK_RECEIPT_CREATE: ACCESS_POLICY['stockReceipts.manage'].roles,
+  STOCK_RECEIPT_UPDATE: ACCESS_POLICY['stockReceipts.manage'].roles,
+  STOCK_RECEIPT_POST: ACCESS_POLICY['stockReceipts.manage'].roles,
+  CATEGORY_CREATE: ACCESS_POLICY['categories.manage'].roles,
+  CATEGORY_UPDATE: ACCESS_POLICY['categories.manage'].roles,
+  PRODUCT_CREATE: ACCESS_POLICY['products.manage'].roles,
+  PRODUCT_UPDATE: ACCESS_POLICY['products.manage'].roles,
+  PUBLIC_SESSION_CREATE: ACCESS_POLICY['publicSessions.manage'].roles,
+  PUBLIC_SESSION_UPDATE: ACCESS_POLICY['publicSessions.manage'].roles,
+  PUBLIC_SESSION_PUBLISH: ACCESS_POLICY['publicSessions.manage'].roles,
+  PUBLIC_SESSION_CANCEL: ACCESS_POLICY['publicSessions.manage'].roles,
+  TRAINER_CREATE: ACCESS_POLICY['trainers.manage'].roles,
+  TRAINER_UPDATE: ACCESS_POLICY['trainers.manage'].roles,
   // US-18 mục 2: Member tra cứu được kết quả đăng ký/hủy do chính mình tạo (vẫn chỉ tìm theo actor đang đăng nhập).
   SALE_REGISTER: [...ACCESS_POLICY['serviceSales.create'].roles, ...ACCESS_POLICY['serviceSales.registerOwn'].roles],
   SALE_RENEW: ['ADMIN', 'STAFF', 'MEMBER'], // US-19 adapter must check ownership before invoking the shared RenewalService.
@@ -116,6 +136,9 @@ export class IdempotencyService {
     if (!record) {
       // EN-02-TC08: chưa thấy không có nghĩa là thất bại; request gốc có thể vẫn đang chạy.
       throw new ApplicationError(404, 'OPERATION_UNKNOWN', 'Chưa thấy kết quả. Yêu cầu có thể vẫn đang xử lý, chỉ gửi lại với cùng khóa');
+    }
+    if (operation === 'ORDER_CANCEL_OWN' && !await this.requests.ownsOrder(principal.id, record.result_ids.orderId)) {
+      throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy đơn hàng');
     }
     return { status: 'COMMITTED' as const, responseStatus: record.response_status, responseBody: record.response_body };
   }

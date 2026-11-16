@@ -25,6 +25,7 @@ import { PlansModule } from './modules/plans/plans.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { TraineesModule } from './modules/trainees/trainees.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { StockModule } from './modules/stock/stock.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     ProductsModule,
     OrdersModule,
     InventoryModule,
+    StockModule,
     PaymentsModule,
     NotificationsModule,
     ReportsModule,

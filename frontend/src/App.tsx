@@ -14,9 +14,11 @@ import { ProfilePage } from './features/profile/ProfilePage';
 import { NotificationsPage } from './features/notifications/NotificationsPage';
 import { ChangePasswordPage } from './features/security/ChangePasswordPage';
 import { UsersPage } from './features/users/UsersPage';
+import { TrainersPage } from './features/trainers/TrainersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
 import { TrainerBookingsPage } from './features/pt-bookings/TrainerBookingsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
+import { AdminClassesPage } from './features/classes/AdminClassesPage';
 import { ServicesPage } from './features/services/ServicesPage';
 import { NewMemberPage } from './features/members/NewMemberPage';
 import { MyMembershipsPage } from './features/memberships/MyMembershipsPage';
@@ -29,6 +31,13 @@ import { PlansPage } from './features/plans/PlansPage';
 import { TraineesPage } from './features/trainees/TraineesPage';
 import { TrainerReviewsPage } from './features/trainer-reviews/TrainerReviewsPage';
 import { TransactionsPage } from './features/payments/TransactionsPage';
+import { RetailCatalogPage } from './features/retail/RetailCatalogPage';
+import { StockReceiptsPage } from './features/stock/StockReceiptsPage';
+import { InventoryPage } from './features/inventory/InventoryPage';
+import { OrdersPage } from './features/orders/OrdersPage';
+import { MyOrdersPage } from './features/orders/MyOrdersPage';
+import { RefundsPage } from './features/refunds/RefundsPage';
+import { PosPage } from './features/pos/PosPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
@@ -56,9 +65,24 @@ export default function App() {
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/account" element={<AccountInfoPage role="ADMIN" />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/account" element={<AccountInfoPage role="STAFF" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/classes" element={<AdminClassesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/categories" element={<RetailCatalogPage key="categories" kind="categories" />} />
+        <Route path="/admin/products" element={<RetailCatalogPage key="products" kind="products" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/transactions" element={<TransactionsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/transactions" element={<TransactionsPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/orders" element={<OrdersPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/pos" element={<PosPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/pos" element={<PosPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/orders" element={<OrdersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/refunds" element={<RefundsPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/refunds" element={<RefundsPage />} /></Route>
+      <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/orders" element={<MyOrdersPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/stock-receipts" element={<StockReceiptsPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/inventory" element={<InventoryPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/inventory" element={<InventoryPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/members" element={<MembersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members/new" element={<NewMemberPage />} /></Route>

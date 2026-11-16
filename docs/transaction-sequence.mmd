@@ -9,6 +9,7 @@ sequenceDiagram
   participant DB as MongoDB replica set
   participant Worker as Outbox worker
   Note over Service,DB: EN-02 command contract; US-21 lookup/preview is read-only. US-22 atomic settlement is detailed in settlement-sequence.mmd.
+  Note over Locks,DB: US-37 extended lock order when needed: security_state → plans → catalog_state → schedule_guards → members by id → cart_states by memberId → inventory by productId → transactions → stock_documents by id → notification_counters. Take only relevant locks, never return to an earlier class. InventoryWriter owns inventory locks before stock document CAS.
   Client->>Guard: GET /transactions or /transactions/:id (US-21)
   Guard->>Service: Current STAFF/ADMIN + allowlisted query
   Service->>DB: Read real GYM/PT transactions, sale/payment/invoice projections

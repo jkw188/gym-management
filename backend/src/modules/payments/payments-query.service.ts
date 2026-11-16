@@ -13,8 +13,7 @@ export class PaymentsQueryService {
   constructor(private readonly repository: PaymentsQueryRepository, private readonly clock: ServerClock) {}
 
   async list(query: TransactionQueryDto) {
-    if (query.kind === 'RETAIL') throw new ApplicationError(400, 'UNSUPPORTED_KIND', 'S02 chỉ hỗ trợ giao dịch GYM/PT');
-    const filter: Record<string, unknown> = { kind: query.kind ?? { $in: ['GYM', 'PT'] } };
+    const filter: Record<string, unknown> = { kind: query.kind ?? { $in: ['GYM', 'PT', 'RETAIL'] } };
     if (query.status) filter.status = query.status;
     if (query.memberId) {
       filter.member_id = parseTransactionId(query.memberId);
@@ -39,7 +38,7 @@ export class PaymentsQueryService {
     const asOf = this.clock.now();
     const transaction = await this.requireTransaction(id);
     const member = transaction.member_id ? await this.repository.member(transaction.member_id) : null;
-    if (!member) throw notFound('hội viên');
+    if (!member && transaction.kind !== 'RETAIL') throw notFound('hội viên');
     const sale = await this.repository.sale(transaction._id);
     const payments = await this.repository.paymentRows(transaction._id);
     const invoice = await this.repository.invoice(transaction._id);
@@ -62,7 +61,6 @@ export class PaymentsQueryService {
   async requireTransaction(id: string) {
     const row = await this.repository.transaction(parseTransactionId(id));
     if (!row) throw notFound('giao dịch');
-    if (row.kind === 'RETAIL') throw new ApplicationError(400, 'UNSUPPORTED_KIND', 'S02 chỉ hỗ trợ giao dịch GYM/PT');
     return row;
   }
 }
