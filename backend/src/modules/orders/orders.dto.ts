@@ -91,6 +91,9 @@ export class OrderRefundResponseDto {
   @ApiProperty() amount!: string;
 }
 export class OrderDetailResponseDto extends OrderSummaryResponseDto {
+  @ApiProperty({ nullable: true, type: String }) cancelledAt!: string | null;
+  @ApiProperty({ nullable: true, type: String }) cancellationReason!: string | null;
+  @ApiProperty({ nullable: true, type: String }) cancellationSource!: string | null;
   @ApiProperty({ type: OrderRecipientResponseDto }) recipient!: OrderRecipientResponseDto;
   @ApiProperty() pickupLocation!: string;
   @ApiProperty({ nullable: true, type: String }) confirmedAt!: string | null;

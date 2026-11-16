@@ -13,13 +13,13 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     f.blocked('TC02', 'US41/US53', 'No shared WEBSITE/POS Order Factory or reservation writer.');
     f.blocked('TC03', 'US40/US41', 'No cart/cartVersion checkout writer.');
     f.blocked('TC06', 'US41', 'Catalog writer exists; quote/create consumer missing.');
-    f.blocked('TC10', 'US41/US45', 'No retail normal settlement/cancel/refund transition. GYM cancel is not retail cancel.');
-    f.blocked('TC11', 'US45', 'US44 fulfillment is implemented and tested separately; real cancel writer is missing for the cross-command race.');
-    f.blocked('TC12', 'US45', 'No expiry service: two real expiry workers cannot be started.');
+    f.blocked('TC10', 'US41', 'US45 cancel/refund is implemented; real normal retail settlement/create writer is still missing for the payment race.');
+    f.blocked('TC11', 'US41', 'Real cancel/fulfill race is tested in order-cancellation.integration-spec.ts with persisted order/reservation fixtures; this end-to-end harness still lacks US41 factory.');
+    f.blocked('TC12', 'US41', 'Two real expiry workers are tested in the US45 suite; end-to-end paid/unpaid creation and retail settlement remain unavailable.');
     f.blocked('TC13', 'US41', 'US43/US44 suites verify prepare/fulfill deadline boundaries and lock-time clock; retail normal payment writer and end-to-end create fixtures are still missing.');
-    f.blocked('TC14', 'US45', 'No expiry backlog/restart service; outbox worker is not an expiry substitute.');
-    f.blocked('TC15', 'US45', 'No late receipt endpoint/refund obligation writer.');
-    f.blocked('TC16', 'US45', 'No late receipt amount/second-payment reconciliation handler.');
+    f.blocked('TC14', 'US41', 'US45 covers real expiry catch-up/restart/batch50 with persisted orders; full factory-generated backlog remains unavailable.');
+    f.blocked('TC15', 'US41', 'Real late receipt/refund obligation is covered by the US45 suite; this harness still needs US41-created cancelled orders.');
+    f.blocked('TC16', 'US41', 'US45 covers mismatch/extra receipts and unique references; end-to-end checkout/payment setup is still missing.');
   });
 
   it('TC04 foundation: 20 receipt replays and transport loss preserve original IDs', async () => f.partial('TC04', 'US41/US53',
@@ -103,7 +103,7 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     }));
 
   it('TC18 foundation: rollback after each existing write; lost committed response resolves by original key', async () => f.partial('TC18', 'US41/US45/US53',
-    'Inventory/payment/invoice/audit/outbox/operation hooks verified; order/items/cart/refund hooks await their writers.', async () => {
+    'Inventory/payment/invoice/audit/outbox/operation hooks verified; US45 refund/cancel faults have a separate suite; factory/order-items/cart faults still await US41.', async () => {
       const products = await f.catalog(), receipt = await f.receipt(products);
       for (const point of ['movement', 'stockAudit', 'operation']) {
         const before = await f.checkpoint(`before_stock_${point}`);

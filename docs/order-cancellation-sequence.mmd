@@ -1,0 +1,38 @@
+sequenceDiagram
+  actor User as Member / Staff / Admin
+  participant API as Cancel adapter (JWT, role, owner)
+  participant Key as IdempotencyService
+  participant Cancel as CancelOrderService
+  participant DB as MongoDB replica set
+  participant Worker as OrderExpiryWorker
+  User->>API: POST cancel {version, reason} + UUIDv4
+  API->>Key: normalized DTO + target + channel
+  Key->>DB: transaction snapshot/majority/primary
+  alt committed same key
+    DB-->>Key: original response (owner checked)
+  else new key
+    Key->>Cancel: same session
+    Cancel->>DB: gates member → inventory → transaction → order
+    Cancel->>DB: re-read version/state, payment, reservation ledger
+    alt already CANCELLED
+      DB-->>Cancel: terminal state + current refund, retain reason
+    else HELD and PENDING/CONFIRMED
+      Cancel->>DB: ORDER_RELEASE each item, reserved−q
+      Cancel->>DB: PENDING transaction→CANCELLED or SETTLED→retain + refund PENDING
+      Cancel->>DB: order CANCELLED/RELEASED, event + notification/outbox
+    end
+    Key->>DB: operation result + commit together
+  end
+  API-->>User: 200 state + obligation (not paid out)
+  Worker->>DB: every5s, overdue HELD batch50, sorted expiry/id
+  loop each overdue order
+    Worker->>Cancel: expire (SYSTEM), own transaction, fresh clock after gates
+    Note over Cancel,DB: same transition, no fake account ID; isolate errors/backoff≤60s
+  end
+  User->>API: STAFF/ADMIN POST late-receipts + key
+  API->>Key: RETAIL_LATE_RECEIPT
+  Key->>DB: member → transaction → order gates
+  Key->>DB: verify CANCELLED/RELEASED, no succeeded payment, full TRANSFER
+  Key->>DB: payment SUCCEEDED + refund PENDING + event/outbox/key commit
+  Note over Key,DB: no inventory change, SETTLED, sale invoice or reopen
+  API-->>User: paymentId + refundId, transaction remains CANCELLED

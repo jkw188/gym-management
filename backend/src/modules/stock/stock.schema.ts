@@ -12,7 +12,7 @@ export interface StockDocumentItem {
 }
 export interface StockMovement {
   _id: Types.ObjectId; product_id: Types.ObjectId; document_item_id?: Types.ObjectId; order_item_id?: Types.ObjectId; return_item_id?: Types.ObjectId;
-  event_key: string; sequence: number; kind: string; source_id: Types.ObjectId; actor_id: Types.ObjectId;
+  event_key: string; sequence: number; kind: string; source_id: Types.ObjectId; actor_id?: Types.ObjectId; actor_type?: 'USER' | 'SYSTEM';
   source_type?: string; source_code?: string;
   on_hand_delta: number; reserved_delta: number; before_on_hand: number; before_reserved: number; after_on_hand: number; after_reserved: number;
   sku_snapshot: string; name_snapshot: string; created_at: Date;
@@ -45,7 +45,9 @@ export const StockDocumentItemSchema = new Schema<StockDocumentItem>({
 StockDocumentItemSchema.index({ document_id: 1, product_id: 1 }, { unique: true, name: 'stock_items_document_product_unique' });
 export const StockMovementSchema = new Schema<StockMovement>({
   product_id: objectId, document_item_id: Schema.Types.ObjectId, order_item_id: Schema.Types.ObjectId, return_item_id: Schema.Types.ObjectId,
-  event_key: { type: String, required: true }, sequence: unsigned, kind: { type: String, required: true }, source_id: objectId, actor_id: objectId,
+  event_key: { type: String, required: true }, sequence: unsigned, kind: { type: String, required: true }, source_id: objectId,
+  actor_type: { type: String, enum: ['USER', 'SYSTEM'] },
+  actor_id: { type: Schema.Types.ObjectId, required: function (this: StockMovement) { return this.actor_type !== 'SYSTEM'; } },
   source_type: String, source_code: String,
   on_hand_delta: signed, reserved_delta: signed, before_on_hand: unsigned, before_reserved: unsigned, after_on_hand: unsigned, after_reserved: unsigned,
   sku_snapshot: { type: String, required: true }, name_snapshot: { type: String, required: true }, created_at: { type: Date, required: true },

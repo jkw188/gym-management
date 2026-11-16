@@ -7,6 +7,7 @@ export interface OrderSummary {
   permittedActions: { prepare: boolean; prepareBlockedReason: string | null; fulfill: boolean; fulfillBlockedReason: string | null };
 }
 export interface OrderDetail extends OrderSummary {
+  cancelledAt?: string | null; cancellationReason?: string | null; cancellationSource?: string | null;
   recipient: { name: string; phone: string }; pickupLocation: string; asOf: string; confirmedAt: string | null; confirmedBy: string | null;
   fulfilledAt: string | null; fulfilledBy: string | null; movementIds: string[];
   items: { id: string; productId: string; skuSnapshot: string; nameSnapshot: string; quantity: number; unitPrice: string; lineTotal: string }[];

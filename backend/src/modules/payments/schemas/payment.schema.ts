@@ -21,6 +21,7 @@ export interface Payment {
   receiving_account_code?: string;
   bank_reference?: string;
   created_at?: Date;
+  receipt_purpose?: 'ORDER_SETTLEMENT' | 'LATE_CANCELLED_ORDER';
 }
 
 export const PaymentSchema = new Schema<Payment>({
@@ -40,5 +41,6 @@ export const PaymentSchema = new Schema<Payment>({
   receiving_account_code: { type: String, maxlength: 40 },
   bank_reference: { type: String, maxlength: 100 },
   created_at: { type: Date, default: Date.now },
+  receipt_purpose: { type: String, enum: ['ORDER_SETTLEMENT', 'LATE_CANCELLED_ORDER'], default: 'ORDER_SETTLEMENT' },
 }, { collection: 'payments', id: false, versionKey: false });
 PaymentSchema.index({ transaction_id: 1 }, { name: 'payments_transaction' });

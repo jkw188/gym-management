@@ -110,8 +110,9 @@ Các fixture này không chứng minh luồng tạo đơn hoặc thu RETAIL đã
 
 Frontend: `npm test -- src/features/orders/orders.test.tsx`.
 US-43-AC01/02 có kiểm thử phạm vi chuẩn bị; **AC03 và Done vẫn chưa đủ bằng chứng**
-cho cạnh tranh liên story. US-41 (create/normal RETAIL settlement) và US-45
-(cancel/expiry) chưa có writer; US-44 được triển khai bên dưới. Chạy EN-04 và toàn EN-06 sau
+cho cạnh tranh liên story. US-41 (create/normal RETAIL settlement) chưa có writer;
+US-45 hiện có cancel/expiry/late/refund và suite riêng theo `order-cancellation-contract.md`.
+US-44 được triển khai bên dưới. Chạy EN-04 và toàn EN-06 sau
 khi tích hợp các dependency; không đánh dấu Done từ kết quả build hoặc fixture.
 
 ## US-44 — UC-24 nhánh bàn giao tại quầy

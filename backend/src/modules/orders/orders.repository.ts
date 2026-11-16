@@ -4,8 +4,8 @@ import { ClientSession, Filter } from 'mongodb';
 import { Connection, Model, Schema, Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { Transaction } from '../payments/schemas/transaction.schema';
-import { Invoice } from '../payments/schemas/invoice.schema';
-import { Payment } from '../payments/schemas/payment.schema';
+import { Invoice, InvoiceSchema } from '../payments/schemas/invoice.schema';
+import { Payment, PaymentSchema } from '../payments/schemas/payment.schema';
 import { fromVndDecimal } from '../../common/utils/vnd-money';
 import { orderIntegrityError } from './order.policy';
 import { OperationRequestSchema } from '../operations/schemas/operation-request.schema';
@@ -25,6 +25,13 @@ export class OrdersRepository {
   order(id: Types.ObjectId, session: ClientSession) { return this.connection.db!.collection<Order>('orders').findOne({ _id: id }, { session }); }
   transaction(id: Types.ObjectId, session: ClientSession) { return this.connection.db!.collection<Transaction>('transactions').findOne({ _id: id }, { session }); }
   lines(id: Types.ObjectId, session: ClientSession) { return this.connection.db!.collection<OrderItem>('order_items').find({ order_id: id }, { session }).sort({ _id: 1 }).toArray(); }
+  async assertOwner(accountId: string, orderId: Types.ObjectId, session?: ClientSession) {
+    const member = await this.connection.db!.collection('members').findOne({ account_id: new Types.ObjectId(accountId) }, { session, projection: { _id: 1 } });
+    if (!member || !await this.connection.db!.collection<Order>('orders').findOne({ _id: orderId, member_id: member._id }, { session, projection: { _id: 1 } })) {
+      throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy đơn hàng');
+    }
+    return member._id;
+  }
   async recipient(memberId: Types.ObjectId | undefined, session: ClientSession) {
     if (!memberId) return [];
     const member = await this.connection.db!.collection<{ _id: Types.ObjectId; account_id?: Types.ObjectId }>('members').findOne({ _id: memberId }, { session, projection: { account_id: 1 } });
@@ -81,8 +88,8 @@ export class OrdersRepository {
       if (balances.get(String(item.product_id))?.reserved !== held[0]?.quantity) throw inventoryIntegrityError();
     }
   }
-  async assertFulfillmentReady() {
-    await this.assertWriterReady([RetailInventorySchema, StockMovementSchema]);
+  async assertFulfillmentReady(extraSchemas: Schema[] = []) {
+    await this.assertWriterReady([RetailInventorySchema, StockMovementSchema, PaymentSchema, InvoiceSchema, ...extraSchemas]);
     for (const { collection, index: expected } of FINANCIAL_INDEXES.filter(entry => ['invoices', 'payments'].includes(entry.collection))) {
       if (!await hasFinancialIndex(this.connection, collection, expected)) {
         throw new ApplicationError(503, 'ORDERS_NOT_READY', 'Cần chạy npm run ensure-indexes và đối chiếu chứng từ thanh toán');

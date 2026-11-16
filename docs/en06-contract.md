@@ -13,8 +13,10 @@ suite `order-fulfill.integration-spec.ts`: hai process, 10 vòng ×20 request c�
 key, 10 vòng khác key, DB oracle EN-06, fault từng SKU/event/outbox/key và clock.
 Catalog/receipt dùng API thật; order/reserve/retail payment vẫn là fixture được
 ghi rõ vì chưa có US-41 factory. Chi tiết nằm trong `orders-prepare-contract.md`.
-Chưa có cart/quote/Order Factory/cancel/expiry/late-receipt/refund writer
-của US40–45/53. `SettlementService.confirm` và payment
+US-45 bổ sung cancel/refund, expiry worker và late-receipt writer, adapter own và UI;
+xem `order-cancellation-contract.md`. Suite riêng kiểm hai worker và race thật
+cancel/fulfill, replay, fault, với snapshot order/reserve/normal payment do US41 chưa có factory.
+Chưa có cart/quote/Order Factory/normal RETAIL settlement của US40/41/53. `SettlementService.confirm` và payment
 preview hiện từ chối RETAIL. Không tạo writer thay thế, mock DB, API người dùng,
 quyền, UI hoặc endpoint payout S07 để làm bộ test xanh.
 
@@ -45,8 +47,9 @@ npm run test:en06
   Namespace có runId/suite/worker, ownership marker ngẫu nhiên; cleanup kiểm
   đúng tên và marker qua `test-database.cjs` trước khi drop DB được thuê.
 - `test:en06:foundation` chỉ trả 0 khi cả chín nhóm nền tảng chạy đủ 10 vòng,
-  DB oracle đạt, request outcomes đã resolve và 11 dependency thiếu đúng danh
-  sách công bố. Assertion lỗi/thiếu vòng/một app/unknown đều làm lệnh thất bại.
+  DB oracle đạt, request outcomes đã resolve và 11 TC chưa đủ evidence end-to-end
+  đúng danh sách công bố. US45 có suite riêng, chưa biến fixture thành US41 factory.
+  Assertion lỗi/thiếu vòng/một app/unknown đều làm lệnh thất bại.
 - `test:en06` là cổng nghiệm thu: trả 1 khi còn PARTIAL/BLOCKED/NOT_RUN/FAILED,
   thiếu hai expiry worker hoặc thiếu bằng chứng. Hiện tại kết quả đúng là
   `NOT_ACCEPTED` ngay cả khi foundation đã xanh. Không có tùy chọn giảm số vòng.
@@ -86,7 +89,9 @@ Workflow chỉ được thêm vào source, không có nghĩa đã chạy CI từ
   Lookup404 không được coi là thất bại đã biết. Còn unknown thì fail.
 - Child kiểm schema/index thật, financial integrity và catalog migration;
   index S06 chưa tồn tại vẫn được ghi là thiếu. Không tự tạo index giả của
-  orders/refunds để qua kiểm tra. Hook không import vào production main.
+  orders/refunds để qua kiểm tra. Index refund hiện được tạo từ schema US45 thật;
+  IPC có `expiryWorker` gọi worker thật và fault refund/latePayment/orderAudit.
+  Hook không import vào production main.
 - Oracle đọc tuần tự trong transaction snapshot/majority từ primary: ledger
   sequence liên tục, delta/before/after/số dư cuối, không cộng DRAFT; reserved
   bằng tổng item của HELD; movement/source và terminal effect; payment/reference,
@@ -109,15 +114,15 @@ Workflow chỉ được thêm vào source, không có nghĩa đã chạy CI từ
 | TC07 | PARTIAL: POSTED hai phiếu + reader + ledger | Reservation S06 cạnh tranh nhập — US41/53 |
 | TC08 | PARTIAL: 20 confirm GYM/PT tranh reference | RETAIL dispatch — US41 |
 | TC09 | PARTIAL: 20 key confirm một transaction | RETAIL SETTLED giữ HELD/chưa giao — US41 |
-| TC10 | BLOCKED | Cancel/normal payment/refund — US41/45 |
-| TC11 | BLOCKED: fulfill có suite US44 riêng | Cancel/fulfill cần cancel writer thật — US45 |
-| TC12 | BLOCKED | Hai expiry worker thật, paid/unpaid — US45 |
+| TC10 | BLOCKED | Cancel/refund US45 có; thiếu normal RETAIL settlement US41 để race |
+| TC11 | BLOCKED toàn harness; suite US45 kiểm race thật cancel/fulfill | Thiếu US41 tạo order/reserve end-to-end |
+| TC12 | BLOCKED toàn harness; suite US45 chạy hai expiry worker thật | Paid/unpaid snapshot chưa thay factory US41 |
 | TC13 | BLOCKED: prepare/fulfill kiểm riêng ở suite US43/44 | Create/normal payment deadline ±1 ms còn thiếu — US41 |
-| TC14 | BLOCKED | Expiry backlog/restart và cô lập lỗi — US45 |
-| TC15 | BLOCKED | Late receipt/refund nghĩa vụ — US45 |
-| TC16 | BLOCKED | Late amount/second payment/duplicate — US45 |
+| TC14 | BLOCKED toàn harness; suite US45 kiểm batch50/catch-up/restart/cô lập lỗi | Thiếu US41 factory |
+| TC15 | BLOCKED toàn harness; suite US45 kiểm late receipt/refund thật | Chưa có fixture qua factory US41 |
+| TC16 | BLOCKED toàn harness; suite US45 kiểm amount/second payment/duplicate | Thiếu setup qua US41 factory |
 | TC17 | PARTIAL: GYM/PT invoice0 không payment0 | WEBSITE/POS miễn phí HELD — US41/53 |
-| TC18 | PARTIAL: fault writer kho/thu hiện có + transport loss | Order/item/cart/refund fault — US41/45/53 |
+| TC18 | PARTIAL: fault writer kho/thu + transport loss; cancel/refund có suite US45 riêng | Factory/order-item/cart fault — US41/53 |
 | TC19 | PARTIAL: Guard/IDOR/own invoice/REST offline/hai outbox worker | Retail own/link/auth/socket duplicates — US42/45 |
 | TC20 | PARTIAL: GYM/PT terms/invoice buyer snapshot | Retail snapshot/POS không đổi cart — US40/41/53 |
 
