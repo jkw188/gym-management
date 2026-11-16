@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { ordersApi, orderDate, orderMoney, orderStatus, transactionStatus, type OrderDetail, type OrderQuery } from './orders.api';
+import { OrderFulfillment } from './OrderFulfillment';
 
 const initialQuery: OrderQuery = { channel: 'WEBSITE', status: 'PENDING', transactionStatus: '', q: '', memberId: '', fromDate: '', toDate: '', page: 1, limit: 20 };
 const messageOf = (error: unknown) => error instanceof Error ? error.message : 'Không thực hiện được yêu cầu';
@@ -10,6 +11,7 @@ export function OrdersPage() {
   const [data, setData] = useState<Awaited<ReturnType<typeof ordersApi.list>>>(), [loading, setLoading] = useState(true), [opening, setOpening] = useState(false);
   const [row, setRow] = useState<OrderDetail | null>(null), [error, setError] = useState(''), [success, setSuccess] = useState('');
   const [checked, setChecked] = useState(false), [pending, setPending] = useState(false), [unknown, setUnknown] = useState(false), [elapsed, setElapsed] = useState(0);
+  const [fulfillmentLocked, setFulfillmentLocked] = useState(false);
   const busy = useRef(false), command = useRef<Command | null>(null);
   useEffect(() => {
     const controller = new AbortController(); setLoading(true);
@@ -47,7 +49,7 @@ export function OrdersPage() {
       if (!unresolved) {
         command.current = null;
         if (failure.status === 409) await refresh(next.id);
-        if (failure.status === 403) { setChecked(false); setRow(current => current ? { ...current, permittedActions: { prepare: false, prepareBlockedReason: 'FORBIDDEN' } } : null); }
+        if (failure.status === 403) { setChecked(false); setRow(current => current ? { ...current, permittedActions: { ...current.permittedActions, prepare: false, prepareBlockedReason: 'FORBIDDEN' } } : null); }
       }
     } finally { busy.current = false; setPending(false); }
   }
@@ -57,13 +59,13 @@ export function OrdersPage() {
     catch (failure) { setError(messageOf(failure)); } finally { busy.current = false; setPending(false); }
   }
   function apply(event: FormEvent) { event.preventDefault(); setError(''); setQuery({ ...filter, q: filter.q.trim(), page: 1 }); }
-  return <section><h2>Chuẩn bị đơn hàng website</h2><p>Kiểm tra hàng thực tế trước khi xác nhận. Chuẩn bị không xác nhận thu tiền hoặc bàn giao và không gia hạn giữ hàng.</p>
+  return <section><h2>Chuẩn bị và bàn giao đơn hàng website</h2><p>Kiểm tra hàng thực tế trước khi xác nhận. Chuẩn bị không xác nhận thu tiền hoặc bàn giao và không gia hạn giữ hàng.</p>
     {error && <p role="alert">{error}</p>}{success && <p role="status">{success}</p>}
     {opening && <p role="status">Đang tải chi tiết đơn…</p>}
     {row ? <section aria-label={`Chi tiết ${row.code}`}><h3>{row.code}</h3>
       <p>Trạng thái đơn: <strong>{orderStatus[row.status]}</strong></p><p>Thanh toán: <strong>{row.transactionStatus ? transactionStatus[row.transactionStatus] : 'Cần đối chiếu'}</strong></p>
       <p>Hạn giữ hàng (giờ Việt Nam): {orderDate(row.reservationExpiresAt)}</p><p>Giữ hàng: {row.reservationState} · Phiên bản: {row.version}</p>
-      {awaitingExpiryCancellation && <p role="alert">Đã hết hạn giữ hàng, chờ xử lý hủy. Không thể gia hạn hoặc chuẩn bị.</p>}
+      {awaitingExpiryCancellation && <p role="alert">Đã hết hạn giữ hàng, chờ xử lý hủy. Không thể gia hạn, chuẩn bị hoặc bàn giao.</p>}
       <p>Người nhận: {row.recipient.name} · {row.recipient.phone}</p><p>Nhận tại: {row.pickupLocation}</p>
       <table><thead><tr><th>SKU / tên khi đặt</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th></tr></thead>
         <tbody>{row.items.map(item => <tr key={item.id}><td>{item.skuSnapshot} · {item.nameSnapshot}</td><td>{item.quantity}</td><td>{orderMoney(item.unitPrice)}</td><td>{orderMoney(item.lineTotal)}</td></tr>)}</tbody></table>
@@ -77,8 +79,12 @@ export function OrdersPage() {
           const next = { id: row.id, version: row.version, key: crypto.randomUUID() }; command.current = next; void send(next);
         }}>Xác nhận đã chuẩn bị</button></>}
       {row.permittedActions.prepareBlockedReason === 'ORDER_INTEGRITY_ERROR' && <p role="alert">Dữ liệu đơn cần đối chiếu trước khi thao tác.</p>}
-      <button type="button" disabled={pending || unknown} onClick={() => void open(row.id)}>Tải lại đơn</button>
-      <button type="button" disabled={pending || unknown} onClick={() => { setRow(null); setChecked(false); setError(''); }}>Về danh sách</button>
+      <OrderFulfillment key={row.id} order={row} expired={expired} onLockedChange={setFulfillmentLocked}
+        onConflict={async message => { setError(message); await refresh(row.id); }} onCompleted={async result => {
+          setError(''); setSuccess(`Đã bàn giao đủ sản phẩm lúc ${orderDate(result.fulfilledAt)} · Nhân viên: ${result.fulfilledBy}.`); await refresh(result.id);
+        }} />
+      <button type="button" disabled={pending || unknown || fulfillmentLocked} onClick={() => void open(row.id)}>Tải lại đơn</button>
+      <button type="button" disabled={pending || unknown || fulfillmentLocked} onClick={() => { setRow(null); setChecked(false); setError(''); }}>Về danh sách</button>
     </section> : !opening && <><form onSubmit={apply}>
       <label>Mã đơn<input value={filter.q} maxLength={120} onChange={event => setFilter({ ...filter, q: event.target.value })} /></label>
       <label>Kênh<select value={filter.channel} onChange={event => setFilter({ ...filter, channel: event.target.value })}><option value="WEBSITE">Website</option><option value="POS">Tại quầy</option><option value="">Tất cả</option></select></label>

@@ -7,6 +7,8 @@ import { RoleCode } from './schemas/role.schema';
 export const ACCESS_POLICY = {
   'orders.read': { name: 'Tra cứu đơn hàng nội bộ', roles: ['STAFF', 'ADMIN'] },
   'orders.prepare': { name: 'Xác nhận chuẩn bị đơn website', roles: ['STAFF', 'ADMIN'] },
+  'orders.fulfill': { name: 'Xác nhận bàn giao đơn website', roles: ['STAFF', 'ADMIN'] },
+  'pos.fulfill': { name: 'Xác nhận bàn giao đơn tại quầy', roles: ['STAFF', 'ADMIN'] },
   'stockReceipts.manage': { name: 'Lập và ghi sổ phiếu nhập', roles: ['STAFF', 'ADMIN'] },
   'inventory.read': { name: 'Tra cứu kho nội bộ', roles: ['STAFF', 'ADMIN'] },
   'categories.manage': { name: 'Quản lý danh mục bán lẻ', roles: ['ADMIN'] },

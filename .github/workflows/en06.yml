@@ -38,6 +38,11 @@ jobs:
         working-directory: backend
       - run: npm run typecheck:test
         working-directory: backend
+      - name: Check website preparation and handover with two processes
+        run: |
+          npm run build
+          npm run test:integration -- --runTestsByPath test/order-prepare.integration-spec.ts test/order-fulfill.integration-spec.ts
+        working-directory: backend
       - name: Check implemented foundation and report missing retail acceptance
         if: ${{ !inputs.full_acceptance }}
         run: npm run test:en06:foundation
