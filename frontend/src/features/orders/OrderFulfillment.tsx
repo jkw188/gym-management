@@ -35,7 +35,7 @@ export function OrderFulfillment({ order, expired, onLockedChange, onCompleted, 
   async function send(next: Command) {
     if (busy.current) return;
     busy.current = true; setPending(true); setError(''); keep(next);
-    try { await complete(await ordersApi.fulfill(order.id, next.version, next.key)); }
+    try { await complete(await (order.channel === 'POS' ? ordersApi.fulfill(order.id, next.version, next.key, 'POS') : ordersApi.fulfill(order.id, next.version, next.key))); }
     catch (cause) {
       setError(messageOf(cause));
       // Auth changes or fingerprint conflicts cannot establish the outcome of an earlier request.
@@ -47,7 +47,7 @@ export function OrderFulfillment({ order, expired, onLockedChange, onCompleted, 
   async function lookup() {
     if (busy.current || !command) return;
     busy.current = true; setPending(true); setError('');
-    try { await complete((await ordersApi.lookupFulfillment(command.key)).responseBody); }
+    try { await complete((await (order.channel === 'POS' ? ordersApi.lookupFulfillment(command.key, 'POS') : ordersApi.lookupFulfillment(command.key))).responseBody); }
     catch (cause) { setError(messageOf(cause)); } finally { busy.current = false; setPending(false); }
   }
   async function inspect() {
@@ -56,7 +56,7 @@ export function OrderFulfillment({ order, expired, onLockedChange, onCompleted, 
     try { setObserved(await ordersApi.detail(order.id)); }
     catch (cause) { setError(messageOf(cause)); } finally { busy.current = false; setPending(false); }
   }
-  return <section aria-label="Bàn giao đơn website" aria-busy={pending}>
+  return <section aria-label={order.channel === 'POS' ? 'Bàn giao đơn tại quầy' : 'Bàn giao đơn website'} aria-busy={pending}>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {order.fulfilledAt && <p>Đã bàn giao lúc {orderDate(order.fulfilledAt)} · Nhân viên: {order.fulfilledBy}</p>}
     {order.status === 'COMPLETED' && <p>Đơn đã hoàn tất. Trả hàng cần quy trình riêng; hiện chưa hỗ trợ hủy hoặc mở lại bàn giao.</p>}
@@ -66,7 +66,7 @@ export function OrderFulfillment({ order, expired, onLockedChange, onCompleted, 
       <button type="button" disabled={pending || denied} onClick={() => void send(command)}>Gửi lại cùng yêu cầu bàn giao</button>
       <button type="button" disabled={pending} onClick={() => void inspect()}>Kiểm tra trạng thái đơn</button>
       {observed && <p>Trạng thái hiện tại: {orderStatus[observed.status]}{observed.fulfilledAt && ` · Bàn giao lúc ${orderDate(observed.fulfilledAt)} · Nhân viên ${observed.fulfilledBy}`}. Vẫn giữ khóa để đối chiếu kết quả yêu cầu.</p>}
-    </> : order.channel === 'WEBSITE' && order.permittedActions.fulfill && !expired && !denied && <>
+    </> : order.permittedActions.fulfill && !expired && !denied && <>
       <p>Đối chiếu mã đơn, người nhận/liên hệ, chứng từ và đủ sản phẩm thực tế. Bàn giao toàn bộ đơn trong một lần.</p>
       <label><input type="checkbox" checked={checked} disabled={pending} onChange={event => setChecked(event.target.checked)} />Tôi đã đối chiếu người nhận, chứng từ thu hợp lệ và bàn giao đủ sản phẩm thực tế</label>
       <button type="button" disabled={!checked || pending} onClick={() => { if (checked && !busy.current) void send({ key: crypto.randomUUID(), version: order.version }); }}>Xác nhận đã bàn giao</button>

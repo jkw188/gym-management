@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { paymentsApi, type PaymentReview, type PaymentReviewInput, type SettlementResult, type TransactionItem } from './payments.api';
+import { useEffect, useRef, useState } from 'react';
+import { paymentsApi, type PaymentReview, type PaymentReviewInput, type PaymentSettlementResult, type TransactionItem } from './payments.api';
 import { money, paymentError, timestamp } from './payments-format';
 import { PaymentConfirmation } from './PaymentConfirmation';
 
@@ -13,11 +13,11 @@ const reasons: Record<string, string> = {
   CURRENT_SERVICE_EXISTS: 'Hội viên đang có gói cùng loại.', PENDING_SALE_EXISTS: 'Hội viên có giao dịch chờ khác cùng loại.',
 };
 
-export function PaymentReviewForm({ transaction, onSettled, onRefresh }: {
-  transaction: TransactionItem; onSettled?: (result: SettlementResult) => void; onRefresh?: () => void;
+export function PaymentReviewForm({ transaction, onSettled, onRefresh, onLockedChange }: {
+  transaction: TransactionItem; onSettled?: (result: PaymentSettlementResult) => void; onRefresh?: () => void; onLockedChange?: (locked: boolean) => void;
 }) {
   const [method, setMethod] = useState<'CASH' | 'TRANSFER'>('CASH');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState(transaction.kind === 'RETAIL' ? transaction.amountDue : '');
   const [note, setNote] = useState('');
   const [account, setAccount] = useState('');
   const [reference, setReference] = useState('');
@@ -27,6 +27,8 @@ export function PaymentReviewForm({ transaction, onSettled, onRefresh }: {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [confirmLocked, setConfirmLocked] = useState(false);
+  useEffect(() => { onLockedChange?.(pending || confirmLocked); }, [pending, confirmLocked, onLockedChange]);
+  useEffect(() => () => { onLockedChange?.(false); }, [onLockedChange]);
   const busy = useRef(false);
   function invalidate() { setResult(null); setError(''); }
   const input: PaymentReviewInput = { method, amount, evidenceNote: note.trim(), ...(method === 'TRANSFER'
@@ -46,7 +48,7 @@ export function PaymentReviewForm({ transaction, onSettled, onRefresh }: {
     <fieldset disabled={pending || confirmLocked}>
       <label>Phương thức <select value={method} onChange={e => { setMethod(e.target.value as 'CASH' | 'TRANSFER'); setVerified(false); invalidate(); }}>
         <option value="CASH">Tiền mặt</option><option value="TRANSFER">Chuyển khoản</option></select></label>
-      <label>Số tiền đối chiếu (VND) <input required inputMode="numeric" pattern="[0-9]{1,12}" value={amount} onChange={e => { setAmount(e.target.value); invalidate(); }} /></label>
+      <label>Số tiền đối chiếu (VND) <input required readOnly={transaction.kind === 'RETAIL'} inputMode="numeric" pattern="[0-9]{1,12}" value={amount} onChange={e => { setAmount(e.target.value); invalidate(); }} /></label>
       <label>Căn cứ kiểm tra thực tế <textarea required minLength={10} maxLength={500} value={note} onChange={e => { setNote(e.target.value); invalidate(); }} /></label>
       <p>Ghi căn cứ đã đếm tiền hoặc sổ phụ/báo có thực tế. Ảnh chuyển khoản của người mua chưa đủ căn cứ. Không nhập mật khẩu hoặc thông tin đăng nhập.</p>
       {method === 'TRANSFER' && <>

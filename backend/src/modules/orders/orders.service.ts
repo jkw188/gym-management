@@ -60,7 +60,7 @@ export class OrdersService {
     const transaction = await this.repository.transaction(row.transaction_id, session), lines = await this.repository.lines(row._id, session);
     let reason: string | null = null, fulfillReason: string | null = null;
     try { assertOrderIntegrity(row, transaction, lines); await this.repository.assertPaymentIntegrity(transaction, session);
-      reason = prepareBlockedReason(row, transaction, asOf); fulfillReason = fulfillBlockedReason(row, transaction, asOf); }
+      reason = prepareBlockedReason(row, transaction, asOf); fulfillReason = fulfillBlockedReason(row, transaction, asOf, row.channel); }
     catch { reason = 'ORDER_INTEGRITY_ERROR'; fulfillReason = 'ORDER_INTEGRITY_ERROR'; }
     return { id: String(row._id), code: row.code, channel: row.channel, status: row.status, version: row.version,
       memberId: row.member_id ? String(row.member_id) : null, transactionId: String(row.transaction_id), transactionStatus: transaction?.status ?? null,

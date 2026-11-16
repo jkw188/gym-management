@@ -16,8 +16,11 @@ ghi rõ vì chưa có US-41 factory. Chi tiết nằm trong `orders-prepare-cont
 US-45 bổ sung cancel/refund, expiry worker và late-receipt writer, adapter own và UI;
 xem `order-cancellation-contract.md`. Suite riêng kiểm hai worker và race thật
 cancel/fulfill, replay, fault, với snapshot order/reserve/normal payment do US41 chưa có factory.
-Chưa có cart/quote/Order Factory/normal RETAIL settlement của US40/41/53. `SettlementService.confirm` và payment
-preview hiện từ chối RETAIL. Không tạo writer thay thế, mock DB, API người dùng,
+US-53 đã bổ sung quote, POS Order Factory, normal RETAIL settlement và adapter bàn giao POS;
+xem `pos-contract.md`. Suite `pos.integration-spec.ts` dùng writer POS thật qua hai process,
+20 request cùng key, tranh tồn và race thu/hủy/giao. US40/41 cart/checkout WEBSITE vẫn chưa có;
+harness EN-06 dưới đây vẫn chỉ chứng minh các nhóm nền tảng đã khai báo và không tự mở cổng nghiệm thu.
+Không tạo writer thay thế, mock DB, API người dùng,
 quyền, UI hoặc endpoint payout S07 để làm bộ test xanh.
 
 EN-06 bổ sung harness có thể chạy trên nền tảng đã có, cùng oracle và cổng

@@ -10,20 +10,20 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
 
   it('records stable TC IDs and missing production dependencies without skipped/pass placeholders', () => {
     f.blocked('TC01', 'US41', 'No website order/quote/cart writer: cannot race 20 Member checkouts for SKU1.');
-    f.blocked('TC02', 'US41/US53', 'No shared WEBSITE/POS Order Factory or reservation writer.');
+    f.blocked('TC02', 'US41/US53', 'POS writer exists and is covered in pos.integration-spec.ts; WEBSITE factory is absent, so the cross-channel race remains blocked.');
     f.blocked('TC03', 'US40/US41', 'No cart/cartVersion checkout writer.');
-    f.blocked('TC06', 'US41', 'Catalog writer exists; quote/create consumer missing.');
-    f.blocked('TC10', 'US41', 'US45 cancel/refund is implemented; real normal retail settlement/create writer is still missing for the payment race.');
+    f.blocked('TC06', 'US41', 'POS quote/create is covered in pos.integration-spec.ts; this harness still lacks WEBSITE checkout.');
+    f.blocked('TC10', 'US41', 'POS normal settlement/cancel race is covered in pos.integration-spec.ts; this harness still lacks WEBSITE checkout setup.');
     f.blocked('TC11', 'US41', 'Real cancel/fulfill race is tested in order-cancellation.integration-spec.ts with persisted order/reservation fixtures; this end-to-end harness still lacks US41 factory.');
-    f.blocked('TC12', 'US41', 'Two real expiry workers are tested in the US45 suite; end-to-end paid/unpaid creation and retail settlement remain unavailable.');
-    f.blocked('TC13', 'US41', 'US43/US44 suites verify prepare/fulfill deadline boundaries and lock-time clock; retail normal payment writer and end-to-end create fixtures are still missing.');
+    f.blocked('TC12', 'US41', 'Two expiry workers are tested in US45; POS creation/payment/expiry is covered in US53; WEBSITE setup remains unavailable here.');
+    f.blocked('TC13', 'US41', 'US43/44 verify prepare/fulfill deadlines; US53 verifies real POS payment deadline; WEBSITE checkout remains missing here.');
     f.blocked('TC14', 'US41', 'US45 covers real expiry catch-up/restart/batch50 with persisted orders; full factory-generated backlog remains unavailable.');
     f.blocked('TC15', 'US41', 'Real late receipt/refund obligation is covered by the US45 suite; this harness still needs US41-created cancelled orders.');
     f.blocked('TC16', 'US41', 'US45 covers mismatch/extra receipts and unique references; end-to-end checkout/payment setup is still missing.');
   });
 
   it('TC04 foundation: 20 receipt replays and transport loss preserve original IDs', async () => f.partial('TC04', 'US41/US53',
-    'Receipt idempotency verified; order/reserve/cart clear replay unavailable.', async round => {
+    'Receipt idempotency verified here; POS replay covered in US53; WEBSITE cart clear/replay remains unavailable.', async round => {
       const products = await f.catalog(), receipt = await f.receipt(products), key = f.key();
       const outcomes = await f.race(Array.from({ length: 20 }, (_, index) => f.postReceipt(String(receipt.id), index % 2, key)), round);
       await f.apps[0].arm('response');
@@ -34,7 +34,7 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     }));
 
   it('TC05 foundation: same key with changed version/target conflicts', async () => f.partial('TC05', 'US41/US53',
-    'Existing operation fingerprint checked; retail quote/channel fingerprint unavailable.', async round => {
+    'Existing operation fingerprint checked here; POS quote fingerprint covered in US53; WEBSITE channel race remains unavailable.', async round => {
       const products = await f.catalog(), a = await f.receipt(products), b = await f.receipt(products), key = f.key();
       const calls = Array.from({ length: 20 }, (_, index) => f.postReceipt(String(index % 2 ? a.id : b.id), index % 2, key));
       const outcomes = await f.race(calls, round); codes(outcomes);
@@ -48,7 +48,7 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     }));
 
   it('TC07 foundation: POSTED receipts race through shared inventory lock with readers', async () => f.partial('TC07', 'US41/US53',
-    'Real receipt/reader/ledger race; S06 reservation side missing.', async round => {
+    'Real receipt/reader/ledger race here; POS reservations covered in US53; WEBSITE reservation setup missing.', async round => {
       const products = await f.catalog(), a = await f.receipt(products, 1), b = await f.receipt(products, 2);
       const draft = await f.checkpoint('draft_receipts_do_not_add_stock');
       expect(draft.inventory.every(row => row.onHand === 0 && row.version === 0)).toBe(true);
@@ -65,7 +65,7 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     }));
 
   it('TC08 foundation: two transactions compete for one bank reference', async () => f.partial('TC08', 'US41',
-    'GYM/PT successful payment uniqueness verified; retail dispatch absent.', async round => {
+    'GYM/PT payment uniqueness verified here; RETAIL dispatch exists and POS uniqueness is covered in US53; WEBSITE setup missing.', async round => {
       const a = await f.sale('GYM', '300000', 0), b = await f.sale('PT', '300000', 1);
       const reference = `FIXTURE:${process.env.EN04_RUN_ID}:${round}`;
       const calls = Array.from({ length: 20 }, (_, index) => f.confirm(index % 2 ? a.transactionId : b.transactionId, index % 2, f.key(), reference));
@@ -90,7 +90,7 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     }));
 
   it('TC17 foundation: free GYM/PT invoice has no zero payment', async () => f.partial('TC17', 'US41/US53',
-    'Existing zero GYM/PT handler verified; free WEBSITE/POS HELD orders missing.', async () => {
+    'Zero GYM/PT handler verified here; free POS HELD orders covered in US53; free WEBSITE checkout missing.', async () => {
       for (const [index, kind] of (['GYM', 'PT'] as const).entries()) {
         const sale = await f.sale(kind, '0', index);
         const call = f.confirm(sale.transactionId, index);
@@ -152,7 +152,7 @@ describe('EN-06 / two processes / real MongoDB / available foundation only', () 
     }));
 
   it('TC20 foundation: GYM/PT terms and invoice buyer snapshots survive later edits', async () => f.partial('TC20', 'US40/US41/US53',
-    'Real GYM/PT snapshot regression; retail snapshots and POS cart invariance await order/cart writers.', async round => {
+    'GYM/PT snapshots verified here; POS snapshots/cart preservation covered in US53; WEBSITE cart writer remains missing.', async round => {
       const sale = await f.sale(round % 2 ? 'PT' : 'GYM');
       const terms = await f.send({ app: 1, actor: f.admin, path: `/admin/plans/${sale.planId}`, method: 'PATCH',
         body: { version: 0, name: 'EN06 changed', price: '999999', benefits: 'Changed terms', status: 'INACTIVE' } }); ok(terms);

@@ -36,6 +36,7 @@ import { InventoryPage } from './features/inventory/InventoryPage';
 import { OrdersPage } from './features/orders/OrdersPage';
 import { MyOrdersPage } from './features/orders/MyOrdersPage';
 import { RefundsPage } from './features/refunds/RefundsPage';
+import { PosPage } from './features/pos/PosPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
@@ -71,6 +72,8 @@ export default function App() {
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/transactions" element={<TransactionsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/transactions" element={<TransactionsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/orders" element={<OrdersPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/pos" element={<PosPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/pos" element={<PosPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/orders" element={<OrdersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/refunds" element={<RefundsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/refunds" element={<RefundsPage />} /></Route>

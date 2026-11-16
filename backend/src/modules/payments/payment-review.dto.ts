@@ -7,8 +7,7 @@ import { PaymentMethod } from './schemas/payment.schema';
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value;
 
 export class TransactionQueryDto extends MeListQueryDto {
-  // RETAIL is recognized here so the service can return the specified UNSUPPORTED_KIND code.
-  @ApiPropertyOptional({ enum: ['GYM', 'PT'] })
+  @ApiPropertyOptional({ enum: ['GYM', 'PT', 'RETAIL'] })
   @IsOptional() @IsIn(['GYM', 'PT', 'RETAIL']) kind?: 'GYM' | 'PT' | 'RETAIL';
 
   @ApiPropertyOptional({ enum: ['PENDING', 'SETTLED', 'CANCELLED'] })

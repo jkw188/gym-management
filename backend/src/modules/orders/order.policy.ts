@@ -14,7 +14,7 @@ export function assertOrderIntegrity(order: Order, transaction: Transaction | nu
       String(transaction.member_id ?? '') !== String(order.member_id ?? '') || order.channel === 'WEBSITE' && !order.member_id ||
       !order.id?.equals(order._id) || order.code !== `ORD-${order._id}` ||
       !Number.isSafeInteger(order.version) || order.version < 0 || order.version > 2147483647 ||
-      !order.recipient_name?.trim() || !order.recipient_phone?.trim() || !order.pickup_location_snapshot?.trim() ||
+      !order.recipient_name?.trim() || typeof order.recipient_phone !== 'string' || order.channel === 'WEBSITE' && !order.recipient_phone.trim() || !order.pickup_location_snapshot?.trim() ||
       !Number.isFinite(order.created_at?.getTime()) || !Number.isFinite(order.reservation_expires_at?.getTime()) ||
       order.reservation_expires_at.getTime() !== order.created_at.getTime() + 86400000 ||
       items.length < 1 || items.length > 100 || new Set(items.map(item => String(item.product_id))).size !== items.length) throw orderIntegrityError();

@@ -2,7 +2,7 @@ import { apiClient } from '../../api/client';
 
 export type TransactionStatus = 'PENDING' | 'SETTLED' | 'CANCELLED';
 export interface TransactionItem {
-  id: string; code: string; kind: 'GYM' | 'PT'; amountDue: string; status: TransactionStatus;
+  id: string; code: string; kind: 'GYM' | 'PT' | 'RETAIL'; amountDue: string; status: TransactionStatus;
   createdAt: string; version: number; memberId?: string;
   member: { id: string; memberCode: string; fullName: string; phone: string } | null;
 }
@@ -29,13 +29,22 @@ export interface PaymentReview {
 }
 export interface SettlementResult {
   transactionId: string; transactionCode: string; status: 'SETTLED'; paymentId: string; invoiceId: string; invoiceNo: string;
+  kind?: undefined;
   saleId: string; membershipId: string; startDate: string; endDate: string; notificationState: 'STORED' | 'NO_LINKED_ACCOUNT';
 }
+export interface RetailSettlementResult {
+  kind: 'RETAIL'; transactionId: string; transactionCode: string; status: 'SETTLED'; paymentId: string; invoiceId: string; invoiceNo: string;
+  orderId: string; orderCode: string; notificationState: 'STORED' | 'NO_LINKED_ACCOUNT';
+}
+export type PaymentSettlementResult = SettlementResult | RetailSettlementResult;
 export interface InvoiceDetail {
   id: string; invoiceNo: string; issuedAt: string; totalAmount: string; buyerSnapshot: string; transactionId: string; transactionCode: string;
   serviceLine: { saleId: string; planId: string; kind: 'GYM' | 'PT'; planName: string; benefits: string; policySnapshot: string;
     listPrice: string; creditAmount: string; sessions: number; startDate: string; endDate: string } | null;
   payment?: { id: string; method: string; reference: string; amount: string; paidAt?: string; verifiedAt?: string };
+  orderCode?: string; orderStatus?: string;
+  retailLines?: { productId: string; sku: string; name: string; quantity: number; unitPrice: string; lineTotal: string }[];
+  refunds?: { id: string; status: string; amount: string }[];
 }
 
 export const paymentsApi = {
@@ -49,11 +58,11 @@ export const paymentsApi = {
     return apiClient.request<PaymentReview>(`/transactions/${id}/payment-preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
   },
   confirm(id: string, input: PaymentReviewInput, key: string) {
-    return apiClient.request<SettlementResult>(`/transactions/${id}/confirm-payment`, { method: 'POST',
+    return apiClient.request<PaymentSettlementResult>(`/transactions/${id}/confirm-payment`, { method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key }, body: JSON.stringify(input) });
   },
   operation(key: string) {
-    return apiClient.request<{ status: 'COMMITTED'; responseStatus: number; responseBody: SettlementResult }>(`/operations/PAYMENT_CONFIRM/${key}`);
+    return apiClient.request<{ status: 'COMMITTED'; responseStatus: number; responseBody: PaymentSettlementResult }>(`/operations/PAYMENT_CONFIRM/${key}`);
   },
   invoice(id: string) { return apiClient.request<InvoiceDetail>(`/invoices/${id}`); },
 };

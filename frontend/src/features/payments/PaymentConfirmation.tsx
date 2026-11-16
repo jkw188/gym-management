@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError, apiClient } from '../../api/client';
-import { paymentsApi, type PaymentReviewInput, type SettlementResult } from './payments.api';
+import { paymentsApi, type PaymentReviewInput, type PaymentSettlementResult } from './payments.api';
 import { money, paymentError, timestamp } from './payments-format';
 import { InvoiceDetails, SettlementSummary } from './InvoiceDetails';
 
@@ -20,7 +20,7 @@ function recover(storageKey: string): PaymentCommand | null {
 
 export function PaymentConfirmation({ transactionId, input, onLockedChange, onSettled, onRejected }: {
   transactionId: string; input: PaymentReviewInput | null; onLockedChange: (locked: boolean) => void;
-  onSettled?: (result: SettlementResult) => void; onRejected: (code?: string) => void;
+  onSettled?: (result: PaymentSettlementResult) => void; onRejected: (code?: string) => void;
 }) {
   const storageKey = `payment-confirm:${apiClient.getSnapshot().user?.id ?? 'session'}:${transactionId}`;
   const [command, setCommand] = useState<PaymentCommand | null>(() => recover(storageKey));
@@ -29,7 +29,7 @@ export function PaymentConfirmation({ transactionId, input, onLockedChange, onSe
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [observedInvoiceId, setObservedInvoiceId] = useState('');
-  const [result, setResult] = useState<SettlementResult | null>(null);
+  const [result, setResult] = useState<PaymentSettlementResult | null>(null);
   const sending = useRef(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -47,7 +47,7 @@ export function PaymentConfirmation({ transactionId, input, onLockedChange, onSe
       if (value && mounted.current) setNotice('Trình duyệt không lưu được yêu cầu. Giữ trang này mở để tra cứu hoặc gửi lại với cùng khóa.');
     }
   }
-  function complete(value: SettlementResult) {
+  function complete(value: PaymentSettlementResult) {
     if (value.transactionId !== transactionId || value.status !== 'SETTLED') throw new ApiError('Kết quả không khớp giao dịch. Giữ nguyên yêu cầu để đối chiếu.');
     keep(null);
     if (mounted.current) { setResult(value); setError(''); onSettled?.(value); }
