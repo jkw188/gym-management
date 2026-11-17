@@ -24,6 +24,14 @@ export interface MeMembershipDto {
   timeState: TimeState;
   sessionsReserved: number;
   sessionsAvailable: number;
+  // US-19-TC12: kỳ đuôi còn gia hạn được thì có dữ liệu cho nút "Gia hạn", ngược lại null.
+  renewal: MeRenewalOption | null;
+}
+
+// US-19 bước 3: kỳ nguồn và version gói hiện hành để giao diện gửi preview gia hạn.
+export interface MeRenewalOption {
+  previousSaleId: string;
+  planVersion: number;
 }
 
 // Phần service tính cho một kỳ gói; mapper chỉ chép sang MeMembershipDto, không tự tính.
@@ -32,6 +40,7 @@ export interface MeMembershipState {
   timeState: TimeState;
   sessionsReserved: number;
   sessionsAvailable: number;
+  renewal: MeRenewalOption | null; // US-19-TC12: RenewalService quyết định
 }
 
 // Một lần mua gói của Member; status lấy từ transaction của sale.

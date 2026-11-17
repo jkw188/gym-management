@@ -1,4 +1,4 @@
-// Tầng nghiệp vụ (US-17 bước 1–2): Member xem gói, lần mua, giao dịch, chứng từ của CHÍNH mình; tính timeState và quota PT.
+// Tầng nghiệp vụ (US-17 bước 1–2, US-19 bước 3): Member xem gói, lần mua, giao dịch, chứng từ của CHÍNH mình; tính timeState và quota PT.
 // Chủ thể luôn lấy từ account đang đăng nhập qua MemberOwnerReader (US-17-F01); chỉ đọc, không ghi gì (US-17-F05).
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
@@ -8,8 +8,10 @@ import { MemberOwnerReader } from '../members/member-owner.reader';
 import { toMeInvoice, toMeMembership, toMeServiceSale, toMeTransaction } from './me-memberships.mapper';
 import { MeMembershipsRepository, SaleFilter } from './me-memberships.repository';
 import {
-  MeInvoiceDto, MeListPage, MeListQuery, MeMembershipDto, MeMembershipsQuery, MeServiceSaleDto, MeTransactionDto, TimeState,
+  MeInvoiceDto, MeListPage, MeListQuery, MeMembershipDto, MeMembershipsQuery, MeRenewalOption, MeServiceSaleDto, MeTransactionDto,
+  TimeState,
 } from './me-memberships.types';
+import { RenewalService } from '../sales/renewal.service';
 import { Membership } from './schemas/membership.schema';
 import { ServiceSale } from './schemas/service-sale.schema';
 import { Transaction } from '../payments/schemas/transaction.schema';
@@ -36,7 +38,7 @@ const notFound = (what: string) => new ApplicationError(404, 'NOT_FOUND', `Khôn
 @Injectable()
 export class MeMembershipsService {
   constructor(private readonly owners: MemberOwnerReader, private readonly repository: MeMembershipsRepository,
-    private readonly clock: ServerClock) {}
+    private readonly clock: ServerClock, private readonly renewals: RenewalService) {}
 
   // US-17-TC01, US-17-TC03: danh sách kỳ gói của member; chưa link thì memberLinked=false, items rỗng.
   // Spec mục 2: lọc kind/storedStatus/timeState ngay trong DB, không tải hết rồi lọc.
@@ -81,7 +83,10 @@ export class MeMembershipsService {
     const transactions = await this.repository.findOwnTransactionsByIds(memberId, pairs.map(pair => pair.sale.transaction_id));
     // US-17-F03: chỉ buổi BOOKED mới giữ chỗ (COMPLETED đã nằm trong sessions_used, CANCELLED trả lại buổi).
     const booked = await this.repository.countBookingsByStatus(pairs.map(pair => pair.membership._id), 'BOOKED');
-    return pairs.map(({ membership, sale }) => {
+    // US-19-TC12: kỳ nào hiện nút "Gia hạn" do RenewalService (US-15) quyết định, không viết lại luật nguồn ở đây.
+    const renewals: (MeRenewalOption | null)[] = [];
+    for (const { sale } of pairs) renewals.push(await this.renewals.renewalOption(memberId, sale._id));
+    return pairs.map(({ membership, sale }, index) => {
       const transaction = transactions.find(item => item._id.equals(sale.transaction_id));
       const reserved = booked.get(membership._id.toHexString()) ?? 0;
       return toMeMembership(membership, sale, {
@@ -89,6 +94,7 @@ export class MeMembershipsService {
         timeState: timeStateOf(sale.start_date, sale.end_date, today),
         sessionsReserved: reserved,
         sessionsAvailable: availableSessions(Number(sale.sessions_snapshot), Number(membership.sessions_used), reserved),
+        renewal: renewals[index],
       });
     });
   }

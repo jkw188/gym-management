@@ -33,12 +33,9 @@ export class RenewalService {
   private async source(memberId: Types.ObjectId, previousSaleId: Types.ObjectId, session: ClientSession) {
     const source = await this.renewals.source(memberId, previousSaleId, session);
     if (!source) throw new ApplicationError(404, 'SALE_NOT_FOUND', 'Không tìm thấy kỳ gói của hội viên');
-    const { sale, transaction, membership } = source;
-    if (!transaction || transaction.status !== 'SETTLED' || !membership || membership.status !== 'ACTIVE' ||
-      !['GYM', 'PT'].includes(transaction.kind) || (sale.kind_snapshot && sale.kind_snapshot !== transaction.kind)) {
-      throw conflict('SOURCE_NOT_ELIGIBLE', 'Kỳ nguồn chưa được cấp hoặc không còn đủ điều kiện gia hạn');
-    }
-    const kind = transaction.kind as 'GYM' | 'PT';
+    const { sale } = source;
+    const kind = eligibleSourceKind(source);
+    if (!kind) throw conflict('SOURCE_NOT_ELIGIBLE', 'Kỳ nguồn chưa được cấp hoặc không còn đủ điều kiện gia hạn');
     if (!await this.renewals.isLatest(memberId, kind, previousSaleId, session)) {
       throw conflict('SOURCE_NOT_LATEST', 'Kỳ nguồn không còn là kỳ mới nhất. Hãy tải lại và xác nhận lựa chọn');
     }
@@ -57,6 +54,19 @@ export class RenewalService {
     const endDate = membershipEndDate(startDate, plan.duration_days);
     const blockingCode = await this.renewals.pending(memberId, source.kind, session) ? 'PENDING_SALE_EXISTS' : undefined;
     return { ...source, plan, startDate, endDate, blockingCode };
+  }
+
+  // US-19-TC12: trang "Gói của tôi" hỏi kỳ này có hiện nút "Gia hạn" không. Dùng CÙNG điều kiện nguồn với preview/create
+  // (SETTLED, membership ACTIVE, kỳ đuôi); gói ngừng bán hoặc đang có yêu cầu chờ vẫn hiện nút để preview báo lý do.
+  // planVersion là version HIỆN HÀNH của gói, để preview không bị PLAN_CHANGED khi gói đã đổi sau lúc mua.
+  async renewalOption(memberId: Types.ObjectId, saleId: Types.ObjectId): Promise<RenewalOption | null> {
+    const source = await this.renewals.source(memberId, saleId);
+    if (!source) return null;
+    const kind = eligibleSourceKind(source);
+    if (!kind || !await this.renewals.isLatest(memberId, kind, saleId)) return null;
+    const plan = await this.plans.findById(source.sale.plan_id.toHexString());
+    if (!plan) return null;
+    return { previousSaleId: saleId.toHexString(), planVersion: plan.version };
   }
 
   preview(dto: RenewalDto) {
@@ -140,6 +150,19 @@ function idOf(value: string) {
   if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) throw new ApplicationError(400, 'VALIDATION_ERROR', 'ID phải là ObjectId hợp lệ');
   return new Types.ObjectId(value);
 }
+// Dữ liệu cho nút "Gia hạn" (US-19-TC12): kỳ nguồn và version gói hiện hành để gửi preview.
+export interface RenewalOption { previousSaleId: string; planVersion: number }
+
+// Điều kiện nguồn chung của US-15: giao dịch SETTLED, membership ACTIVE, loại GYM/PT khớp snapshot.
+// Trả về loại gói nếu đạt, null nếu không. preview/create và renewalOption cùng gọi hàm này.
+type RenewalSource = NonNullable<Awaited<ReturnType<RenewalsRepository['source']>>>;
+function eligibleSourceKind({ sale, transaction, membership }: RenewalSource): 'GYM' | 'PT' | null {
+  if (!transaction || transaction.status !== 'SETTLED' || !membership || membership.status !== 'ACTIVE') return null;
+  if (transaction.kind !== 'GYM' && transaction.kind !== 'PT') return null;
+  if (sale.kind_snapshot && sale.kind_snapshot !== transaction.kind) return null;
+  return transaction.kind;
+}
+
 function renewalStart(sourceEnd: string, today: string) { return sourceEnd >= today ? addCalendarDays(sourceEnd, 1) : today; }
 function conflict(code: string, message: string) { return new ApplicationError(409, code, message); }
 function policyRule(snapshot: string): unknown {
