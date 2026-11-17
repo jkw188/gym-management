@@ -1,4 +1,5 @@
 import { StockIssuesPage } from './features/stock/StockIssuesPage';
+import { StockAdjustmentsPage } from './features/stock/StockAdjustmentsPage';
 // Tầng giao diện – khung chung: thanh menu, banner, vùng nội dung <main>, chân trang và khai báo mọi route.
 import { FoundationStatus } from './features/foundation/FoundationStatus';
 import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
@@ -86,6 +87,7 @@ export default function App() {
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/orders" element={<MyOrdersPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/stock-receipts" element={<StockReceiptsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /><Route path="/admin/stock-issues" element={<StockIssuesPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-adjustments" element={<StockAdjustmentsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/inventory" element={<InventoryPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/inventory" element={<InventoryPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>

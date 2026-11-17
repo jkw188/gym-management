@@ -21,7 +21,7 @@ export class InventoryWriter {
   constructor(@InjectConnection() private readonly connection: Connection, @InjectModel('StockMovement') private readonly movements: Model<StockMovement>) {}
 
   // S05-I01: take real Int64 write locks in productId order, before reading balances or taking document CAS.
-  async lock(productIds: string[], session: ClientSession): Promise<Map<string, LockedBalance>> {
+  async lock(productIds: string[], session: ClientSession, allowExhaustedVersion = false): Promise<Map<string, LockedBalance>> {
     if (!session.inTransaction()) throw new Error('INVENTORY_TRANSACTION_REQUIRED');
     const inventory = this.connection.db!.collection<LockedBalance & { guard_revision: Long }>('inventory');
     const balances = new Map<string, LockedBalance>();
@@ -32,7 +32,7 @@ export class InventoryWriter {
       if (result.modifiedCount !== 1) throw inventoryIntegrityError();
       const balance = await inventory.findOne({ product_id: new ObjectId(id) }, { session });
       if (!validBalance(balance)) throw inventoryIntegrityError();
-      if (balance!.version === STOCK_MAX) throw stockLimitError();
+      if (balance!.version === STOCK_MAX && !allowExhaustedVersion) throw stockLimitError();
       if ((await inspectInventoryLedger(this.connection.db!, balance!, session)).length) throw inventoryIntegrityError();
       balances.set(id, balance!);
     }

@@ -18,7 +18,7 @@ import { StockDocument, StockDocumentItem } from './stock.schema';
 const idOf = (id: string) => new Types.ObjectId(validateObjectId(id));
 const missing = () => new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy chứng từ kho');
 const conflict = () => new ApplicationError(409, 'VERSION_CONFLICT', 'Phiếu đã thay đổi. Hãy tải lại trước khi tiếp tục');
-function header(row: StockDocument) {
+export function stockDocumentHeader(row: StockDocument) {
   return { id: String(row._id), code: row.code, status: row.status, version: row.version, reason: row.reason,
     sourceReference: row.source_reference ?? null, totalCost: fromVndDecimal(row.total_cost), createdBy: String(row.created_by), updatedBy: String(row.updated_by),
     createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(), postedAt: row.posted_at?.toISOString() ?? null, postedBy: row.posted_by ? String(row.posted_by) : null };
@@ -42,7 +42,7 @@ export abstract class StockDocumentsService {
     if (query.q) filter.$or = [{ code: literalStockQuery(query.q) }, { source_reference: literalStockQuery(query.q) }];
     return this.transactions.run(async session => {
       const page = await this.repository.page(filter, query.page, query.limit, session);
-      return { ...page, items: page.items.map(header) };
+      return { ...page, items: page.items.map(stockDocumentHeader) };
     });
   }
   async detail(id: string) {
@@ -69,7 +69,7 @@ export abstract class StockDocumentsService {
       skuSnapshot: movement.sku_snapshot, nameSnapshot: movement.name_snapshot, onHandDelta: movement.on_hand_delta, reservedDelta: movement.reserved_delta,
       beforeOnHand: movement.before_on_hand, beforeReserved: movement.before_reserved, afterOnHand: movement.after_on_hand, afterReserved: movement.after_reserved,
       createdAt: movement.created_at.toISOString(), sourceId: String(row._id), sourceCode: row.code }));
-    return { ...header(row), items, movementIds: movements.map(movement => movement.id), movements };
+    return { ...stockDocumentHeader(row), items, movementIds: movements.map(movement => movement.id), movements };
   }
   async save(actorId: string, input: CreateReceiptDto | UpdateReceiptDto, key: string, id?: string) {
     const target = id ? idOf(id) : undefined;
