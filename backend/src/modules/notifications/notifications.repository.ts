@@ -8,6 +8,7 @@ import { ReadState } from './notifications.types';
 import { NotificationCounter } from './schemas/notification-counter.schema';
 import { NotificationOutbox } from './schemas/notification-outbox.schema';
 import { NotificationRecipient } from './schemas/notification-recipient.schema';
+import { NotificationBroadcast } from './schemas/notification-broadcast.schema';
 import { Notification } from './schemas/notification.schema';
 
 export interface NewNotification {
@@ -20,6 +21,7 @@ const GLOBAL_COUNTER_ID = 'global';
 @Injectable()
 export class NotificationsRepository implements OnModuleInit {
   constructor(
+    @InjectModel('NotificationBroadcast') private readonly broadcasts: Model<NotificationBroadcast>,
     @InjectModel('Notification') private readonly notifications: Model<Notification>,
     @InjectModel('NotificationRecipient') private readonly recipients: Model<NotificationRecipient>,
     @InjectModel('NotificationOutbox') private readonly outbox: Model<NotificationOutbox>,
@@ -29,7 +31,7 @@ export class NotificationsRepository implements OnModuleInit {
 
   // Tạo index và counter TRƯỚC khi nhận ghi (EN-03 bước 1). Dev/test tự tạo index; production chỉ kiểm tra.
   async onModuleInit(): Promise<void> {
-    const models: Model<any>[] = [this.notifications, this.recipients, this.outbox];
+    const models: Model<any>[] = [this.notifications, this.recipients, this.outbox, this.broadcasts];
     for (const model of models) {
       if (this.config.get('nodeEnv') !== 'production') await model.createIndexes();
       const actual = await model.collection.listIndexes().toArray();

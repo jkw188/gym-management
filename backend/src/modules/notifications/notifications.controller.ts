@@ -1,5 +1,5 @@
 // Tầng API (EN-03 bước 3): GET /api/notifications/sync cho người nhận đồng bộ thông báo sau khi mất kết nối socket.
-// Biết ai gọi qua JwtAuthGuard toàn cục; chỉ role người nhận (MEMBER, TRAINER từ US-28) được gọi; luật nằm ở NotificationsService.
+// US-48: bốn vai trò dùng sync; chỉ trả notification có recipient của principal. Inbox riêng vẫn chỉ MEMBER.
 import { Controller, Get, Query } from '@nestjs/common';
 import { CurrentUser, Roles } from '../auth/auth.decorators';
 import { AuthPrincipal } from '../auth/auth.types';

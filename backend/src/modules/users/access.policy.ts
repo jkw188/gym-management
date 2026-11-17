@@ -5,6 +5,7 @@ import { RoleCode } from './schemas/role.schema';
 // Fixed module policy: decorators and the explanatory DB catalog use this same source.
 // Other modules add their permissions only with their own requirements and tests.
 export const ACCESS_POLICY = {
+  'notifications.broadcast': { name: 'Xem trước và gửi thông báo nhóm', roles: ['ADMIN'] },
   'returns.manage': { name: 'Tiếp nhận và đối soát hàng trả', roles: ['STAFF', 'ADMIN'] },
   'refunds.confirmPayout': { name: 'Xác minh thực chi hoàn tiền', roles: ['STAFF', 'ADMIN'] },
   'pos.create': { name: 'Lập đơn bán sản phẩm tại quầy', roles: ['STAFF', 'ADMIN'] },

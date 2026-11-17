@@ -18,6 +18,7 @@ const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
 const { ensurePasswordResetRevisions } = require('../dist/modules/auth/password-reset-migration');
 const { OperationRequestSchema } = require('../dist/modules/operations/schemas/operation-request.schema');
+const { NotificationBroadcastSchema } = require('../dist/modules/notifications/schemas/notification-broadcast.schema');
 const { NotificationSchema } = require('../dist/modules/notifications/schemas/notification.schema');
 const { NotificationRecipientSchema } = require('../dist/modules/notifications/schemas/notification-recipient.schema');
 const { NotificationOutboxSchema } = require('../dist/modules/notifications/schemas/notification-outbox.schema');
@@ -108,6 +109,8 @@ async function run() {
       await Promise.all([account.createIndexes(), role.createIndexes(), members.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),
         passwordReset.createIndexes(), operationRequest.createIndexes()]);
       // EN-03 bước 1: index notifications/recipients/outbox và counter sequence phải có trước khi nhận ghi.
+      const broadcast = connection.model('NotificationBroadcast', NotificationBroadcastSchema);
+      await broadcast.createIndexes();
       const notification = connection.model('Notification', NotificationSchema);
       const recipient = connection.model('NotificationRecipient', NotificationRecipientSchema);
       const outbox = connection.model('NotificationOutbox', NotificationOutboxSchema);
