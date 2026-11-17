@@ -9,6 +9,7 @@ export interface StockDocument {
 export interface StockDocumentItem {
   _id: Types.ObjectId; id: Types.ObjectId; document_id: Types.ObjectId; product_id: Types.ObjectId;
   quantity_delta: number; unit_cost: Types.Decimal128; line_total_cost: Types.Decimal128; sku_snapshot: string; name_snapshot: string;
+  counted_quantity?: number; base_on_hand?: number; base_inventory_version?: number; counted_at?: Date;
 }
 export interface StockMovement {
   _id: Types.ObjectId; product_id: Types.ObjectId; document_item_id?: Types.ObjectId; order_item_id?: Types.ObjectId; return_item_id?: Types.ObjectId;
@@ -41,7 +42,19 @@ StockDocumentSchema.index({ kind: 1, created_at: -1, _id: -1 }, { name: 'stock_d
 export const StockDocumentItemSchema = new Schema<StockDocumentItem>({
   id: identity, document_id: objectId, product_id: objectId, quantity_delta: signed, unit_cost: money, line_total_cost: money,
   sku_snapshot: { type: String, required: true }, name_snapshot: { type: String, required: true },
+  counted_quantity: { ...unsigned, required: false }, base_on_hand: { ...unsigned, required: false },
+  base_inventory_version: { ...unsigned, required: false }, counted_at: Date,
 }, { ...options, collection: 'stock_document_items' });
+// Receipt/issue lines do not have a count snapshot. An adjustment snapshot is all-or-nothing.
+StockDocumentItemSchema.pre('validate', function () {
+  const fields = [this.counted_quantity, this.base_on_hand, this.base_inventory_version, this.counted_at];
+  if (fields.some(value => value !== undefined) && (![this.counted_quantity, this.base_on_hand, this.base_inventory_version].every(value =>
+    typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 2147483647) ||
+    !(this.counted_at instanceof Date) || !Number.isFinite(this.counted_at.getTime()) ||
+    this.quantity_delta !== this.counted_quantity! - this.base_on_hand!)) {
+    this.invalidate('counted_quantity', 'Invalid adjustment count snapshot');
+  }
+});
 StockDocumentItemSchema.index({ document_id: 1, product_id: 1 }, { unique: true, name: 'stock_items_document_product_unique' });
 export const StockMovementSchema = new Schema<StockMovement>({
   product_id: objectId, document_item_id: Schema.Types.ObjectId, order_item_id: Schema.Types.ObjectId, return_item_id: Schema.Types.ObjectId,
