@@ -8,7 +8,7 @@ import { addVnd, fromVndDecimal, toVndDecimal } from '../../common/utils/vnd-mon
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { MembersRepository } from '../members/members.repository';
-import { SaleChannel } from '../memberships/schemas/service-sale.schema';
+import { PreferredPaymentMethod, SaleChannel } from '../memberships/schemas/service-sale.schema';
 import { IdempotencyService, transactionRequestKey } from '../operations/idempotency.service';
 import { PlansReader } from '../plans/plans.reader';
 import { CONVERSION_RULE } from '../plans/schemas/plan-policy.schema';
@@ -107,9 +107,12 @@ export class UpgradeService {
   }
 
   // US-20 supplies its own ownership adapter, then calls this same engine with SELF_SERVICE.
-  create(actorId: string, dto: UpgradeDto, key: string, channel: SaleChannel = 'COUNTER') {
+  // US-20-TC09: Member truyền thêm cách trả dự kiến; quầy không truyền nên giữ nguyên như US-16.
+  // US-20-TC10: cách trả nằm trong payload của khóa → cùng key mà đổi cách trả thì 409 IDEMPOTENCY_CONFLICT.
+  create(actorId: string, dto: UpgradeDto, key: string, channel: SaleChannel = 'COUNTER', preferredPaymentMethod?: PreferredPaymentMethod) {
     const input = this.normalize(dto), actor = objectId(actorId).toHexString();
-    return this.commands.execute({ actorId: actor, operation: 'SALE_UPGRADE', clientKey: key, payload: { ...input, actorId: actor, channel } }, async session => {
+    const payload = { ...input, actorId: actor, channel, preferredPaymentMethod };
+    return this.commands.execute({ actorId: actor, operation: 'SALE_UPGRADE', clientKey: key, payload }, async session => {
       const source = await this.upgrades.source(objectId(input.memberId), objectId(input.sourceMembershipId), session);
       if (!source) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy kỳ gói của hội viên');
       if (!await this.plans.findById(input.targetPlanId, session) || !await this.plans.findById(source.sale.plan_id.toHexString(), session)) throw conflict('POLICY_NOT_ALLOWED', 'Thiếu gói trong chính sách chuyển đổi');
@@ -123,7 +126,7 @@ export class UpgradeService {
         code: `TX-${transactionId.toHexString()}`, kind: terms.source.kind, amount_due: toVndDecimal(q.amountDue), status: 'PENDING',
         request_key: transactionRequestKey(actor, 'SALE_UPGRADE', key), created_at: terms.now, version: 0, guard_revision: 0n }], { session });
       await this.repository.sales.create([{ _id: saleId, id: saleId, transaction_id: transactionId, member_id: input.memberId, plan_id: plan._id,
-        operation: 'UPGRADE', previous_sale_id: terms.source.sale._id, channel, source_membership_id: input.sourceMembershipId,
+        operation: 'UPGRADE', previous_sale_id: terms.source.sale._id, channel, preferred_payment_method: preferredPaymentMethod, source_membership_id: input.sourceMembershipId,
         source_version_snapshot: input.sourceVersion, conversion_policy_id: terms.edge._id, conversion_policy_version_snapshot: terms.edge.version,
         valuation_date: q.asOfDate, quote_expires_at: new Date(q.quoteExpiresAt), raw_credit_snapshot: toVndDecimal(q.rawCredit),
         excess_credit_snapshot: toVndDecimal(q.excessCredit), credit_amount: toVndDecimal(q.appliedCredit), carried_sessions_used_snapshot: q.quotaSummary.used,

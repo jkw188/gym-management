@@ -1,4 +1,4 @@
-// Tầng kiểm tra dữ liệu (US-20 bước 1): body Member gửi lên khi xem trước/tạo đề nghị nâng cấp gói của chính mình.
+// Tầng kiểm tra dữ liệu (US-20 bước 1–2): body Member gửi lên khi xem trước/tạo đề nghị nâng cấp gói của chính mình.
 // US-20-F01: KHÔNG có memberId/credit/amountDue/quota/channel; field lạ bị ValidationPipe (forbidNonWhitelisted) chặn 400.
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsInt, IsMongoId, Max, Min } from 'class-validator';
@@ -11,6 +11,6 @@ export class MeUpgradeDto {
   @ApiProperty() @IsMongoId() targetPlanId!: string;
   @ApiProperty({ minimum: 0 }) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) targetPlanVersion!: number;
   @ApiProperty({ minimum: 0 }) @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) policyVersion!: number;
-  // US-20 mục 2: cách trả dự kiến CASH/TRANSFER. Bước 1 chỉ kiểm định dạng; lưu vào sale thuộc bước 2.
+  // US-20-TC09: cách trả dự kiến CASH/TRANSFER, server lưu vào service_sales.preferred_payment_method.
   @ApiProperty({ enum: PREFERRED_PAYMENT_METHODS }) @IsIn(PREFERRED_PAYMENT_METHODS) preferredPaymentMethod!: PreferredPaymentMethod;
 }
