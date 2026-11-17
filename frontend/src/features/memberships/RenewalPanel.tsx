@@ -63,8 +63,12 @@ export function RenewalPanel({ target, onCreated, onReload }: {
   // US-19-TC09, TC12: key gắn với đúng body đã gửi; body đổi (ví dụ đổi cách trả) thì tạo key mới.
   const pendingKey = useRef<{ payload: string; key: string } | null>(null);
   // Vùng đã đóng (đổi account, tải lại) thì bỏ qua kết quả về muộn.
+  // Gán true khi mount: StrictMode (main.tsx) chạy mount → cleanup → mount lại, nếu chỉ gán false thì ref kẹt ở false.
   const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   // Đổi cách trả thì báo giá cũ không còn đúng → phải xem trước lại.
   function changeMethod(value: PaymentMethod) {
