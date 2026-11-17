@@ -7,6 +7,7 @@ import { InboxDetail, InboxItem, NotificationCreatedPayload, NotificationItem } 
 // Nội dung worker gửi qua socket (EN-03 bước 2, sự kiện notification.created).
 export function toCreatedPayload(notification: Notification): NotificationCreatedPayload {
   return {
+    ...sourceSnapshot(notification),
     id: notification._id.toHexString(),
     eventKey: notification.event_key,
     title: notification.title,
@@ -17,6 +18,7 @@ export function toCreatedPayload(notification: Notification): NotificationCreate
 
 export function toNotificationItem(notification: Notification): NotificationItem {
   return {
+    ...sourceSnapshot(notification),
     id: notification._id.toHexString(),
     eventKey: notification.event_key,
     title: notification.title,
@@ -60,10 +62,17 @@ export function toInboxItem(notification: Notification, recipient: NotificationR
 // US-47-TC01: chi tiết trả body gốc đầy đủ, không trả eventKey, member_id hay người nhận khác.
 export function toInboxDetail(notification: Notification, recipient: NotificationRecipient): InboxDetail {
   return {
+    ...sourceSnapshot(notification),
     id: notification._id.toHexString(),
     title: notification.title,
     body: notification.body,
     createdAt: notification.created_at.toISOString(),
     ...recipientState(recipient),
   };
+}
+
+// US-49: không nhận URL từ body; chỉ trả loại nguồn allowlist và mã nội bộ.
+function sourceSnapshot(notification: Notification): Pick<NotificationItem, 'source'> {
+  if (!['MEMBERSHIP', 'PT_BOOKING'].includes(notification.source_type ?? '') || !notification.source_id || !notification.due_at) return {};
+  return { source: { type: notification.source_type!, id: notification.source_id.toHexString(), dueAt: notification.due_at.toISOString() } };
 }

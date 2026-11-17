@@ -1,6 +1,7 @@
 // Tầng giao diện – gọi API (US-47 bước 3): inbox thông báo của chính member qua ApiClient (tự gắn Bearer token).
 // Chỉ có 3 lệnh đọc (GET) và 1 lệnh ghi là mark-read; không gửi accountId vì server lấy từ phiên đăng nhập.
 import { apiClient } from '../../api/client';
+import type { NotificationSource } from './notifications.types';
 
 export type ReadState = 'ALL' | 'UNREAD' | 'READ';
 
@@ -12,7 +13,7 @@ export interface InboxPage {
   items: InboxItem[]; page: number; limit: number; total: number; totalPages: number; unreadCount: number; asOf: string;
 }
 
-export interface InboxDetail { id: string; title: string; body: string; createdAt: string; readAt?: string; deliveredAt?: string }
+export interface InboxDetail { id: string; title: string; body: string; createdAt: string; readAt?: string; deliveredAt?: string; source?: NotificationSource }
 
 export const inboxApi = {
   list(query: InboxQuery) {

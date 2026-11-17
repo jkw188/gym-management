@@ -5,6 +5,7 @@ import { ApiError } from '../../api/client';
 import { inboxApi, type InboxDetail, type InboxPage, type ReadState } from './inbox.api';
 import { announceInboxChanged, useAccountId, useReloadSignals } from './inbox-signals';
 import { Icon } from '../../components/Icon';
+import { NotificationSourceLink } from './NotificationSourceLink';
 
 const PAGE_SIZE = 20;
 
@@ -133,6 +134,8 @@ export function NotificationsPage() {
       <h3>{selected.title}</h3>
       {/* US-47-F05, TC11: body hiện như chữ thuần; URL trong body không thành link, không tự chuyển trang. */}
       <p className="notification-body">{selected.body}</p>
+      <NotificationSourceLink source={selected.source} role="MEMBER" />
+      {selected.source && <p>Thông báo lưu tại thời điểm nhắc. Xem trang gói/lịch để biết trạng thái hiện tại.</p>}
       <p><small>{new Date(selected.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</small></p>
     </article>}
   </section>;

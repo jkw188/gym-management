@@ -99,6 +99,7 @@ export class NotificationsService {
     const notificationId = await this.repository.insertNotification({
       eventKey: source.eventKey, title: source.title, body: source.body, sequence, createdAt: now,
       memberId: toObjectId(source.memberId), transactionId: toObjectId(source.transactionId), createdBy: toObjectId(source.createdBy),
+      sourceType: source.sourceType, sourceId: toObjectId(source.sourceId), dueAt: source.dueAt,
     }, session);
     await this.repository.insertRecipients(notificationId, accountIds, session);
     await this.repository.insertOutbox(source.eventKey, notificationId, now, session);

@@ -1,5 +1,7 @@
 # Gym Management — EN-01, EN-04 và các nghiệp vụ Sprint 1
 
+US-49 tự nhắc hết hạn gói (3D/1D) và lịch PT (24H/2H) trong ứng dụng, theo giờ Việt Nam; worker catch-up mỗi 60 giây/batch 50, lưu occurrence và EN-03 outbox cùng transaction, chống trùng nhiều instance. Chạy `npm run ensure-indexes` ở backend trước production. Cấu hình tùy chọn `REMINDER_TICK_MS=60000`, `REMINDER_BATCH_SIZE=50`; không thêm dependency. Hợp đồng UC-13/37, Q13, schema/index, OpenAPI và kiểm thử: [docs/reminders-contract.md](docs/reminders-contract.md), [sequence](docs/reminders-sequence.mmd).
+
 US-34 bổ sung danh mục/sản phẩm bán lẻ tại `/admin/categories`, `/admin/products`: ADMIN tạo/sửa/ngừng bán với preview, version, audit, idempotency và khóa S05-C01; tạo product cùng inventory0 trong transaction. Chạy `npm run ensure-indexes` và `npm run seed:access` ở backend trước nhận ghi; migration chặn dữ liệu trùng/mồ côi hoặc thiếu inventory cần đối chiếu, không reset tồn. Hợp đồng UC-35/schema/khóa/phụ thuộc: [docs/retail-catalog-contract.md](docs/retail-catalog-contract.md), [sequence](docs/retail-catalog-sequence.mmd). US-35/40 chưa có API trong source hiện tại.
 
 US-66 bổ sung Admin quản lý lớp miễn phí tại `/admin/classes`: nháp, sửa, công bố, hủy có version/audit/idempotency; bảo vệ trùng lớp/booking bằng S04-G01. Hợp đồng UC-02, API, migration OTHER, taxonomy và kiểm thử: [docs/public-sessions-contract.md](docs/public-sessions-contract.md). Chạy `npm run ensure-indexes` và `npm run seed:access` ở backend trước mở writer trên dữ liệu cũ.

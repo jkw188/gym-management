@@ -13,8 +13,12 @@ export function readConfiguration(env: NodeJS.ProcessEnv) {
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== frontendOrigin) throw new Error();
   } catch { invalid.push('FRONTEND_ORIGIN'); }
   const { mongoUri, mongoDb } = checkMongoVariables(env, nodeEnv, invalid);
+  const reminderTickMs = Number(env.REMINDER_TICK_MS ?? '60000');
+  const reminderBatchSize = Number(env.REMINDER_BATCH_SIZE ?? '50');
+  if (!Number.isInteger(reminderTickMs) || reminderTickMs < 1000 || reminderTickMs > 60000) invalid.push('REMINDER_TICK_MS');
+  if (!Number.isInteger(reminderBatchSize) || reminderBatchSize < 1 || reminderBatchSize > 50) invalid.push('REMINDER_BATCH_SIZE');
   if (invalid.length) throw new ConfigurationError(`Invalid environment variables: ${invalid.join(', ')}`);
-  return { nodeEnv, port, frontendOrigin, mongoUri, mongoDb };
+  return { nodeEnv, port, frontendOrigin, mongoUri, mongoDb, reminderTickMs, reminderBatchSize, reminderTimezone: 'Asia/Ho_Chi_Minh' };
 }
 
 // Chỉ kiểm MONGODB_URI, MONGODB_DB cho lệnh quản trị chỉ cần kết nối DB (ensure-indexes, check-environment),

@@ -52,7 +52,7 @@ Trước khởi động production chạy `npm run ensure-indexes` tại backend
 - Worker EN-03/lease/retry vận hành giữ nguyên eventKey. SENT = dữ liệu đã lưu; DONE = hoàn tất lượt dispatch; delivered = recipient có delivered_at sau ack; read = recipient có read_at do US-47.
 - UI dùng feed chung với dedupe/cache theo account; Staff/PT/Admin nhận toast, Member dùng inbox. Không tự mark-read khi nhận toast.
 - Khi mất response/503, UI giữ `{actorId,id,version,key}` trong sessionStorage (không nội dung/token), khóa soạn lệnh mới và cho lookup hoặc retry đúng key kể cả sau tải lại trang. Logout/đổi account xóa khóa của account cũ. Trình duyệt chặn sessionStorage thì chỉ giữ khóa trong bộ nhớ màn hình.
-- Không thêm source_type/source_id hoặc đường dẫn đích: không có điều hướng theo nguồn trong US-48. Truy vết dùng event_key hiện có.
+- US-48 không thêm source_type/source_id hoặc điều hướng theo nguồn; broadcast tiếp tục truy vết qua event_key. US-49 bổ sung metadata tùy chọn chỉ cho nhắc gói/buổi theo [phụ lục EN-03/US-47](reminders-contract.md); broadcast hiện có giữ nguyên payload.
 
 ## Truy vết kiểm thử
 
