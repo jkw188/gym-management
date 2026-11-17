@@ -71,6 +71,7 @@ export interface AdminQuotaSource {
 // GET /api/admin/pt-bookings/:id (US-64 bước 3): dữ liệu tra cứu hỗ trợ + thông tin hoàn tất + nguồn quota + lịch sử.
 export interface AdminPtBookingDetail extends SupportPtBookingItem {
   completedAt?: string;
+  completedBy?: string;
   completedActorType?: CompletedActorType;
   completionRevision: number;
   completionMembershipId?: string;

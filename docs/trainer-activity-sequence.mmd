@@ -1,0 +1,36 @@
+sequenceDiagram
+  actor Admin
+  participant UI as React /admin/trainers/activity
+  participant HTTP as NestJS JWT/RBAC + DTO
+  participant Query as TrainerActivityService
+  participant Snapshot as TransactionRunner
+  participant DB as MongoDB replica set
+  Admin->>UI: Chọn PT/kỳ ngày VN
+  UI->>HTTP: GET activity (page hoặc shiftPage/bookingPage)
+  HTTP->>HTTP: Account/session/auth_version + ADMIN activity.read
+  HTTP->>Query: Query hợp lệ
+  Query->>Query: Kỳ VN 1–366 ngày, start_at [from,to)
+  Query->>Snapshot: Chạy chỉ đọc, snapshot/primary
+  Snapshot->>DB: Bắt đầu transaction
+  Query->>DB: Đọc PT/account, gồm INACTIVE
+  Query->>DB: Aggregate ca + left lookup attendance, group trainer
+  Query->>DB: Aggregate booking theo status hiện tại, group trainer
+  Query->>DB: Tìm attendance mồ côi, cảnh báo không gán vào kỳ
+  Query->>Query: Hợp nhất tổng; phân trang PT sau tổng
+  opt Chi tiết PT
+    Query->>DB: Facet trang/count ca và attendance
+    Query->>DB: Facet trang/count booking
+  end
+  DB-->>Snapshot: Cùng snapshot, không sửa nguồn hoặc quota
+  Snapshot-->>Query: Kết quả đọc
+  Query-->>UI: range/asOf/summary/pages, phút thiếu=null, dataIssue
+  UI-->>Admin: Hai vùng Ca và chấm công / Buổi PT
+  Admin->>UI: Xem nguồn
+  UI->>HTTP: GET fixed attendance hoặc Admin US-64 adapter + validated ID
+  HTTP->>DB: Snapshot nguồn hiện tại + revision/audit allowlist
+  DB-->>UI: Dữ liệu nguồn, không URL tùy ý hoặc quyền ghi
+  opt Nguồn được hiệu chỉnh bởi command riêng
+    Admin->>UI: Tải lại hoặc focus/online
+    UI->>HTTP: GET mới, snapshot mới sau commit
+    HTTP-->>UI: Tổng/trang phản ánh trạng thái nguồn mới
+  end
