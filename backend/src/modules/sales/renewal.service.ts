@@ -7,7 +7,7 @@ import { fromVndDecimal, toVndDecimal } from '../../common/utils/vnd-money';
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { MembersRepository } from '../members/members.repository';
-import { SaleChannel } from '../memberships/schemas/service-sale.schema';
+import { PreferredPaymentMethod, SaleChannel } from '../memberships/schemas/service-sale.schema';
 import { IdempotencyService, transactionRequestKey } from '../operations/idempotency.service';
 import { PlansReader } from '../plans/plans.reader';
 import { ActivationResult, ActivationTarget, invalidState } from './sale-activation.contract';
@@ -71,10 +71,12 @@ export class RenewalService {
   }
 
   // US-19 adds its ownership adapter around this same method; channel is a server argument, never public DTO input.
-  create(actorId: string, dto: RenewalDto, key: string, channel: SaleChannel = 'COUNTER') {
+  // US-19-TC09: cách trả dự kiến nằm trong payload nên cũng nằm trong fingerprint của Idempotency-Key.
+  create(actorId: string, dto: RenewalDto, key: string, channel: SaleChannel = 'COUNTER', preferredPaymentMethod?: PreferredPaymentMethod) {
     const input = this.normalize(dto);
     const actor = idOf(actorId).toHexString();
-    return this.commands.execute({ actorId: actor, operation: 'SALE_RENEW', clientKey: key, payload: { ...input, actorId: actor, channel } }, async session => {
+    const payload = { ...input, actorId: actor, channel, preferredPaymentMethod };
+    return this.commands.execute({ actorId: actor, operation: 'SALE_RENEW', clientKey: key, payload }, async session => {
       const source = await this.renewals.source(idOf(input.memberId), idOf(input.previousSaleId), session);
       if (!source) throw new ApplicationError(404, 'SALE_NOT_FOUND', 'Không tìm thấy kỳ gói của hội viên');
       if (!await this.members.findById(idOf(input.memberId), session)) throw new ApplicationError(404, 'MEMBER_NOT_FOUND', 'Không tìm thấy hội viên');
@@ -89,7 +91,8 @@ export class RenewalService {
         created_by: actor, code: `TX-${transactionId.toHexString()}`, kind: terms.kind, amount_due: plan.price,
         status: 'PENDING', request_key: transactionRequestKey(actor, 'SALE_RENEW', key), created_at: now, version: 0, guard_revision: 0n }], { session });
       await this.repository.sales.create([{ _id: saleId, id: saleId, transaction_id: transactionId, member_id: input.memberId,
-        plan_id: plan._id, operation: 'RENEW', previous_sale_id: input.previousSaleId, channel,
+        // US-19-TC08: server ghi kênh và cách trả dự kiến (quầy không có cách trả dự kiến).
+        plan_id: plan._id, operation: 'RENEW', previous_sale_id: input.previousSaleId, channel, preferred_payment_method: preferredPaymentMethod,
         requested_start_date: terms.startDate, start_date: terms.startDate, end_date: terms.endDate,
         duration_days_snapshot: plan.duration_days, kind_snapshot: terms.kind, plan_version_snapshot: plan.version,
         plan_name_snapshot: plan.name, benefits_snapshot: plan.benefits, list_price_snapshot: plan.price,
