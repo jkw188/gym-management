@@ -39,7 +39,7 @@ import { MeRenewalsService } from './me-renewals.service';
   // US-18 bước 1: MeSalesController/MeSalesService cho Member tự đăng ký, dùng MemberOwnerReader của MembersDataModule.
   // US-19 bước 1: MeRenewalsController/MeRenewalsService cho Member tự gia hạn, gọi chung RenewalService.
   controllers: [SalesController, RenewalsController, UpgradesController, MeSalesController, MeRenewalsController],
-  providers: [MeSalesService, MeRenewalsService,SalesRepository, SaleReader, SalesService, RenewalService, RenewalsRepository, SaleActivationService, UpgradeService, UpgradesRepository, UpgradeBookingsAdapter,
+  providers: [MeSalesService, MeRenewalsService, SalesRepository, SaleReader, SalesService, RenewalService, RenewalsRepository, SaleActivationService, UpgradeService, UpgradesRepository, UpgradeBookingsAdapter,
     { provide: SaleActivation, useExisting: SaleActivationService }, { provide: ZeroSettlement, useClass: ZeroSettlementService }],
   exports: [SaleActivation, SalesRepository, RenewalService, RenewalsRepository, UpgradeService],
 })
