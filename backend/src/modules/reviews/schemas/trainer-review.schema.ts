@@ -55,5 +55,7 @@ TrainerReviewSchema.index({ id: 1 }, { unique: true, name: 'trainer_reviews_id_u
 TrainerReviewSchema.index({ booking_id: 1 }, { unique: true, name: 'trainer_reviews_booking_unique' });
 // US-31: PT xem đánh giá của mình theo thời gian.
 TrainerReviewSchema.index({ trainer_id: 1, created_at: 1, _id: 1 }, { name: 'trainer_reviews_trainer_time' });
+// US-33: kỳ gửi toàn phòng, không bắt buộc chọn PT.
+TrainerReviewSchema.index({ created_at: 1, _id: 1 }, { name: 'trainer_reviews_time' });
 // Member xem lại các đánh giá chính mình đã gửi theo thời gian.
 TrainerReviewSchema.index({ member_id: 1, created_at: 1, _id: 1 }, { name: 'trainer_reviews_member_time' });
