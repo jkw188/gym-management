@@ -7,7 +7,7 @@ import { fromVndDecimal, toVndDecimal } from '../../common/utils/vnd-money';
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { MembersRepository } from '../members/members.repository';
-import { SaleChannel } from '../memberships/schemas/service-sale.schema';
+import { PreferredPaymentMethod, SaleChannel } from '../memberships/schemas/service-sale.schema';
 import { IdempotencyService, transactionRequestKey } from '../operations/idempotency.service';
 import { PlansReader } from '../plans/plans.reader';
 import { ActivationResult, ActivationTarget, invalidState } from './sale-activation.contract';
@@ -33,12 +33,9 @@ export class RenewalService {
   private async source(memberId: Types.ObjectId, previousSaleId: Types.ObjectId, session: ClientSession) {
     const source = await this.renewals.source(memberId, previousSaleId, session);
     if (!source) throw new ApplicationError(404, 'SALE_NOT_FOUND', 'Không tìm thấy kỳ gói của hội viên');
-    const { sale, transaction, membership } = source;
-    if (!transaction || transaction.status !== 'SETTLED' || !membership || membership.status !== 'ACTIVE' ||
-      !['GYM', 'PT'].includes(transaction.kind) || (sale.kind_snapshot && sale.kind_snapshot !== transaction.kind)) {
-      throw conflict('SOURCE_NOT_ELIGIBLE', 'Kỳ nguồn chưa được cấp hoặc không còn đủ điều kiện gia hạn');
-    }
-    const kind = transaction.kind as 'GYM' | 'PT';
+    const { sale } = source;
+    const kind = eligibleSourceKind(source);
+    if (!kind) throw conflict('SOURCE_NOT_ELIGIBLE', 'Kỳ nguồn chưa được cấp hoặc không còn đủ điều kiện gia hạn');
     if (!await this.renewals.isLatest(memberId, kind, previousSaleId, session)) {
       throw conflict('SOURCE_NOT_LATEST', 'Kỳ nguồn không còn là kỳ mới nhất. Hãy tải lại và xác nhận lựa chọn');
     }
@@ -59,6 +56,19 @@ export class RenewalService {
     return { ...source, plan, startDate, endDate, blockingCode };
   }
 
+  // US-19-TC12: trang "Gói của tôi" hỏi kỳ này có hiện nút "Gia hạn" không. Dùng CÙNG điều kiện nguồn với preview/create
+  // (SETTLED, membership ACTIVE, kỳ đuôi); gói ngừng bán hoặc đang có yêu cầu chờ vẫn hiện nút để preview báo lý do.
+  // planVersion là version HIỆN HÀNH của gói, để preview không bị PLAN_CHANGED khi gói đã đổi sau lúc mua.
+  async renewalOption(memberId: Types.ObjectId, saleId: Types.ObjectId): Promise<RenewalOption | null> {
+    const source = await this.renewals.source(memberId, saleId);
+    if (!source) return null;
+    const kind = eligibleSourceKind(source);
+    if (!kind || !await this.renewals.isLatest(memberId, kind, saleId)) return null;
+    const plan = await this.plans.findById(source.sale.plan_id.toHexString());
+    if (!plan) return null;
+    return { previousSaleId: saleId.toHexString(), planVersion: plan.version };
+  }
+
   preview(dto: RenewalDto) {
     const input = this.normalize(dto);
     return this.transactions.run(async session => {
@@ -71,10 +81,12 @@ export class RenewalService {
   }
 
   // US-19 adds its ownership adapter around this same method; channel is a server argument, never public DTO input.
-  create(actorId: string, dto: RenewalDto, key: string, channel: SaleChannel = 'COUNTER') {
+  // US-19-TC09: cách trả dự kiến nằm trong payload nên cũng nằm trong fingerprint của Idempotency-Key.
+  create(actorId: string, dto: RenewalDto, key: string, channel: SaleChannel = 'COUNTER', preferredPaymentMethod?: PreferredPaymentMethod) {
     const input = this.normalize(dto);
     const actor = idOf(actorId).toHexString();
-    return this.commands.execute({ actorId: actor, operation: 'SALE_RENEW', clientKey: key, payload: { ...input, actorId: actor, channel } }, async session => {
+    const payload = { ...input, actorId: actor, channel, preferredPaymentMethod };
+    return this.commands.execute({ actorId: actor, operation: 'SALE_RENEW', clientKey: key, payload }, async session => {
       const source = await this.renewals.source(idOf(input.memberId), idOf(input.previousSaleId), session);
       if (!source) throw new ApplicationError(404, 'SALE_NOT_FOUND', 'Không tìm thấy kỳ gói của hội viên');
       if (!await this.members.findById(idOf(input.memberId), session)) throw new ApplicationError(404, 'MEMBER_NOT_FOUND', 'Không tìm thấy hội viên');
@@ -89,7 +101,8 @@ export class RenewalService {
         created_by: actor, code: `TX-${transactionId.toHexString()}`, kind: terms.kind, amount_due: plan.price,
         status: 'PENDING', request_key: transactionRequestKey(actor, 'SALE_RENEW', key), created_at: now, version: 0, guard_revision: 0n }], { session });
       await this.repository.sales.create([{ _id: saleId, id: saleId, transaction_id: transactionId, member_id: input.memberId,
-        plan_id: plan._id, operation: 'RENEW', previous_sale_id: input.previousSaleId, channel,
+        // US-19-TC08: server ghi kênh và cách trả dự kiến (quầy không có cách trả dự kiến).
+        plan_id: plan._id, operation: 'RENEW', previous_sale_id: input.previousSaleId, channel, preferred_payment_method: preferredPaymentMethod,
         requested_start_date: terms.startDate, start_date: terms.startDate, end_date: terms.endDate,
         duration_days_snapshot: plan.duration_days, kind_snapshot: terms.kind, plan_version_snapshot: plan.version,
         plan_name_snapshot: plan.name, benefits_snapshot: plan.benefits, list_price_snapshot: plan.price,
@@ -137,6 +150,19 @@ function idOf(value: string) {
   if (typeof value !== 'string' || !/^[a-f\d]{24}$/i.test(value)) throw new ApplicationError(400, 'VALIDATION_ERROR', 'ID phải là ObjectId hợp lệ');
   return new Types.ObjectId(value);
 }
+// Dữ liệu cho nút "Gia hạn" (US-19-TC12): kỳ nguồn và version gói hiện hành để gửi preview.
+export interface RenewalOption { previousSaleId: string; planVersion: number }
+
+// Điều kiện nguồn chung của US-15: giao dịch SETTLED, membership ACTIVE, loại GYM/PT khớp snapshot.
+// Trả về loại gói nếu đạt, null nếu không. preview/create và renewalOption cùng gọi hàm này.
+type RenewalSource = NonNullable<Awaited<ReturnType<RenewalsRepository['source']>>>;
+function eligibleSourceKind({ sale, transaction, membership }: RenewalSource): 'GYM' | 'PT' | null {
+  if (!transaction || transaction.status !== 'SETTLED' || !membership || membership.status !== 'ACTIVE') return null;
+  if (transaction.kind !== 'GYM' && transaction.kind !== 'PT') return null;
+  if (sale.kind_snapshot && sale.kind_snapshot !== transaction.kind) return null;
+  return transaction.kind;
+}
+
 function renewalStart(sourceEnd: string, today: string) { return sourceEnd >= today ? addCalendarDays(sourceEnd, 1) : today; }
 function conflict(code: string, message: string) { return new ApplicationError(409, code, message); }
 function policyRule(snapshot: string): unknown {

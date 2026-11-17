@@ -1,5 +1,6 @@
-// Tầng giao diện – trang (US-17 bước 3): trang /member/memberships chỉ đọc – gói hiện hành, chờ hiệu lực, lịch sử,
+// Tầng giao diện – trang (US-17 bước 3, US-19 bước 3): trang /member/memberships – gói hiện hành, chờ hiệu lực, lịch sử,
 // giao dịch chờ xác nhận, lịch sử mua và chứng từ của chính Member. timeState và số buổi lấy từ server, React không tự tính.
+// US-19: nút "Gia hạn" mở RenewalPanel; kỳ nào có nút do server quyết định qua field renewal.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useAccountId } from '../notifications/inbox-signals';
@@ -8,6 +9,7 @@ import {
   type TransactionStatus,
 } from './memberships.api';
 import { Icon } from '../../components/Icon';
+import { RenewalPanel, type RenewalTarget } from './RenewalPanel';
 
 // membershipsTotal/salesTotal là total server trả về, để biết còn bản ghi chưa tải (US-17-TC10).
 interface PageData {
@@ -46,7 +48,7 @@ function historyLabel(item: MyMembership): string {
   return 'Đã hết hạn';
 }
 
-function MembershipCard({ item, inHistory }: { item: MyMembership; inHistory: boolean }) {
+function MembershipCard({ item, inHistory, onRenew }: { item: MyMembership; inHistory: boolean; onRenew: (item: MyMembership) => void }) {
   return <article aria-label={item.planName} className="membership-card">
     <h4>{item.planName}</h4>
     {inHistory && <p><strong>{historyLabel(item)}</strong></p>}
@@ -63,15 +65,17 @@ function MembershipCard({ item, inHistory }: { item: MyMembership; inHistory: bo
       </ul>
       // US-17-TC12: gói GYM có quota 0 nhưng vẫn tập được, không ghi "hết buổi".
       : <p>Không áp dụng số buổi PT</p>}
+    {/* US-19-TC12: chỉ kỳ đuôi còn gia hạn được (server trả renewal) mới có nút. */}
+    {item.renewal && <button type="button" onClick={() => onRenew(item)}>Gia hạn</button>}
   </article>;
 }
 
-function MembershipGroup({ title, id, items, inHistory, emptyText }: {
-  title: string; id: string; items: MyMembership[]; inHistory: boolean; emptyText: string;
+function MembershipGroup({ title, id, items, inHistory, emptyText, onRenew }: {
+  title: string; id: string; items: MyMembership[]; inHistory: boolean; emptyText: string; onRenew: (item: MyMembership) => void;
 }) {
   return <section aria-labelledby={id}>
     <h3 id={id}>{title}</h3>
-    {items.length === 0 ? <p>{emptyText}</p> : items.map(item => <MembershipCard key={item.id} item={item} inHistory={inHistory} />)}
+    {items.length === 0 ? <p>{emptyText}</p> : items.map(item => <MembershipCard key={item.id} item={item} inHistory={inHistory} onRenew={onRenew} />)}
   </section>;
 }
 
@@ -83,6 +87,8 @@ export function MyMembershipsPage() {
   const [transaction, setTransaction] = useState<MyTransaction | null>(null);
   const [invoice, setInvoice] = useState<MyInvoice | null>(null);
   const [detailError, setDetailError] = useState('');
+  // US-19: kỳ đang mở vùng gia hạn (chép lại lúc bấm, để tải lại danh sách không làm mất vùng đang dùng).
+  const [renewTarget, setRenewTarget] = useState<RenewalTarget | null>(null);
   // Số thứ tự lần tải mới nhất: kết quả cũ về muộn (ví dụ của account trước) thì bỏ qua.
   const latestLoad = useRef(0);
   // Account hiện tại, để bỏ kết quả xem giao dịch/chứng từ về sau khi đã đổi account.
@@ -115,6 +121,8 @@ export function MyMembershipsPage() {
     setTransaction(null);
     setInvoice(null);
     setDetailError('');
+    // US-19-TC12: đổi account thì đóng ngay vùng gia hạn và báo giá của account cũ.
+    setRenewTarget(null);
   }, [accountId]);
 
   useEffect(() => { void load(); }, [load]);
@@ -144,6 +152,18 @@ export function MyMembershipsPage() {
     }
   }
 
+  // US-19-TC01: previousSaleId và planVersion lấy từ field renewal của server, không tự chọn.
+  function openRenewal(item: MyMembership) {
+    if (!item.renewal) return;
+    setRenewTarget({ planName: item.planName, previousSaleId: item.renewal.previousSaleId, planVersion: item.renewal.planVersion });
+  }
+
+  // US-19-TC12: nguồn đã cũ → đóng vùng gia hạn và tải lại để lấy renewal mới; không tự gửi yêu cầu mới.
+  function reloadAfterStale() {
+    setRenewTarget(null);
+    void load();
+  }
+
   const memberships = data?.memberships ?? [];
   const sales = data?.sales ?? [];
   const pendingSales = sales.filter(sale => sale.status === 'PENDING');
@@ -165,11 +185,11 @@ export function MyMembershipsPage() {
       {data.membershipsTotal > memberships.length &&
         <p role="note">Đang hiện {memberships.length} gói gần nhất trên tổng {data.membershipsTotal}.</p>}
       <MembershipGroup title="Gói hiện hành" id="memberships-current" items={memberships.filter(isCurrent)}
-        inHistory={false} emptyText="Không có gói đang hiệu lực." />
+        inHistory={false} emptyText="Không có gói đang hiệu lực." onRenew={openRenewal} />
       <MembershipGroup title="Gói chờ hiệu lực" id="memberships-scheduled" items={memberships.filter(isScheduled)}
-        inHistory={false} emptyText="Không có gói chờ hiệu lực." />
+        inHistory={false} emptyText="Không có gói chờ hiệu lực." onRenew={openRenewal} />
       <MembershipGroup title="Lịch sử gói" id="memberships-history"
-        items={memberships.filter(item => !isCurrent(item) && !isScheduled(item))} inHistory emptyText="Chưa có gói cũ." />
+        items={memberships.filter(item => !isCurrent(item) && !isScheduled(item))} inHistory emptyText="Chưa có gói cũ." onRenew={openRenewal} />
 
       {/* US-17-F02, TC06: lần mua PENDING chỉ là chờ thu, không phải gói đã có. */}
       <section aria-labelledby="sales-pending">
@@ -195,6 +215,10 @@ export function MyMembershipsPage() {
           </article>)}
       </section>
     </>}
+
+    {/* key: mở kỳ khác thì làm mới vùng gia hạn (xóa báo giá và key cũ). */}
+    {renewTarget && <RenewalPanel key={renewTarget.previousSaleId} target={renewTarget}
+      onCreated={() => void load()} onReload={reloadAfterStale} />}
 
     {detailError && <p role="alert">{detailError}</p>}
 

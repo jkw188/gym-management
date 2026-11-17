@@ -28,6 +28,7 @@ export function toMeMembership(membership: Membership, sale: ServiceSale, state:
     timeState: state.timeState,
     sessionsReserved: state.sessionsReserved,
     sessionsAvailable: state.sessionsAvailable,
+    renewal: state.renewal,
   };
 }
 

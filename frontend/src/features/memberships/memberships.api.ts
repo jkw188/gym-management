@@ -26,6 +26,8 @@ export interface MyMembership {
   sessionsUsed: number;
   sessionsReserved: number;
   sessionsAvailable: number;
+  // US-19-TC12: server báo kỳ này có nút "Gia hạn" không; null/thiếu là không có.
+  renewal?: { previousSaleId: string; planVersion: number } | null;
 }
 
 export interface MyServiceSale {

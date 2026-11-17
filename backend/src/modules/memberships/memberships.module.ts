@@ -11,6 +11,7 @@ import { TransactionSchema } from '../payments/schemas/transaction.schema';
 import { MeMembershipsController } from './me-memberships.controller';
 import { MeMembershipsRepository } from './me-memberships.repository';
 import { MeMembershipsService } from './me-memberships.service';
+import { SalesModule } from '../sales/sales.module';
 import { MembershipSchema } from './schemas/membership.schema';
 import { ServiceSaleSchema } from './schemas/service-sale.schema';
 
@@ -28,6 +29,8 @@ import { ServiceSaleSchema } from './schemas/service-sale.schema';
     MembersDataModule,
     // ServerClock (EN-02): ngày hôm nay theo giờ Việt Nam để lọc timeState.
     TransactionModule,
+    // US-19-TC12: RenewalService quyết định kỳ nào còn gia hạn được (field renewal của /me/memberships).
+    SalesModule,
   ],
   controllers: [MeMembershipsController],
   providers: [MeMembershipsService, MeMembershipsRepository],

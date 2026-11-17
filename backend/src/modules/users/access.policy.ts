@@ -52,6 +52,8 @@ export const ACCESS_POLICY = {
   // US-18-F04: Member chỉ hủy yêu cầu SELF_SERVICE đang chờ do chính mình tạo; xem hướng dẫn trả của giao dịch của mình.
   'serviceSales.cancelOwn': { name: 'Hủy yêu cầu mua gói của mình', roles: ['MEMBER'] },
   'transactions.instructionsOwn': { name: 'Xem hướng dẫn thanh toán của mình', roles: ['MEMBER'] },
+  // US-19-F01: Member tự xem trước/tạo kỳ gia hạn cho gói của chính mình.
+  'serviceSales.renewOwn': { name: 'Tự gia hạn gói', roles: ['MEMBER'] },
   // US-27: Member xem danh mục PT khả dụng và giờ trống của PT (chỉ xem, không giữ chỗ).
   'ptTrainers.readAvailable': { name: 'Xem danh mục PT khả dụng', roles: ['MEMBER'] },
   'ptAvailability.read': { name: 'Xem giờ trống của PT', roles: ['MEMBER'] },
