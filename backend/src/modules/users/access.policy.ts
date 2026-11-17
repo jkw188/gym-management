@@ -20,6 +20,7 @@ export const ACCESS_POLICY = {
   'products.manage': { name: 'Quản lý sản phẩm bán lẻ', roles: ['ADMIN'] },
   'publicSessions.manage': { name: 'Quản lý lớp tập miễn phí', roles: ['ADMIN'] },
   'trainers.manage': { name: 'Quản lý hồ sơ và trạng thái PT', roles: ['ADMIN'] },
+  'trainers.activity.read': { name: 'Đối chiếu ca, chấm công và buổi PT', roles: ['ADMIN'] },
   'accounts.read': { name: 'Xem tài khoản và danh mục vai trò', roles: ['ADMIN'] },
   'accounts.create': { name: 'Tạo tài khoản', roles: ['ADMIN'] },
   'accounts.update': { name: 'Sửa thông tin tài khoản', roles: ['ADMIN'] },

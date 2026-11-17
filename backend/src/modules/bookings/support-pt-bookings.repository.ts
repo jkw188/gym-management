@@ -4,6 +4,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, PipelineStage, Types } from 'mongoose';
+import { ClientSession } from 'mongodb';
 import { BookingEvent } from './schemas/booking-event.schema';
 import { PtBooking } from './schemas/pt-booking.schema';
 import { SupportBookingFilter, SupportPtBookingRow } from './support-pt-bookings.types';
@@ -48,23 +49,23 @@ export class SupportPtBookingsRepository {
   }
 
   // US-29-TC05: chi tiết một buổi kèm mã/tên Member; null nếu không tồn tại.
-  async findById(id: Types.ObjectId): Promise<SupportPtBookingRow | null> {
+  async findById(id: Types.ObjectId, session?: ClientSession): Promise<SupportPtBookingRow | null> {
     const [row] = await this.bookings.aggregate<SupportPtBookingRow>([{ $match: { _id: id } }, ...WITH_MEMBER])
-      .option({ maxTimeMS: 5000 }).exec();
+      .option({ maxTimeMS: 5000, session }).exec();
     return row ?? null;
   }
 
   // US-64-C04: mọi dòng audit của một buổi theo thứ tự xảy ra (dùng index booking_id + occurred_at).
-  findEvents(bookingId: Types.ObjectId): Promise<BookingEvent[]> {
-    return this.events.find({ booking_id: bookingId }).sort({ occurred_at: 1, _id: 1 }).maxTimeMS(5000).lean<BookingEvent[]>().exec();
+  findEvents(bookingId: Types.ObjectId, session?: ClientSession): Promise<BookingEvent[]> {
+    return this.events.find({ booking_id: bookingId }).session(session ?? null).sort({ occurred_at: 1, _id: 1 }).maxTimeMS(5000).lean<BookingEvent[]>().exec();
   }
 
   // Spec mục 3: sessions_used của gói và sessions_snapshot của sale; field nào không có thì null.
-  async findQuotaSource(membershipId: Types.ObjectId): Promise<{ used: number | null; quota: number | null }> {
+  async findQuotaSource(membershipId: Types.ObjectId, session?: ClientSession): Promise<{ used: number | null; quota: number | null }> {
     const membership = await this.connection.db!.collection('memberships')
-      .findOne({ _id: membershipId }, { projection: { sessions_used: 1, service_sale_id: 1 } });
+      .findOne({ _id: membershipId }, { session, projection: { sessions_used: 1, service_sale_id: 1 } });
     const sale = membership
-      ? await this.connection.db!.collection('service_sales').findOne({ _id: membership.service_sale_id }, { projection: { sessions_snapshot: 1 } })
+      ? await this.connection.db!.collection('service_sales').findOne({ _id: membership.service_sale_id }, { session, projection: { sessions_snapshot: 1 } })
       : null;
     return {
       used: membership?.sessions_used === undefined ? null : Number(membership.sessions_used),

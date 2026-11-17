@@ -85,6 +85,7 @@ export const PtBookingSchema = new Schema<PtBooking>({
 PtBookingSchema.index({ membership_id: 1, status: 1 }, { name: 'pt_bookings_membership_status' });
 // US-27-F03: buổi BOOKED/COMPLETED của một PT giao khoảng ngày đang xem.
 PtBookingSchema.index({ trainer_id: 1, status: 1, start_at: 1, end_at: 1 }, { name: 'pt_bookings_trainer_status_time' });
+PtBookingSchema.index({ trainer_id: 1, start_at: 1, status: 1 }, { name: 'pt_bookings_trainer_start_status' });
 // US-27-F04: buổi BOOKED/COMPLETED của chính Member trên mọi PT; US-27-F05: lịch riêng của Member theo ngày.
 PtBookingSchema.index({ member_id: 1, status: 1, start_at: 1, end_at: 1 }, { name: 'pt_bookings_member_status_time' });
 // US-30 (spec mục 2): gom học viên distinct theo PT và trạng thái quan hệ BOOKED/COMPLETED.

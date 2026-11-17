@@ -26,6 +26,7 @@ export function toAdminPtBookingDetail(row: SupportPtBookingRow, quotaSource: Ad
   return {
     ...toSupportPtBookingItem(row),
     completedAt: row.completed_at?.toISOString(),
+    completedBy: row.completed_by?.toHexString(),
     completedActorType: row.completed_actor_type,
     completionRevision: row.completion_revision ?? 0,
     completionMembershipId: row.completion_membership_id?.toHexString(),

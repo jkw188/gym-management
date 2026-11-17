@@ -64,6 +64,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
     <div className="quick-links">
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
     {role === 'ADMIN' && <Link to="/admin/trainers">Quản lý huấn luyện viên</Link>}
+    {role === 'ADMIN' && <Link to="/admin/trainers/activity">Đối chiếu chấm công và buổi PT</Link>}
     {role === 'ADMIN' && <Link to="/admin/classes">Quản lý lớp miễn phí</Link>}
     {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
     {role === 'ADMIN' && <Link to="/admin/categories">Danh mục bán lẻ</Link>}

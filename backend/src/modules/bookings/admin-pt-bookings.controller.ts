@@ -1,5 +1,5 @@
 // Tầng API (US-64 bước 3): Admin xử lý sai xác nhận buổi PT và xem chi tiết kèm lịch sử hoàn tất.
-// POST /api/admin/pt-bookings/:id/corrections và GET /api/admin/pt-bookings/:id – chỉ ADMIN (ptBookings.correct); vai trò khác → 403.
+// POST dùng ptBookings.correct; GET nguồn dùng trainers.activity.read (US-32). Catalog cố định gán cả hai cho ADMIN.
 import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
 import { IdempotencyKey } from '../../common/decorators/idempotency-key.decorator';
 import { CurrentUser } from '../auth/auth.decorators';
@@ -29,7 +29,7 @@ export class AdminPtBookingsController {
 
   // US-64-C04: chi tiết có nguồn quota và lịch sử COMPLETE/REOPEN.
   @Get(':id')
-  @FixedPermission('ptBookings.correct')
+  @FixedPermission('trainers.activity.read')
   detail(@Param() params: PtBookingIdParamDto) {
     return this.support.adminDetail(params.id);
   }
