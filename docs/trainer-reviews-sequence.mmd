@@ -1,0 +1,37 @@
+sequenceDiagram
+    actor Admin
+    participant UI as React /admin/trainer-reviews
+    participant Auth as JWT + fixed policy US-02
+    participant API as AdminTrainerReviewsController
+    participant Service as AdminTrainerReviewsService
+    participant DB as MongoDB snapshot / US-65 source
+    Admin->>UI: Chọn PT/kỳ gửi VN/điểm
+    par Summary theo PT
+        UI->>Auth: GET /api/admin/trainer-reviews/summary
+        Auth->>API: ADMIN trainers.reviews.read
+        API->>Service: DTO allowlist, period, page
+        Service->>DB: TransactionRunner snapshot, aggregate nguồn
+        DB-->>Service: Nhóm count/sum/distribution + ID lỗi
+        Service->>DB: Danh mục PT kể cả INACTIVE, cùng session
+        DB-->>Service: PT hiện tại, tên hiện tại, status
+        Service-->>UI: Trang PT + weighted totals toàn tập + invalidReviewCount + asOf
+    and Nhận xét gốc (phân trang riêng)
+        UI->>Auth: GET /api/admin/trainer-reviews
+        Auth->>API: Kiểm account/session/auth_version hiện hành
+        API->>Service: Cùng DTO/predicate
+        Service->>DB: Facet trong snapshot mới
+        DB-->>Service: Trang review + nhóm tổng + ID lỗi
+        Service-->>UI: Trang review, tên snapshot, giờ gửi/giờ buổi, totals, asOf
+    end
+    Note over Service,DB: Chỉ đọc. Loại nguồn sai, log ID ngoài transaction. Không sửa rating/owner/comment.
+    Admin->>UI: Mở đánh giá gốc
+    UI->>Auth: GET /api/admin/trainer-reviews/:id
+    Auth->>API: Kiểm quyền lại
+    API->>Service: ID hợp lệ, query rỗng
+    Service->>DB: Snapshot, kiểm review/booking/PT/member
+    alt Nguồn hợp lệ
+        DB-->>UI: Review text, tên snapshot, mã/giờ buổi, thời điểm gửi
+    else Không có hoặc nguồn sai
+        Service-->>UI: 404 EN01-D03
+    end
+    Note over UI: Render plain text; loading/empty/error/retry. Đổi account hủy request và xóa state.
