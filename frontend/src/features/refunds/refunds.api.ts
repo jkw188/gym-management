@@ -1,6 +1,9 @@
 import { apiClient } from '../../api/client';
 export interface RefundSummary { id: string; orderId: string; paymentId: string; returnId: string | null; source: string; reference: string; amount: string; status: string; createdAt: string; refundedAt: string | null }
 export interface RefundDetail extends RefundSummary {
+  version?: number; method?: string | null; refundAmount?: string; refundedAmount?: string; outstandingRefundAmount?: string;
+  payoutEvidence?: { evidenceNote: string; bankReference?: string; cashVoucherReference?: string } | null;
+  attempts?: { id: string; statusBefore: string; statusAfter: string; occurredAt: string; evidenceNote: string; failureReason: string | null }[];
   createdBy: string | null; actorType: string; orderCode: string | null; cancellationReason: string | null; cancelledAt: string | null;
   payment: { id: string; transactionId: string; method: string; amount: string; status: string; reference: string; receiptPurpose: string; paidAt: string | null; verifiedAt: string | null; evidenceNote: string | null } | null;
 }

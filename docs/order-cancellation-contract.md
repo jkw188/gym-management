@@ -1,5 +1,9 @@
 # US-45 — Hủy đơn, hết hạn và nghĩa vụ hoàn
 
+S07: [Hợp đồng US46](returns-contract.md) mở confirm/fail trên chính nghĩa vụ đã có,
+thêm version/chứng từ/attempts và UI payout. Mô tả “chỉ đọc/không payout” bên dưới
+là baseline S06; phần thực chi S07 áp dụng US46.
+
 Nguồn: `docs/PM/SPRINT6/[GM]Requirement_US-45.docx` v1.0 (đã đọc văn bản và toàn bộ bảng; không có hình nhúng).
 Giữ nguyên mã US-45-AC01–03, TC01–16. Không sửa requirement gốc.
 

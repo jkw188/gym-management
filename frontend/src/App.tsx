@@ -1,3 +1,4 @@
+import { ReturnsPage } from './features/returns/ReturnsPage';
 import { StockIssuesPage } from './features/stock/StockIssuesPage';
 import { StockAdjustmentsPage } from './features/stock/StockAdjustmentsPage';
 // Tầng giao diện – khung chung: thanh menu, banner, vùng nội dung <main>, chân trang và khai báo mọi route.
@@ -82,6 +83,8 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/pos" element={<PosPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/pos" element={<PosPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/orders" element={<OrdersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/returns" element={<ReturnsPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/returns" element={<ReturnsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/refunds" element={<RefundsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/refunds" element={<RefundsPage />} /></Route>
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/orders" element={<MyOrdersPage />} /></Route>

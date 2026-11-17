@@ -80,14 +80,14 @@ describe('US-45 TC16: deliberate cancel, immutable recovery keys and financial w
     await screen.findByText(/Khoản hoàn:.*Chờ hoàn/); expect(screen.queryByLabelText('Tham chiếu ngân hàng')).toBeNull();
     expect(screen.queryByText(/Chưa xác nhận kho đã được giải phóng/)).toBeNull();
   });
-  it('refund queue supports empty/loading/error, read-only detail and no payout mutation', async () => {
+  it('refund queue supports empty/loading/detail and requires explicit US46 payout confirmation', async () => {
     const item = { id: result.refundId!, orderId: target.id, paymentId: 'c'.repeat(24), returnId: null, source: 'CANCELLATION', reference: `RF:${result.refundId}`, amount: '50000', status: 'PENDING', createdAt: result.cancelledAt, refundedAt: null };
     const list = vi.spyOn(refundsApi, 'list').mockResolvedValueOnce({ items: [], total: 0, totalPages: 0 }).mockResolvedValueOnce({ items: [item], total: 1, totalPages: 1 });
     vi.spyOn(refundsApi, 'detail').mockResolvedValue({ ...item, createdBy: null, actorType: 'SYSTEM', orderCode: result.code, cancellationReason: 'Hết hạn giữ hàng', cancelledAt: result.cancelledAt, payment: null });
     render(<RefundsPage />); await screen.findByText('Không có nghĩa vụ phù hợp.');
     await userEvent.click(screen.getByRole('button', { name: 'Tải lại' }));
     await userEvent.click(await screen.findByRole('button', { name: `Xem ${item.reference}` })); await screen.findByRole('heading', { name: item.reference });
-    expect(screen.queryByRole('button', { name: /đánh dấu|xác nhận hoàn|thực chi/i })).toBeNull(); expect(list).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'Xác nhận đã hoàn tiền' })).toHaveProperty('disabled', true); expect(list).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.getByText(/Chờ hoàn là nghĩa vụ/)).toBeDefined());
   });
 });

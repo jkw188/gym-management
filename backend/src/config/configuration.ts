@@ -73,7 +73,14 @@ function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: s
 export default () => {
   const receivingAccounts = readReceivingAccounts(process.env);
   return { ...readConfiguration(process.env), ...readAuthConfiguration(process.env), receivingAccounts,
+    payoutAccounts: readPayoutAccounts(process.env),
     receivingAccountDetails: readReceivingAccountDetails(process.env, receivingAccounts) };
 };
 
 import { readAuthConfiguration } from './auth.configuration';
+
+// Separate allowlist for money leaving the gym; never infer it from receiving accounts.
+export function readPayoutAccounts(env: NodeJS.ProcessEnv): string[] {
+  try { return readReceivingAccounts({ RECEIVING_ACCOUNTS: env.PAYOUT_ACCOUNTS }); }
+  catch { throw new ConfigurationError('Invalid environment variables: PAYOUT_ACCOUNTS'); }
+}

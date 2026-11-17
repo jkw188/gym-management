@@ -33,6 +33,7 @@ const { ensurePublicSessionsIntegrity } = require('../dist/modules/public-sessio
 const { ensureRetailCatalogIntegrity } = require('../dist/modules/catalog/retail-catalog.migration');
 const { STOCK_MODELS } = require('../dist/modules/stock/stock.schema');
 const { ensureOrdersIntegrity } = require('../dist/modules/orders/orders-migration');
+const { ensureReturnsIntegrity } = require('../dist/modules/returns/returns-migration');
 const { ensureRefundsIntegrity } = require('../dist/modules/refunds/refunds-migration');
 const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
@@ -73,6 +74,7 @@ async function run() {
       await ensurePublicSessionsIntegrity(connection);
       await ensureRetailCatalogIntegrity(connection);
       await ensureOrdersIntegrity(connection);
+      await ensureReturnsIntegrity(connection);
       await ensureRefundsIntegrity(connection);
       // US-36: indexes are installed without rewriting any historical receipt or movement.
       for (const { name, schema } of STOCK_MODELS) await connection.model(name, schema).createIndexes();
