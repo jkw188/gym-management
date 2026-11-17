@@ -22,6 +22,7 @@
 //     tải hướng dẫn thanh toán và tải lại GET /me/service-sales. Kết quả SETTLED (0đ): chữ "hoàn tất", không gọi
 //     payment-instructions, tải lại GET /me/memberships để thấy kỳ mới riêng.
 //   - apiClient.subscribe báo đổi account → xóa ngay vùng gia hạn và dữ liệu của account cũ.
+import { StrictMode } from 'react';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -317,5 +318,20 @@ describe('US-19 bước 3: gia hạn trên trang /member/memberships', () => {
     await waitFor(() => expect(screen.queryByRole('region', { name: 'Gia hạn gói' })).toBeNull());
     expect(screen.queryByText(/300\.000/)).toBeNull();
     expect(screen.queryByRole('article', { name: planName })).toBeNull();
+  });
+});
+
+// US-19 bước 4: main.tsx bọc app trong <StrictMode>; dev chạy effect mount → cleanup → mount lại.
+// Lỗi đã gặp ở review bước 3 (ref alive kẹt false) chỉ lộ ra khi bọc StrictMode, nên giữ test này cố định.
+describe('US-19 bước 4: gia hạn dưới React StrictMode', () => {
+  it('US-19-TC12: dưới StrictMode vẫn xem trước, xác nhận và thấy kết quả "Chờ xác nhận thu"', async () => {
+    const user = userEvent.setup();
+    render(<StrictMode><MemoryRouter initialEntries={['/member/memberships']}><MyMembershipsPage /></MemoryRouter></StrictMode>);
+    const panel = await openAndPreview(user);
+    expect(await within(panel).findByText(/300\.000/)).toBeDefined();
+    await user.click(await within(panel).findByRole('button', { name: 'Xác nhận gia hạn' }));
+    const result = await screen.findByRole('region', { name: 'Kết quả gia hạn' });
+    expect(within(result).getByText(/Chờ xác nhận thu/)).toBeDefined();
+    expect(callsTo('POST', '/me/service-renewals')).toHaveLength(1);
   });
 });
