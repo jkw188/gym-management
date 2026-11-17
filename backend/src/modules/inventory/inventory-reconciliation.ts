@@ -27,11 +27,12 @@ export async function inspectInventoryLedger(db: Db, balance: Balance, session: 
     if (!(row.created_at instanceof Date) || !Number.isFinite(row.created_at.getTime()) || !row.sku_snapshot || !row.name_snapshot || !row.event_key) issues.add('INVALID_METADATA');
     if (eventKeys.has(row.event_key)) issues.add('DUPLICATE_EVENT_KEY');
     eventKeys.add(row.event_key);
-    if (row.kind === 'RECEIPT_POST') {
+    if (row.kind === 'RECEIPT_POST' || row.kind === 'ISSUE_POST') {
+      const kind = row.kind === 'ISSUE_POST' ? 'ISSUE' : 'RECEIPT';
       const item = row.document_item_id && await db.collection('stock_document_items').findOne({ _id: row.document_item_id, document_id: row.source_id, product_id: row.product_id }, { session });
-      const source = item && await db.collection('stock_documents').findOne({ _id: row.source_id, kind: 'RECEIPT', status: 'POSTED' }, { session, projection: { _id: 1 } });
-      if (!source || !item || row.event_key !== `RECEIPT_POST:${row.document_item_id}` || item.quantity_delta !== row.on_hand_delta ||
-        row.reserved_delta !== 0 || item.sku_snapshot !== row.sku_snapshot || item.name_snapshot !== row.name_snapshot) issues.add('INVALID_RECEIPT_SOURCE');
+      const source = item && await db.collection('stock_documents').findOne({ _id: row.source_id, kind, status: 'POSTED' }, { session, projection: { _id: 1 } });
+      if (!source || !item || row.event_key !== `${row.kind}:${row.document_item_id}` || item.quantity_delta !== row.on_hand_delta ||
+        row.reserved_delta !== 0 || (kind === 'ISSUE' && (row.on_hand_delta >= 0 || row.order_item_id !== undefined)) || item.sku_snapshot !== row.sku_snapshot || item.name_snapshot !== row.name_snapshot) issues.add(kind === 'ISSUE' ? 'INVALID_ISSUE_SOURCE' : 'INVALID_RECEIPT_SOURCE');
     }
   }
   if (sequence !== balance.version || hand !== balance.on_hand || reserved !== balance.reserved) issues.add('BALANCE_LEDGER_MISMATCH');

@@ -1,3 +1,5 @@
+import { StockIssuesController } from './stock-issues.controller';
+import { StockIssuesService } from './stock-issues.service';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ServerClock } from '../../common/utils/business-date';
@@ -10,5 +12,5 @@ import { StockRepository } from './stock.repository';
 import { STOCK_MODELS } from './stock.schema';
 
 @Module({ imports: [TransactionModule, OperationsModule, InventoryModule, MongooseModule.forFeature(STOCK_MODELS)],
-  controllers: [StockReceiptsController], providers: [StockRepository, StockReceiptsService, ServerClock] })
+  controllers: [StockReceiptsController, StockIssuesController], providers: [StockRepository, StockReceiptsService, StockIssuesService, ServerClock] })
 export class StockModule {}

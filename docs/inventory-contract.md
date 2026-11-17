@@ -1,5 +1,11 @@
 # US-37 — UC-27: tra cứu tồn kho và lịch sử biến động
 
+Phần mở rộng S07 US-38: picker hợp thêm `stockIssues.manage` (ADMIN), không trả cost hay mở quyền nhập.
+ISSUE_POST kiểm nguồn `document_item_id → ISSUE POSTED`, delta âm/reservedDelta 0,
+snapshot/event key khi đối chiếu ledger. History cấp sourcePath `/stock-issues/:id` có căn cứ;
+UI chỉ Admin điều hướng về phiếu xuất. Chi tiết: `stock-issues-contract.md`.
+Các mô tả writer/nguồn tương lai trong baseline bên dưới cần hiểu cùng phần mở rộng này.
+
 Nguồn: `docs/PM/SPRINT5/[GM]Requirement_US-37.docx` phiên bản 1.0.
 Giữ nguyên mã F01–05, I01, AC01–03 và TC01–14 trong requirement.
 Hợp đồng này mô tả API, use case, MongoDB và tích hợp thực tế; không thay đổi trạng thái Done trong PM.
