@@ -10,6 +10,7 @@ import { TransactionRunner } from '../../infrastructure/transaction/transaction-
 import { Payment } from '../payments/schemas/payment.schema';
 import { Refund } from './refund.schema';
 import { RefundQueryDto } from './refunds.dto';
+import { RefundAttempt } from './refund-attempt.schema';
 
 const inconsistent = () => new ApplicationError(409, 'REFUND_INTEGRITY_ERROR', 'Nghĩa vụ hoàn cần được đối chiếu với khoản thu gốc');
 @Injectable()
@@ -63,7 +64,9 @@ export class RefundsService {
       const collection = this.connection.db!.collection<Refund>('refunds');
       const total = await collection.countDocuments(filter, { session });
       const rows = await collection.find(filter, { session }).sort({ created_at: -1, _id: -1 }).skip((query.page - 1) * query.limit).limit(query.limit).toArray();
-      return { items: rows.map(row => this.map(row)), page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) };
+      const items = [];
+      for (const row of rows) items.push({ ...this.map(row), attemptCount: await this.connection.db!.collection('refund_attempts').countDocuments({ refund_id: row._id }, { session }) });
+      return { items, page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit), asOf: this.clock.now().toISOString() };
     });
   }
   async detail(id: string) {
@@ -73,7 +76,13 @@ export class RefundsService {
       if (!row) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy nghĩa vụ hoàn');
       const payment = await this.connection.db!.collection<Payment>('payments').findOne({ _id: row.payment_id }, { session });
       const order = await this.connection.db!.collection('orders').findOne({ _id: row.order_id }, { session });
+      const attempts = await this.connection.db!.collection<RefundAttempt>('refund_attempts').find({ refund_id: row._id }, { session }).sort({ occurred_at: -1, _id: -1 }).toArray();
       return { ...this.map(row), createdBy: row.created_by ? String(row.created_by) : null, actorType: row.actor_type,
+        obligationKey: row.obligation_key, payoutEvidence: row.payout_evidence ?? null, failureReason: row.failure_code ?? null,
+        verifiedBy: row.verified_by ? String(row.verified_by) : null, verifiedAt: row.verified_at?.toISOString() ?? null,
+        attempts: attempts.map(attempt => ({ id: String(attempt._id), statusBefore: attempt.status_before, statusAfter: attempt.status_after,
+          actorId: String(attempt.actor_id), occurredAt: attempt.occurred_at.toISOString(), evidenceNote: attempt.evidence_note,
+          failureReason: attempt.failure_reason ?? null, method: attempt.method ?? null, payoutEvidence: attempt.payout_evidence ?? null, paidOutAt: attempt.paid_out_at?.toISOString() ?? null })), asOf: this.clock.now().toISOString(),
         orderCode: order?.code ?? null, cancellationReason: order?.cancellation_reason ?? null, cancelledAt: order?.cancelled_at?.toISOString() ?? null,
         payment: payment ? { id: String(payment._id), transactionId: String(payment.transaction_id), method: payment.method,
           amount: fromVndDecimal(payment.amount), status: payment.status, reference: payment.reference, receiptPurpose: payment.receipt_purpose ?? 'ORDER_SETTLEMENT',
@@ -82,7 +91,9 @@ export class RefundsService {
   }
   private map(row: Refund) {
     return { id: String(row._id), orderId: String(row.order_id), paymentId: String(row.payment_id), returnId: row.return_id ? String(row.return_id) : null,
-      source: row.reason, reference: row.reference, amount: fromVndDecimal(row.amount), status: row.status,
+      source: row.reason, reference: row.reference, amount: fromVndDecimal(row.amount), status: row.status, version: row.version ?? 0, method: row.method ?? null,
+      refundAmount: fromVndDecimal(row.amount), refundedAmount: row.status === 'SUCCEEDED' ? fromVndDecimal(row.amount) : '0',
+      outstandingRefundAmount: row.status === 'SUCCEEDED' ? '0' : fromVndDecimal(row.amount),
       createdAt: row.created_at.toISOString(), refundedAt: row.refunded_at?.toISOString() ?? null };
   }
 }

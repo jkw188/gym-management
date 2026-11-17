@@ -1,0 +1,27 @@
+sequenceDiagram
+    actor Staff
+    participant UI as React
+    participant API as NestJS guards/controllers
+    participant Return as ReturnsService
+    participant Payout as RefundPayoutService
+    participant DB as MongoDB replica set
+    Staff->>UI: Tìm đơn, kiểm hàng và xác nhận nhận
+    UI->>API: POST orders/:id/returns + UUIDv4
+    API->>Return: Principal + validated DTO
+    Return->>DB: EN02 snapshot transaction / replay key
+    Return->>DB: member → inventory sorted → transaction → order guards
+    Return->>DB: Tái đọc thời hạn, lượng, snapshot price, payment/refund budget
+    Return->>DB: returns/items + restockable movements + PENDING refund
+    Return->>DB: audit + notification/recipient/outbox + operation result
+    DB-->>Return: Commit majority
+    Return-->>UI: 201 đã nhận, chưa thực chi
+    Staff->>UI: Đối soát tiền thật và chứng từ
+    UI->>API: POST refunds/:id/confirm hoặc fail + UUIDv4/version
+    API->>Payout: Principal + validated DTO
+    Payout->>DB: Transaction độc lập / replay key
+    Payout->>DB: member → transaction → order guards
+    Payout->>DB: Kiểm nguồn, budget, unique chứng từ; CAS version
+    Payout->>DB: Append attempt; success notification/outbox; operation result
+    DB-->>Payout: Commit majority
+    Payout-->>UI: 200 SUCCEEDED hoặc FAILED
+    Note over UI,DB: Mất response giữ key, tra operations, replay cùng key; không tự fail hoặc chi lại

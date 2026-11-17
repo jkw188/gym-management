@@ -1,3 +1,4 @@
+import { ReturnsModule } from './modules/returns/returns.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
@@ -42,6 +43,7 @@ import { StockModule } from './modules/stock/stock.module';
     WorkoutsModule,
     ProductsModule,
     OrdersModule,
+    ReturnsModule,
     InventoryModule,
     StockModule,
     PaymentsModule,

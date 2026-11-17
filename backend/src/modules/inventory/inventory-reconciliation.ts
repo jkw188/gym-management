@@ -27,6 +27,13 @@ export async function inspectInventoryLedger(db: Db, balance: Balance, session: 
     if (!(row.created_at instanceof Date) || !Number.isFinite(row.created_at.getTime()) || !row.sku_snapshot || !row.name_snapshot || !row.event_key) issues.add('INVALID_METADATA');
     if (eventKeys.has(row.event_key)) issues.add('DUPLICATE_EVENT_KEY');
     eventKeys.add(row.event_key);
+    if (row.kind === 'RETURN_RECEIVE') {
+      const item = row.return_item_id && await db.collection('return_items').findOne({ _id: row.return_item_id, return_id: row.source_id, product_id: row.product_id }, { session });
+      const source = item && await db.collection('returns').findOne({ _id: row.source_id }, { session });
+      if (!source || !item || item.restockable !== true || row.event_key !== `RETURN_RECEIVE:${row.return_item_id}` ||
+        row.on_hand_delta !== item.quantity || row.on_hand_delta <= 0 || row.reserved_delta !== 0 || row.order_item_id !== undefined ||
+        row.source_type !== 'RETURN' || row.source_code !== `RET:${row.source_id}` || item.sku_snapshot !== row.sku_snapshot || item.name_snapshot !== row.name_snapshot) issues.add('INVALID_RETURN_SOURCE');
+    }
     if (row.kind === 'RECEIPT_POST' || row.kind === 'ISSUE_POST' || row.kind === 'ADJUSTMENT_POST') {
       const kind = row.kind === 'ADJUSTMENT_POST' ? 'ADJUSTMENT' : row.kind === 'ISSUE_POST' ? 'ISSUE' : 'RECEIPT';
       const item = row.document_item_id && await db.collection('stock_document_items').findOne({ _id: row.document_item_id, document_id: row.source_id, product_id: row.product_id }, { session });

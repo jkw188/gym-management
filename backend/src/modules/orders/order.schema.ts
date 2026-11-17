@@ -56,7 +56,7 @@ export const OrderItemSchema = new Schema<OrderItem>({
 OrderItemSchema.index({ order_id: 1, product_id: 1 }, { unique: true, name: 'order_items_order_product_unique' });
 OrderItemSchema.index({ product_id: 1 }, { name: 'order_items_product' });
 export const OrderEventSchema = new Schema<OrderEvent>({
-  order_id: objectId, action: { type: String, required: true, enum: ['CREATED', 'PREPARED', 'PAYMENT_SETTLED', 'FULFILLED', 'CANCELLED', 'LATE_RECEIPT'] },
+  order_id: objectId, action: { type: String, required: true, enum: ['CREATED', 'PREPARED', 'PAYMENT_SETTLED', 'FULFILLED', 'CANCELLED', 'LATE_RECEIPT', 'RETURN_RECEIVED'] },
   actor_type: { type: String, required: true, enum: ['USER', 'SYSTEM'] }, actor_id: Schema.Types.ObjectId,
   occurred_at: { type: Date, required: true }, before: { type: Schema.Types.Mixed, default: null }, after: { type: Schema.Types.Mixed, required: true },
   event_key: { type: String, required: true }, reason: String,
