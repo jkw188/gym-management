@@ -1,6 +1,8 @@
 // Tầng API (US-47 bước 2): 4 endpoint inbox /api/me/notifications cho member xem và đánh dấu đã đọc thông báo của mình.
 // Biết ai gọi qua JwtAuthGuard toàn cục; chỉ MEMBER; account lấy từ phiên đăng nhập, không nhận từ client (US-47-F01).
 import { Body, Controller, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { ApiOkResponse } from '@nestjs/swagger';
+import { NotificationDetailDto } from './notifications.dto';
 import { CurrentUser, Roles } from '../auth/auth.decorators';
 import { AuthPrincipal } from '../auth/auth.types';
 import { InboxQueryDto, MarkReadDto } from './notification-inbox.dto';
@@ -26,6 +28,7 @@ export class NotificationInboxController {
 
   // US-47-TC01, US-47-TC02: id sai định dạng → 400 INVALID_ID, không phải của mình → 404 (kiểm ở service).
   @Get(':id')
+  @ApiOkResponse({ type: NotificationDetailDto, description: 'Recipient hiện hành đọc lịch sử; source tùy chọn là allowlist US-49.' })
   detail(@CurrentUser() user: AuthPrincipal, @Param('id') id: string) {
     return this.inbox.getOwn(user.id, id);
   }

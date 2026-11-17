@@ -8,7 +8,12 @@ export interface BusinessEventSource {
   memberId?: string;
   transactionId?: string;
   createdBy?: string;
+  sourceType?: 'MEMBERSHIP' | 'PT_BOOKING';
+  sourceId?: string;
+  dueAt?: Date;
 }
+
+export interface NotificationSource { type: 'MEMBERSHIP' | 'PT_BOOKING'; id: string; dueAt: string }
 
 // EN-03-F03: response sale chỉ báo đã lưu hay không có account nhận, không báo người dùng đã xem.
 export type NotificationState = 'STORED' | 'NO_LINKED_ACCOUNT';
@@ -20,6 +25,7 @@ export interface PersistedEvent {
 
 // Nội dung sự kiện socket notification.created (spec mục 3): chỉ các field này, không có member/transaction/recipient.
 export interface NotificationCreatedPayload {
+  source?: NotificationSource;
   id: string;
   eventKey: string;
   title: string;
@@ -45,6 +51,7 @@ export interface SyncResult {
 
 // Dữ liệu một thông báo gửi cho client (socket notification.created và REST sync ở bước 3).
 export interface NotificationItem {
+  source?: NotificationSource;
   id: string;
   eventKey: string;
   title: string;
@@ -91,6 +98,7 @@ export interface UnreadCountResult {
 
 // Chi tiết một thông báo: có body đầy đủ, không có danh sách người nhận hay eventKey (US-47-TC01).
 export interface InboxDetail {
+  source?: NotificationSource;
   id: string;
   title: string;
   body: string;

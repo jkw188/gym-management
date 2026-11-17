@@ -25,6 +25,7 @@ const { NotificationOutboxSchema } = require('../dist/modules/notifications/sche
 const { NotificationCounterSchema } = require('../dist/modules/notifications/schemas/notification-counter.schema');
 const { EnvironmentCheck } = require('../dist/infrastructure/environment/environment-check');
 const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction/financial-integrity');
+const { ensureRemindersIntegrity } = require('../dist/modules/reminders/reminders-migration');
 const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-query.indexes');
 const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/scheduling-migration');
 const { ensureTrainerReviewsIntegrity } = require('../dist/modules/reviews/trainer-reviews-migration');
@@ -70,6 +71,7 @@ async function run() {
       await connection.asPromise();
       // EN-02: preflight duplicates, install constraints, backfill missing BSON Int64 revisions.
       await ensureFinancialIntegrity(connection);
+      await ensureRemindersIntegrity(connection);
       await ensureMembersQueryIndexes(connection);
       await ensureTrainersIntegrity(connection);
       await ensurePublicSessionsIntegrity(connection);

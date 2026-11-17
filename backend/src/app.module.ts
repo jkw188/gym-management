@@ -1,4 +1,5 @@
 import { ReturnsModule } from './modules/returns/returns.module';
+import { RemindersModule } from './modules/reminders/reminders.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
@@ -48,6 +49,7 @@ import { StockModule } from './modules/stock/stock.module';
     StockModule,
     PaymentsModule,
     NotificationsModule,
+    RemindersModule,
     ReportsModule,
     OperationsModule,
     ShiftsModule,

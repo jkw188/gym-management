@@ -1,0 +1,39 @@
+sequenceDiagram
+  participant Timer as HTTP server timer SYSTEM
+  participant Worker as RemindersWorker
+  participant Service as RemindersService
+  participant UOW as TransactionRunner EN-02
+  participant DB as MongoDB replica set
+  participant Notify as NotificationsService EN-03
+  participant Outbox as Outbox worker EN-03
+  participant React as React inbox / PT toast
+  Timer->>Worker: start ngay, tick60s, batch50
+  Worker->>DB: dueAt <= now, anti-join terminal occurrence
+  loop mỗi candidate, lỗi riêng không dừng batch
+    Worker->>Service: process(source, milestone)
+    Service->>UOW: run(session)
+    UOW->>DB: snapshot / majority / primary
+    opt PT booking
+      Service->>DB: schedule_guard revision+1
+    end
+    Service->>DB: member.service_revision+1
+    Service->>DB: tái đọc nguồn, settled_at, continuation, link/PT, occurrence
+    Note over Service,DB: Clock/điều kiện đọc lại ở mọi callback retry
+    alt đến hạn, trong cửa sổ, đủ điều kiện
+      Service->>Notify: persistBusinessEvent(session, snapshot, recipients)
+      Notify->>DB: counter + notification + deduped recipients + outbox READY
+      Service->>DB: occurrence STORED + source snapshot + notification_id
+    else đến hạn nhưng stale/ineligible
+      Service->>DB: occurrence SKIPPED với reason
+    else chưa đến hạn
+      Note over Service,DB: Không ghi terminal
+    end
+    UOW->>DB: commit hoặc rollback tất cả
+    UOW-->>Worker: kết quả sau commit
+  end
+  Outbox->>DB: claim committed job, lease, retry
+  Outbox->>React: notification.created sau auth lại
+  React->>Notify: GET sync/inbox qua NestJS, recipient hiện hành
+  Notify->>DB: query theo recipient
+  Notify-->>React: lịch sử + source allowlist
+  Note over React,DB: Detail rồi POST read riêng, trang nguồn vẫn kiểm owner

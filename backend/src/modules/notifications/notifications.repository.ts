@@ -14,6 +14,7 @@ import { Notification } from './schemas/notification.schema';
 export interface NewNotification {
   eventKey: string; title: string; body: string; sequence: bigint; createdAt: Date;
   memberId?: Types.ObjectId; transactionId?: Types.ObjectId; createdBy?: Types.ObjectId;
+  sourceType?: 'MEMBERSHIP' | 'PT_BOOKING'; sourceId?: Types.ObjectId; dueAt?: Date;
 }
 
 const GLOBAL_COUNTER_ID = 'global';
@@ -66,6 +67,7 @@ export class NotificationsRepository implements OnModuleInit {
     const [created] = await this.notifications.create([{
       event_key: data.eventKey, title: data.title, body: data.body, sequence: data.sequence, created_at: data.createdAt,
       member_id: data.memberId, transaction_id: data.transactionId, created_by: data.createdBy,
+      source_type: data.sourceType, source_id: data.sourceId, due_at: data.dueAt,
     }], { session });
     return created._id;
   }
