@@ -62,6 +62,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
     <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
     {/* Trang chính chỉ có lời chào và các chức năng; thông tin tài khoản nằm ở trang riêng (thẻ "Thông tin tài khoản"). */}
     <div className="quick-links">
+    {role === 'ADMIN' && <Link to="/admin/notifications">Thông báo nhóm</Link>}
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
     {role === 'ADMIN' && <Link to="/admin/trainers">Quản lý huấn luyện viên</Link>}
     {role === 'ADMIN' && <Link to="/admin/trainers/activity">Đối chiếu chấm công và buổi PT</Link>}

@@ -1,3 +1,5 @@
+import { BroadcastsPage } from './features/notifications/BroadcastsPage';
+import { NotificationToast } from './features/notifications/NotificationToast';
 import { ReturnsPage } from './features/returns/ReturnsPage';
 import { StockIssuesPage } from './features/stock/StockIssuesPage';
 import { StockAdjustmentsPage } from './features/stock/StockAdjustmentsPage';
@@ -55,8 +57,13 @@ export default function App() {
     {/* Dải banner tối dưới thanh menu: tiêu đề lớn và khẩu hiệu. */}
     <section className="hero"><div className="hero-inner"><h1>Gym Management</h1>
       <p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p></div></section>
+    <NotificationToast />
     <main>
-    <Routes><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
+    <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
+      <Route path="/admin/notifications" element={<BroadcastsPage />} />
+      <Route path="/admin/notifications/new" element={<BroadcastsPage />} />
+      <Route path="/admin/notifications/:id" element={<BroadcastsPage />} />
+    </Route><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/health" element={<FoundationStatus />} />
       {/* US-26: lịch lớp miễn phí công khai, KHÔNG bọc ProtectedRoute nên Guest xem được. */}

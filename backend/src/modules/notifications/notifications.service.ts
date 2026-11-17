@@ -12,9 +12,8 @@ import { toNotificationItem } from './notification.mapper';
 import { NotificationsRepository } from './notifications.repository';
 import { AckResult, BusinessEventSource, NotificationState, PersistedEvent, SyncResult } from './notifications.types';
 
-// EN-03-F02: người nhận thông báo là account MEMBER. US-28-G04 (S04) thêm TRAINER: PT của booking nhận qua socket và
-// REST sync (chưa có inbox US-47 cho PT). Socket và REST sync dùng chung chính sách này; STAFF/ADMIN vẫn bị chặn.
-export const RECIPIENT_ROLES: RoleCode[] = ['MEMBER', 'TRAINER'];
+// US-48: cả bốn vai trò nhận qua socket/REST sync nếu có recipient. Inbox US-47 vẫn chỉ MEMBER.
+export const RECIPIENT_ROLES: RoleCode[] = ['ADMIN', 'STAFF', 'MEMBER', 'TRAINER'];
 const DEFAULT_SYNC_LIMIT = 50;
 const OBJECT_ID = /^[a-f0-9]{24}$/i;
 const invalidCursor = () => new ApplicationError(400, 'VALIDATION_ERROR', 'Cursor không hợp lệ');
@@ -28,7 +27,7 @@ export class NotificationsService {
     this.cursorKey = createHash('sha256').update(`notification-cursor:${config.getOrThrow<string>('jwtAccessSecret')}`).digest();
   }
 
-  // EN-03-F06: kiểm access token như HTTP (AUTH-F06) và account phải còn là người nhận (MEMBER hoặc TRAINER).
+  // EN-03-F06/US-48: kiểm access token như HTTP (AUTH-F06), vai trò hợp lệ và account ACTIVE.
   // Gateway gọi lúc handshake, trước mỗi emit và mỗi ack. Lỗi DB được ném nguyên để gateway chặn (không fail-open).
   async authenticateRecipient(accessToken: unknown): Promise<AuthPrincipal> {
     const principal = await this.auth.validateAccessToken(accessToken);

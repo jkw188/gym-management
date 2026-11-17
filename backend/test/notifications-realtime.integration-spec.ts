@@ -4,6 +4,7 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { getConnectionToken } from '@nestjs/mongoose';
 import { ObjectId } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
@@ -106,6 +107,14 @@ describe('EN-03 bước 3: gateway /notifications và REST sync chỉ phục v�
   });
 
   const db = () => connection.db!;
+  // Lấy cấu hình auth rõ ràng: AppModule còn có JwtModule không cấu hình của OrdersModule.
+  // app.get(JwtService) có thể resolve instance đó, khiến fixture lỗi trước khi kiểm tra expiry.
+  const authJwt = () => {
+    const config = app.get(ConfigService);
+    return new JwtService({ secret: config.getOrThrow<string>('jwtAccessSecret'), signOptions: {
+      algorithm: 'HS256', issuer: config.getOrThrow<string>('jwtIssuer'), audience: config.getOrThrow<string>('jwtAudience'),
+    } });
+  };
   const recipientOf = (notificationId: string, accountId: string) =>
     db().collection('notification_recipients').findOne({ notification_id: new ObjectId(notificationId), account_id: new ObjectId(accountId) });
 
@@ -205,7 +214,7 @@ describe('EN-03 bước 3: gateway /notifications và REST sync chỉ phục v�
 
     it('EN-03-TC09: token hết hạn thì bị từ chối', async () => {
       const a = await member();
-      const jwt = app.get(JwtService);
+      const jwt = authJwt();
       const claims = jwt.decode(a.accessToken) as Record<string, unknown>;
       const now = Math.floor(Date.now() / 1000);
       // Ký lại đúng secret/issuer/audience của ứng dụng nhưng exp đã qua.
@@ -346,7 +355,7 @@ describe('EN-03 bước 3: gateway /notifications và REST sync chỉ phục v�
 
     it('EN-03-TC10: access token hết hạn sau handshake thì emit tiếp theo bị chặn và socket bị ngắt', async () => {
       const a = await member();
-      const jwt = app.get(JwtService);
+      const jwt = authJwt();
       const claims = jwt.decode(a.accessToken) as Record<string, unknown>;
       const now = Math.floor(Date.now() / 1000);
       const shortLived = await jwt.signAsync({ sub: claims.sub, sid: claims.sid, av: claims.av, iat: now, exp: now + 2 });

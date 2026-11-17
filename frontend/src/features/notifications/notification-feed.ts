@@ -44,11 +44,11 @@ export class NotificationFeed {
     return () => { this.listeners.delete(listener); };
   }
 
-  // Chỉ account MEMBER (người nhận thông báo) mới mở socket; đổi account hoặc logout thì đóng socket cũ.
+  // US-48: bốn vai trò nhận qua socket/sync; đổi account hoặc logout thì đóng socket cũ.
   private onAuthChange(): void {
     const snapshot = this.client.getSnapshot();
     const user = snapshot.status === 'authenticated' ? snapshot.user : null;
-    const nextAccountId = user?.roleCode === 'MEMBER' ? user.id : null;
+    const nextAccountId = user?.id ?? null;
     if (nextAccountId !== this.accountId) this.switchAccount(nextAccountId);
   }
 

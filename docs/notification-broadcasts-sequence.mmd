@@ -1,0 +1,49 @@
+sequenceDiagram
+  actor Admin
+  participant React
+  participant API as NestJS / US-02 guards
+  participant Broadcast as BroadcastService
+  participant UoW as EN-02 Idempotency / TransactionRunner
+  participant Mongo as MongoDB replica set
+  participant Worker as EN-03 worker / gateway
+  participant Client as Recipient client
+  Admin->>React: Nhập nội dung, chọn nhóm, Xem trước
+  React->>API: POST /admin/notification-broadcasts/preview
+  API->>Broadcast: principal.id + DTO allowlist
+  Broadcast->>UoW: snapshot transaction
+  UoW->>Mongo: Đọc accounts ACTIVE + roles, lưu PREVIEW/digest/hạn 5 phút
+  Mongo-->>React: Preview nguyên văn + count + snapshotAt + version
+  Admin->>React: Xác nhận Gửi
+  React->>API: POST /:id/send {version}, cùng Idempotency-Key
+  API->>UoW: Kiểm quyền hiện hành rồi tra actor/operation/key/hash
+  alt Replay hợp lệ
+    UoW-->>React: HTTP/body gốc
+  else Chưa có operation
+    UoW->>Broadcast: Một session, đọc clock/preview/owner
+    Broadcast->>Mongo: Đọc lại toàn audience ACTIVE trong snapshot
+    alt Hết hạn / digest hoặc version đổi / nhóm rỗng
+      Broadcast-->>React: 409 PREVIEW_STALE hoặc AUDIENCE_EMPTY
+    else Hợp lệ
+      Broadcast->>Mongo: EN-03 persistBusinessEvent BROADCAST:id + sequence + recipients + outbox
+      Broadcast->>Mongo: PREVIEW -> SENT + notification_id + version
+      UoW->>Mongo: Ghi operation result rồi commit majority
+      Mongo-->>React: SENT / Đã lưu cho N tài khoản
+    end
+  end
+  opt Response bị mất hoặc outcome unknown
+    React->>API: GET /operations/NOTIFICATION_BROADCAST_SEND/key hoặc retry cùng key
+    API-->>React: COMMITTED hoặc chưa thấy, vẫn giữ key
+  end
+  Worker->>Mongo: Claim outbox sau commit
+  Worker->>Worker: Kiểm lại session/account/role từng socket recipient
+  Worker-->>Client: notification.created (có thể lặp; client dedupe id)
+  Worker->>Mongo: DONE chỉ hoàn tất lượt dispatch
+  Client->>API: Ack có auth + recipient ownership
+  API->>Mongo: delivered_at lần đầu
+  opt Member bấm Đánh dấu đã đọc trong US-47
+    Client->>API: POST /me/notifications/:id/read
+    API->>Mongo: read_at lần đầu, không đổi delivered_at
+  end
+  React->>API: GET /admin/notification-broadcasts/:id
+  API->>Mongo: Một snapshot đọc broadcast, recipients counts, outbox
+  Mongo-->>React: snapshot/sent/delivered/read + dispatchStatus + asOf

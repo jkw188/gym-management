@@ -1,5 +1,11 @@
 // Cấu hình NestJS (EN-03 bước 1–3, US-47): module thông báo, outbox worker, gateway socket, REST sync và inbox member.
 // Module nghiệp vụ khác import để gọi NotificationsService.persistBusinessEvent.
+import { TransactionModule } from '../../infrastructure/transaction/transaction.module';
+import { OperationsModule } from '../operations/operations.module';
+import { NotificationBroadcastSchema } from './schemas/notification-broadcast.schema';
+import { NotificationBroadcastController } from './notification-broadcast.controller';
+import { NotificationBroadcastService } from './notification-broadcast.service';
+import { NotificationBroadcastRepository } from './notification-broadcast.repository';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from '../auth/auth.module';
@@ -19,16 +25,17 @@ import { NotificationSchema } from './schemas/notification.schema';
 @Module({
   imports: [
     // AuthModule cung cấp AuthService để socket kiểm token/phiên giống HTTP (AUTH-F06).
-    AuthModule,
+    AuthModule, TransactionModule, OperationsModule,
     MongooseModule.forFeature([
+      { name: 'NotificationBroadcast', schema: NotificationBroadcastSchema },
       { name: 'Notification', schema: NotificationSchema },
       { name: 'NotificationRecipient', schema: NotificationRecipientSchema },
       { name: 'NotificationOutbox', schema: NotificationOutboxSchema },
       { name: 'NotificationCounter', schema: NotificationCounterSchema },
     ]),
   ],
-  controllers: [NotificationsController, NotificationInboxController],
-  providers: [NotificationsService, NotificationInboxService, NotificationsRepository, NotificationOutboxService, NotificationDispatcher, NotificationsGateway],
+  controllers: [NotificationBroadcastController, NotificationsController, NotificationInboxController],
+  providers: [NotificationBroadcastService, NotificationBroadcastRepository, NotificationsService, NotificationInboxService, NotificationsRepository, NotificationOutboxService, NotificationDispatcher, NotificationsGateway],
   exports: [NotificationsService],
 })
 export class NotificationsModule {}
