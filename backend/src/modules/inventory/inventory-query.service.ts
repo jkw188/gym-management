@@ -100,12 +100,14 @@ export class InventoryQueryService {
   }
   private async movement(row: StockMovement, session: ClientSession, asOf: string): Promise<MovementResponseDto> {
     let sourceType = row.source_type ?? 'UNKNOWN', sourceCode = row.source_code ?? null, sourcePath: string | null = null;
-    // Only a committed receipt with the persisted line chain may supply a receipt link.
-    if (row.kind === 'RECEIPT_POST' && row.document_item_id) {
+    // Only a committed stock document with the persisted line chain may supply a source link.
+    if ((row.kind === 'RECEIPT_POST' || row.kind === 'ISSUE_POST') && row.document_item_id) {
+      const kind = row.kind === 'ISSUE_POST' ? 'ISSUE' : 'RECEIPT';
+      const route = kind === 'ISSUE' ? 'stock-issues' : 'stock-receipts';
       const item = await this.connection.db!.collection('stock_document_items').findOne({ _id: row.document_item_id, document_id: row.source_id, product_id: row.product_id }, { session, projection: { _id: 1 } });
-      const source = item && await this.connection.db!.collection('stock_documents').findOne({ _id: row.source_id, kind: 'RECEIPT', status: 'POSTED' }, { session, projection: { code: 1 } });
-      sourceType = 'STOCK_RECEIPT';
-      if (source) { sourceCode ??= source.code as string; sourcePath = `/stock-receipts/${row.source_id}`; }
+      const source = item && await this.connection.db!.collection('stock_documents').findOne({ _id: row.source_id, kind, status: 'POSTED' }, { session, projection: { code: 1 } });
+      sourceType = kind === 'ISSUE' ? 'STOCK_ISSUE' : 'STOCK_RECEIPT';
+      if (source) { sourceCode ??= source.code as string; sourcePath = `/${route}/${row.source_id}`; }
     }
     return { id: String(row._id), productId: String(row.product_id), sequence: row.sequence, kind: row.kind,
       skuSnapshot: row.sku_snapshot, nameSnapshot: row.name_snapshot, onHandDelta: row.on_hand_delta, reservedDelta: row.reserved_delta,

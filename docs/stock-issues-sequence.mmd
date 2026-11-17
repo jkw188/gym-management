@@ -1,0 +1,57 @@
+sequenceDiagram
+  actor Admin
+  participant UI as React /admin/stock-issues
+  participant API as StockIssuesController + JWT/RBAC
+  participant Service as StockIssuesService / StockDocumentsService
+  participant UOW as IdempotencyService / TransactionRunner
+  participant Writer as InventoryWriter S05-I01
+  participant DB as MongoDB replica set
+  Admin->>UI: Lập nháp xuất ngoài bán, reason, quantity dương, cost chuỗi
+  UI->>API: POST /stock-issues hoặc PATCH /:id + UUID v4
+  API->>Service: Actor ADMIN hiện hành, DTO strict
+  Service->>UOW: CREATE/UPDATE, DTO chuẩn hóa + target/version
+  UOW->>DB: Kiểm key/hash trong snapshot transaction
+  Service->>DB: Tăng catalog revision, kiểm product/category
+  Service->>Writer: Khóa SKU cũ/mới theo productId tăng
+  Writer->>DB: Tăng guard_revision, kiểm inventory/ledger
+  Service->>DB: DRAFT, items delta âm, tổng decimal, audit
+  UOW->>DB: Operation result + majority commit
+  UI-->>Admin: Nháp chưa trừ tồn
+  Admin->>UI: Ghi sổ
+  UI->>API: GET inventory từng SKU
+  API-->>UI: onHand/reserved/available/asOf thật
+  UI-->>Admin: Kiểm khả dụng, xác nhận xuất ngoài bán
+  UI->>API: POST /stock-issues/:id/post {version} + key
+  API->>Service: Kiểm JWT/session/role trước mọi replay
+  Service->>UOW: STOCK_ISSUE_POST
+  UOW->>DB: Kiểm key/hash
+  alt Cùng key đã commit
+    UOW-->>UI: HTTP/body gốc
+  else Key mới
+    Service->>DB: Tăng catalog revision, đọc ISSUE
+    alt Đã POSTED
+      Service->>DB: Đọc kết quả cũ, không movement/audit mới
+    else DRAFT đúng version
+      Service->>Writer: Khóa inventory theo productId tăng
+      Writer->>DB: Guard thật, đọc số dư và đối chiếu ledger
+      Service->>Service: Kiểm tất cả quantity ≤ available
+      Service->>DB: CAS POSTED/version, refresh snapshots
+      loop Mỗi dòng
+        Service->>Writer: apply delta(−quantity,0)
+        Writer->>DB: Balance/version + ISSUE_POST:itemId cùng session
+      end
+      Service->>DB: POSTED audit duy nhất
+    end
+    UOW->>DB: Operation result + majority commit
+    UOW-->>UI: POSTED, postedAt/By, movementIds
+  end
+  Note over UOW,DB: Bất kỳ dòng/audit/key lỗi: rollback cả phiếu/ledger/guard
+  opt Mất response hoặc outcome unknown
+    UI->>API: Lookup hoặc replay cùng key/payload
+    API-->>UI: Kết quả gốc hoặc vẫn chưa xác định
+  end
+  Admin->>UI: Mở lịch sử tồn kho
+  UI->>API: GET movements
+  API->>DB: Snapshot, kiểm chuỗi nguồn ISSUE POSTED
+  API-->>UI: Delta âm, before/after, sourcePath allowlist không cost
+  UI->>API: GET stock-issues/:id theo quyền nguồn

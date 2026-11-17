@@ -26,8 +26,8 @@ export class StockRepository {
       }
     }
   }
-  document(id: Types.ObjectId, session: ClientSession) {
-    return this.connection.db!.collection<StockDocument>('stock_documents').findOne({ _id: id, kind: 'RECEIPT' }, { session });
+  document(id: Types.ObjectId, session: ClientSession, kind: StockDocument['kind'] = 'RECEIPT') {
+    return this.connection.db!.collection<StockDocument>('stock_documents').findOne({ _id: id, kind }, { session });
   }
   lines(id: Types.ObjectId, session: ClientSession) {
     return this.connection.db!.collection<StockDocumentItem>('stock_document_items').find({ document_id: id }, { session }).sort({ _id: 1 }).toArray();
@@ -38,11 +38,11 @@ export class StockRepository {
   category(id: Types.ObjectId, session: ClientSession) {
     return this.connection.db!.collection<RetailCategory>('categories').findOne({ _id: id }, { session });
   }
-  async movementIds(id: Types.ObjectId, session: ClientSession) {
-    return (await this.movements.find({ source_id: id, kind: 'RECEIPT_POST' }).select('_id').sort({ document_item_id: 1 }).session(session).lean().exec()).map(row => String(row._id));
+  async movementIds(id: Types.ObjectId, session: ClientSession, kind = 'RECEIPT_POST') {
+    return (await this.movements.find({ source_id: id, kind }).select('_id').sort({ document_item_id: 1 }).session(session).lean().exec()).map(row => String(row._id));
   }
-  receiptMovements(id: Types.ObjectId, session: ClientSession) {
-    return this.movements.find({ source_id: id, kind: 'RECEIPT_POST' }).sort({ document_item_id: 1 }).session(session).lean().exec();
+  documentMovements(id: Types.ObjectId, session: ClientSession, kind = 'RECEIPT_POST') {
+    return this.movements.find({ source_id: id, kind }).sort({ document_item_id: 1 }).session(session).lean().exec();
   }
   async page(filter: Filter<StockDocument>, page: number, limit: number, session: ClientSession) {
     const collection = this.connection.db!.collection<StockDocument>('stock_documents');

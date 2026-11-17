@@ -76,6 +76,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/orders`}>Chuẩn bị đơn website</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/refunds`}>Nghĩa vụ hoàn tiền</Link>}
     {role === 'MEMBER' && <Link to="/member/orders">Đơn hàng của tôi</Link>}
+    {role === 'ADMIN' && <Link to='/admin/stock-issues'>Phiếu xuất ngoài bán</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/stock-receipts`}>Phiếu nhập kho</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/inventory`}>Tra cứu tồn kho</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}

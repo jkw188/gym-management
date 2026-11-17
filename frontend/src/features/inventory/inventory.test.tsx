@@ -81,6 +81,16 @@ describe('US-37 TC14: inventory UI, historical snapshots, loading/error/empty an
     await userEvent.click(await screen.findByRole('button', { name: 'Xem biến động 2' }));
     await screen.findByText(/Quyền xem phiếu và giá nhập/); expect(screen.queryByRole('link', { name: 'Mở phiếu nguồn' })).toBeNull();
   });
+  it.each(['/admin', '/staff'])('opens verified ISSUE source only for Admin (%s)', async home => {
+    vi.mocked(inventoryApi.movement).mockResolvedValue({ ...movement, kind: 'ISSUE_POST', sourceType: 'STOCK_ISSUE', sourcePath: `/stock-issues/${sourceId}` });
+    render(<MemoryRouter initialEntries={[`${home}/inventory`]}><InventoryPage /></MemoryRouter>);
+    await userEvent.click(await screen.findByRole('button', { name: 'Xem kho WATER' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Xem biến động 2' }));
+    await screen.findByText(/Quyền xem phiếu và giá nhập/);
+    const link = screen.queryByRole('link', { name: 'Mở phiếu nguồn' });
+    if (home === '/admin') expect(link?.getAttribute('href')).toBe(`/admin/stock-issues?documentId=${sourceId}`);
+    else expect(link).toBeNull();
+  });
   it.each(['MEMBER', 'TRAINER'] as const)('rejects %s before issuing any inventory reads', async roleCode => {
     authenticate(roleCode);
     for (const path of ['/staff/inventory', '/admin/inventory']) {
