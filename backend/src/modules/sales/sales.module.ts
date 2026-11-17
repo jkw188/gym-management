@@ -26,6 +26,8 @@ import { UpgradeBookingsAdapter } from './upgrade-bookings.adapter';
 import { PtBookingSchema } from '../bookings/schemas/pt-booking.schema';
 import { MeSalesController } from './me-sales.controller';
 import { MeSalesService } from './me-sales.service';
+import { MeRenewalsController } from './me-renewals.controller';
+import { MeRenewalsService } from './me-renewals.service';
 
 @Module({
   imports: [TransactionModule, MembersDataModule, OperationsModule, NotificationsModule, PlansModule, MongooseModule.forFeature([
@@ -35,8 +37,9 @@ import { MeSalesService } from './me-sales.service';
     { name: 'PtBooking', schema: PtBookingSchema },
   ])],
   // US-18 bước 1: MeSalesController/MeSalesService cho Member tự đăng ký, dùng MemberOwnerReader của MembersDataModule.
-  controllers: [SalesController, RenewalsController, UpgradesController, MeSalesController],
-  providers: [MeSalesService, SalesRepository, SaleReader, SalesService, RenewalService, RenewalsRepository, SaleActivationService, UpgradeService, UpgradesRepository, UpgradeBookingsAdapter,
+  // US-19 bước 1: MeRenewalsController/MeRenewalsService cho Member tự gia hạn, gọi chung RenewalService.
+  controllers: [SalesController, RenewalsController, UpgradesController, MeSalesController, MeRenewalsController],
+  providers: [MeSalesService, MeRenewalsService,SalesRepository, SaleReader, SalesService, RenewalService, RenewalsRepository, SaleActivationService, UpgradeService, UpgradesRepository, UpgradeBookingsAdapter,
     { provide: SaleActivation, useExisting: SaleActivationService }, { provide: ZeroSettlement, useClass: ZeroSettlementService }],
   exports: [SaleActivation, SalesRepository, RenewalService, RenewalsRepository, UpgradeService],
 })
