@@ -59,7 +59,9 @@ function MovementDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const home = location.pathname.startsWith('/admin/') ? '/admin' : '/staff';
   // Never navigate to an arbitrary server/client URL. The source endpoint checks its own permission.
   const source = row?.sourceType === 'STOCK_RECEIPT' && /^[a-f\d]{24}$/i.test(row.sourceId) && row.sourcePath === `/stock-receipts/${row.sourceId}`
-    ? `${home}/stock-receipts?documentId=${row.sourceId}` : null;
+    ? `${home}/stock-receipts?documentId=${row.sourceId}`
+    : home === '/admin' && row?.sourceType === 'STOCK_ISSUE' && /^[a-f\d]{24}$/i.test(row.sourceId) && row.sourcePath === `/stock-issues/${row.sourceId}`
+      ? `/admin/stock-issues?documentId=${row.sourceId}` : null;
   return <section aria-label="Chi tiết biến động"><h4>Chi tiết biến động</h4><button type="button" onClick={onClose}>Đóng biến động</button>
     {loading && <p role="status">Đang tải biến động…</p>}{error && <p role="alert">{error} <button type="button" onClick={() => setRevision(value => value + 1)}>Thử lại biến động</button></p>}
     {!loading && !error && row && <><p>{row.skuSnapshot} · {row.nameSnapshot} · {row.kind} · Sequence {row.sequence}</p><p>{stockDate(row.createdAt)}</p>

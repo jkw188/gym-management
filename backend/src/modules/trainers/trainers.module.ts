@@ -7,11 +7,15 @@ import { TrainerEventSchema } from './schemas/trainer-event.schema';
 import { TrainersController } from './trainers.controller';
 import { TrainersRepository } from './trainers.repository';
 import { TrainersService } from './trainers.service';
+import { ActivityAttendanceController, TrainerActivityController } from './trainer-activity.controller';
+import { TrainerActivityRepository } from './trainer-activity.repository';
+import { TrainerActivityService } from './trainer-activity.service';
 
 @Module({
   imports: [TransactionModule, OperationsModule, MongooseModule.forFeature([
     { name: 'Trainer', schema: TrainerSchema }, { name: 'TrainerEvent', schema: TrainerEventSchema },
   ])],
-  controllers: [TrainersController], providers: [TrainersRepository, TrainersService],
+  controllers: [TrainersController, TrainerActivityController, ActivityAttendanceController],
+  providers: [TrainersRepository, TrainersService, TrainerActivityRepository, TrainerActivityService],
 })
 export class TrainersModule {}

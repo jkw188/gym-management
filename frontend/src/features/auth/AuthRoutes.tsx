@@ -64,6 +64,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
     <div className="quick-links">
     {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
     {role === 'ADMIN' && <Link to="/admin/trainers">Quản lý huấn luyện viên</Link>}
+    {role === 'ADMIN' && <Link to="/admin/trainers/activity">Đối chiếu chấm công và buổi PT</Link>}
+    {role === 'ADMIN' && <Link to="/admin/trainer-reviews">Tổng hợp đánh giá PT</Link>}
     {role === 'ADMIN' && <Link to="/admin/classes">Quản lý lớp miễn phí</Link>}
     {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
     {role === 'ADMIN' && <Link to="/admin/categories">Danh mục bán lẻ</Link>}
@@ -74,6 +76,7 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/orders`}>Chuẩn bị đơn website</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/refunds`}>Nghĩa vụ hoàn tiền</Link>}
     {role === 'MEMBER' && <Link to="/member/orders">Đơn hàng của tôi</Link>}
+    {role === 'ADMIN' && <Link to='/admin/stock-issues'>Phiếu xuất ngoài bán</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/stock-receipts`}>Phiếu nhập kho</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/inventory`}>Tra cứu tồn kho</Link>}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}

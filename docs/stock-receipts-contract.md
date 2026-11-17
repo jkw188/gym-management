@@ -53,6 +53,9 @@ DB Date UTC; API ISO 8601; UI Asia/Ho_Chi_Minh. Trang mặc định 1/20, limit 
 | operation_requests (EN-02) | Ba operation STOCK_RECEIPT_*; kết quả và business writes cùng commit; không TTL |
 
 StockModule quản lý phiếu; InventoryModule export InventoryWriter cho writer kho tiếp theo.
+S07 US-38 tách luồng dùng chung sang StockDocumentsService, StockReceiptsService giữ kind RECEIPT
+và API/giới hạn US-36; StockIssuesService chọn kind ISSUE với quantity 1–999/delta âm.
+Schema/index US-36 được tái dùng, không thay dữ liệu nhập cũ; xem `stock-issues-contract.md`.
 Writer không upsert inventory khi post. Inventory thiếu, BSON sai kiểu, reserved bất thường trả
 409 INVENTORY_INTEGRITY_ERROR; trần tồn/sequence trả 409 STOCK_LIMIT_EXCEEDED.
 Writer lấy guard theo productId tăng, kiểm tất cả balances trước cập nhật, ghi có điều kiện và một movement/mỗi lần version tăng.

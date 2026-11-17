@@ -11,6 +11,9 @@ import { ReviewService } from './review.service';
 import { TrainerReviewQueryController } from './trainer-review-query.controller';
 import { TrainerReviewQueryService } from './trainer-review-query.service';
 import { TrainerReviewSchema } from './schemas/trainer-review.schema';
+import { AdminTrainerReviewsController } from './admin-trainer-reviews.controller';
+import { AdminTrainerReviewsService } from './admin-trainer-reviews.service';
+import { AdminTrainerReviewsRepository } from './admin-trainer-reviews.repository';
 
 @Module({
   imports: [
@@ -19,7 +22,7 @@ import { TrainerReviewSchema } from './schemas/trainer-review.schema';
     OperationsModule,
     TransactionModule,
   ],
-  controllers: [ReviewController, TrainerReviewQueryController],
-  providers: [ReviewService, ReviewRepository, TrainerReviewQueryService],
+  controllers: [ReviewController, TrainerReviewQueryController, AdminTrainerReviewsController],
+  providers: [ReviewService, ReviewRepository, TrainerReviewQueryService, AdminTrainerReviewsService, AdminTrainerReviewsRepository],
 })
 export class ReviewsModule {}

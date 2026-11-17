@@ -1,3 +1,4 @@
+import { StockIssuesPage } from './features/stock/StockIssuesPage';
 // Tầng giao diện – khung chung: thanh menu, banner, vùng nội dung <main>, chân trang và khai báo mọi route.
 import { FoundationStatus } from './features/foundation/FoundationStatus';
 import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
@@ -30,6 +31,8 @@ import { MembersPage } from './features/members/MembersPage';
 import { PlansPage } from './features/plans/PlansPage';
 import { TraineesPage } from './features/trainees/TraineesPage';
 import { TrainerReviewsPage } from './features/trainer-reviews/TrainerReviewsPage';
+import { AdminTrainerReviewsPage } from './features/trainer-reviews/AdminTrainerReviewsPage';
+import { TrainerActivityPage } from './features/trainer-activity/TrainerActivityPage';
 import { TransactionsPage } from './features/payments/TransactionsPage';
 import { RetailCatalogPage } from './features/retail/RetailCatalogPage';
 import { StockReceiptsPage } from './features/stock/StockReceiptsPage';
@@ -66,6 +69,8 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/account" element={<AccountInfoPage role="STAFF" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers/activity" element={<TrainerActivityPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainer-reviews" element={<AdminTrainerReviewsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/classes" element={<AdminClassesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/categories" element={<RetailCatalogPage key="categories" kind="categories" />} />
@@ -80,7 +85,7 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/refunds" element={<RefundsPage />} /></Route>
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/orders" element={<MyOrdersPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/stock-receipts" element={<StockReceiptsPage />} /></Route>
-      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /><Route path="/admin/stock-issues" element={<StockIssuesPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/inventory" element={<InventoryPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/inventory" element={<InventoryPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>

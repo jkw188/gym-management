@@ -5,6 +5,7 @@ import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../../common/errors/application-error';
 import { ServerClock } from '../../common/utils/business-date';
+import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { ShiftIntervalService } from '../shifts/shift-interval.service';
 import { toAdminPtBookingDetail, toSupportPtBookingItem } from './support-pt-bookings.mapper';
 import { SupportPtBookingsQueryDto } from './support-pt-bookings.dto';
@@ -20,6 +21,7 @@ export class SupportPtBookingsService {
     // Dùng lại luật đổi ngày Việt Nam → khoảng UTC (ngày có thật, tối đa 31 ngày, mặc định tuần này) như US-27.
     private readonly interval: ShiftIntervalService,
     private readonly clock: ServerClock,
+    private readonly transactions: TransactionRunner,
   ) {}
 
   // GET /api/pt-bookings: US-29-TC05 – lọc ngày + memberId/trainerId/status tùy chọn; ngày sai, ngược hoặc > 31 ngày → 400.
@@ -55,12 +57,14 @@ export class SupportPtBookingsService {
   // GET /api/admin/pt-bookings/:id: US-64-C04 – chi tiết có lịch sử COMPLETE/REOPEN/CANCELLED và nguồn quota.
   // id đã được PtBookingIdParamDto kiểm định dạng ở controller (sai → 400).
   async adminDetail(bookingId: string): Promise<AdminPtBookingDetail> {
-    const id = new Types.ObjectId(bookingId);
-    const row = await this.repository.findById(id);
-    if (!row) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy buổi PT');
-    const source = await this.repository.findQuotaSource(row.membership_id);
-    const events = await this.repository.findEvents(id);
-    const quotaSource = { membershipId: row.membership_id.toHexString(), sessionsUsed: source.used, sessionsQuota: source.quota };
-    return toAdminPtBookingDetail(row, quotaSource, events);
+    return this.transactions.run(async session => {
+      const id = new Types.ObjectId(bookingId);
+      const row = await this.repository.findById(id, session);
+      if (!row) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy buổi PT');
+      const source = await this.repository.findQuotaSource(row.membership_id, session);
+      const events = await this.repository.findEvents(id, session);
+      const quotaSource = { membershipId: row.membership_id.toHexString(), sessionsUsed: source.used, sessionsQuota: source.quota };
+      return toAdminPtBookingDetail(row, quotaSource, events);
+    });
   }
 }
