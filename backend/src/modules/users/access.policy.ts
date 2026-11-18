@@ -61,6 +61,8 @@ export const ACCESS_POLICY = {
   'transactions.instructionsOwn': { name: 'Xem hướng dẫn thanh toán của mình', roles: ['MEMBER'] },
   // US-19-F01: Member tự xem trước/tạo kỳ gia hạn cho gói của chính mình.
   'serviceSales.renewOwn': { name: 'Tự gia hạn gói', roles: ['MEMBER'] },
+  // US-20-F01: Member tự xem gói đích, xem trước/tạo đề nghị nâng cấp gói của chính mình.
+  'serviceSales.upgradeOwn': { name: 'Tự nâng cấp gói', roles: ['MEMBER'] },
   // US-27: Member xem danh mục PT khả dụng và giờ trống của PT (chỉ xem, không giữ chỗ).
   'ptTrainers.readAvailable': { name: 'Xem danh mục PT khả dụng', roles: ['MEMBER'] },
   'ptAvailability.read': { name: 'Xem giờ trống của PT', roles: ['MEMBER'] },

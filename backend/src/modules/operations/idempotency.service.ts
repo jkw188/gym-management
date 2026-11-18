@@ -64,7 +64,8 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   SALE_REGISTER: [...ACCESS_POLICY['serviceSales.create'].roles, ...ACCESS_POLICY['serviceSales.registerOwn'].roles],
   // US-19-TC09: quầy (serviceSales.create) và Member tự gia hạn (serviceSales.renewOwn); vẫn chỉ tra theo actor đang đăng nhập.
   SALE_RENEW: [...ACCESS_POLICY['serviceSales.create'].roles, ...ACCESS_POLICY['serviceSales.renewOwn'].roles],
-  SALE_UPGRADE: ['ADMIN', 'STAFF', 'MEMBER'], // US-20 owns the self-service ownership adapter.
+  // US-20-TC10: quầy (serviceSales.create) và Member tự nâng cấp (serviceSales.upgradeOwn); vẫn chỉ tra theo actor đang đăng nhập.
+  SALE_UPGRADE: [...ACCESS_POLICY['serviceSales.create'].roles, ...ACCESS_POLICY['serviceSales.upgradeOwn'].roles],
   SALE_CANCEL: [...ACCESS_POLICY['serviceSales.cancel'].roles, ...ACCESS_POLICY['serviceSales.cancelOwn'].roles],
   PAYMENT_CONFIRM: ACCESS_POLICY['transactions.confirmPayment'].roles,
   MEMBER_CREATE: ACCESS_POLICY['members.create'].roles,
