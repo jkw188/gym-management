@@ -205,15 +205,17 @@ export class CartService {
     if (!product) return { product: null, price: null, available: null, reasons: ['PRODUCT_UNAVAILABLE'] };
 
     const reasons: CartLineReason[] = [];
+    const price = priceOf(product.price);
     // US-40-TC05: effectiveActive = sản phẩm ACTIVE và danh mục ACTIVE (US-34).
+    // US-40-TC08: giá không tính được cũng là dòng lỗi rõ → chặn (dùng chung mã PRODUCT_UNAVAILABLE, spec không có mã riêng).
     const category = view.categories.get(product.category_id.toHexString());
-    if (product.status !== 'ACTIVE' || category?.status !== 'ACTIVE') reasons.push('PRODUCT_UNAVAILABLE');
+    if (product.status !== 'ACTIVE' || category?.status !== 'ACTIVE' || price === null) reasons.push('PRODUCT_UNAVAILABLE');
 
     const available = availableOf(view.inventories.get(productId.toHexString()));
     if (available === null) reasons.push('INVENTORY_UNAVAILABLE');
     else if (quantity > available) reasons.push('INSUFFICIENT_STOCK');
 
-    return { product, price: priceOf(product.price), available, reasons };
+    return { product, price, available, reasons };
   }
 
   // Thêm hoặc đặt số lượng không giảm: dòng phải bán được, đủ tồn, và tổng giỏ sau khi đổi trong trần tiền.
