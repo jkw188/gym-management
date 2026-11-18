@@ -1,7 +1,7 @@
 // Tầng giao diện – trang (US-35 bước 3): /shop/:id – xem chi tiết sản phẩm, chọn số lượng và nút "Thêm vào giỏ".
 // Guest bấm thêm thì sang đăng nhập kèm returnTo; PT/Staff/Admin không có nút mua (US-35-F05, TC11).
 // US-40 bước 3: Member bấm thêm → GET giỏ lấy version → POST /me/cart/items có Idempotency-Key.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
@@ -34,7 +34,10 @@ export function ProductDetailPage() {
   // Giữ đúng chữ người dùng gõ (không tự sửa giữa chừng); kiểm 1–999 khi bấm thêm.
   const [quantityText, setQuantityText] = useState('1');
   // US-40: trạng thái nút thêm giỏ của Member.
+  // adding: để khóa nút trên màn hình. addingRef: chặn bấm đúp NGAY LẬP TỨC – state chỉ đổi sau lần render kế tiếp,
+  // nên hai click liên tiếp vẫn cùng thấy adding = false (US-40-TC10, giống busyRef của CartPage).
   const [adding, setAdding] = useState(false);
+  const addingRef = useRef(false);
   const [added, setAdded] = useState(false);
   const [addError, setAddError] = useState('');
   // Lệnh thêm chưa biết kết quả (lỗi mạng/5xx): "Thử lại" gửi đúng key và body cũ (US-40-TC10).
@@ -73,7 +76,8 @@ export function ProductDetailPage() {
 
   // US-40-TC01: lấy version giỏ hiện tại rồi gửi lệnh thêm với key mới.
   async function addForMember() {
-    if (adding) return;
+    if (addingRef.current) return;
+    addingRef.current = true;
     setAdding(true);
     setAdded(false);
     setAddError('');
@@ -81,6 +85,7 @@ export function ProductDetailPage() {
     const quantity = Number(quantityText);
     if (!/^\d+$/.test(quantityText.trim()) || quantity < 1 || quantity > MAX_QUANTITY) {
       setAddError(`Số lượng từ 1 đến ${MAX_QUANTITY}`);
+      addingRef.current = false;
       setAdding(false);
       return;
     }
@@ -95,6 +100,7 @@ export function ProductDetailPage() {
     } catch (failure) {
       setAddError(failure instanceof ApiError ? failure.message : 'Không kết nối được máy chủ.');
     } finally {
+      addingRef.current = false;
       setAdding(false);
     }
   }
@@ -113,9 +119,11 @@ export function ProductDetailPage() {
   }
 
   async function retryAdd() {
-    if (!pendingAdd || adding) return;
+    if (!pendingAdd || addingRef.current) return;
+    addingRef.current = true;
     setAdding(true);
     await sendAdd(pendingAdd);
+    addingRef.current = false;
     setAdding(false);
   }
 
