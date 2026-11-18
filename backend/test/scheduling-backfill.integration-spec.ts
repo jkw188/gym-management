@@ -98,7 +98,8 @@ describe('US-28 bước 2: backfill member_id/snapshot cho booking cũ', () => {
     const trainerId = new ObjectId();
     const shiftId = new ObjectId();
     await db().collection('accounts').insertOne({ _id: accountId, id: accountId, full_name: fullName, phone: `+8490${String(Math.random()).slice(2, 9)}`, status: 'ACTIVE' });
-    await db().collection('trainers').insertOne({ _id: trainerId, id: trainerId, account_id: accountId, specialty: 'Thể hình', status: 'ACTIVE', version: 0 });
+    await db().collection('trainers').insertOne({ _id: trainerId, id: trainerId, account_id: accountId, specialty: 'Thể hình', status: 'ACTIVE', version: 0,
+      created_at: at('00:00'), updated_at: at('00:00'), created_by: accountId, updated_by: accountId });
     await db().collection('work_shifts').insertOne({
       _id: shiftId, id: shiftId, trainer_id: trainerId, start_at: at('08:00'), end_at: at('12:00'), location, status: 'CONFIRMED', version: 1,
     });

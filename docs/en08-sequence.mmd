@@ -1,0 +1,37 @@
+sequenceDiagram
+    actor Operator
+    participant Gate as EN08 runner (test only)
+    participant EN04 as EN04 static/unit/frontend/integration/E2E
+    participant NestA as Nest process A (HTTP/JWT/Guard thật)
+    participant NestB as Nest process B (HTTP/JWT/Guard thật)
+    participant Mongo as MongoDB replica set / owned test DB
+    participant Oracle as Independent source oracle
+    participant Evidence as Artifact / strict acceptance
+    Operator->>Gate: node scripts/en08.cjs (same checkout)
+    Gate->>Evidence: commit/dirty/source/lock hashes, matrix, runtime, runId
+    Gate->>EN04: Run full inherited suites; record all mandatory files
+    EN04-->>Evidence: exit codes, PASS/FAIL/TODO, actual suites
+    Gate->>Gate: Run EN05/EN06 full acceptance; link new evidence
+    Gate->>Mongo: Lease gym_test namespace, verify owner/replica/index
+    Gate->>NestA: Fork / real login / fixed clock via IPC only
+    Gate->>NestB: Fork / real login / independent connection
+    loop 10 rounds / 20 requests per S07 group
+        Gate->>Mongo: Read committed before / source IDs and hashes
+        par Return / payout / broadcast conflict
+            Gate->>NestA: HTTP with real session/idempotency key
+            NestA->>Mongo: Atomic source/ledger/event/outbox/operation
+        and Other process
+            Gate->>NestB: Same/different key / competing command
+            NestB->>Mongo: Transaction / constraint / retry
+        end
+        NestA-->>Gate: Outcomes after commit
+        NestB-->>Gate: Outcomes / lookup + replay if response lost
+        Gate->>Mongo: Read after; invariants, counts, source IDs
+        Gate->>Evidence: Resolved requests + before/after + PIDs
+    end
+    Gate->>Oracle: Declarative fixtures + literal expected (reference only)
+    Note over Oracle,Evidence: US50 has a separate committed-source/API suite; US51/52 and full EN08 retest remain BLOCKED
+    Gate->>Gate: Real isolated Jest PASS / intentional FAIL / SKIP probes
+    Gate->>Evidence: Reject missing/skip/TODO/unknown; write all 20 TC
+    Note over Operator,Evidence: EN07 HTTPS React → Nest → Mongo smoke/restore needs real UAT; currently BLOCKED
+    Evidence-->>Operator: NOT_ACCEPTED / exit1 until every release requirement has evidence

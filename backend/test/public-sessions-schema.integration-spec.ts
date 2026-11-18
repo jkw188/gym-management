@@ -229,8 +229,16 @@ describe('US-26 bước 2: schema và index của public_sessions', () => {
     });
 
     it('US-26-TC10: không có model nào cho collection đăng ký lớp', () => {
-      const names = Object.values(connection.models).map(model => model.collection.collectionName);
-      expect(names.filter(name => /enroll|registration|attendance/i.test(name))).toEqual([]);
+      // US63 tracks trainer shifts, not seats in public classes. Keep the class enrollment
+      // prohibition while checking that the two attendance models still belong to shifts.
+      const shiftAttendance = new Set(['trainer_attendance', 'attendance_events']);
+      const models = Object.values(connection.models);
+      const names = models.map(model => model.collection.collectionName);
+      expect(names.filter(name => /enroll|registration|attendance/i.test(name) && !shiftAttendance.has(name))).toEqual([]);
+      for (const model of models.filter(model => shiftAttendance.has(model.collection.collectionName))) {
+        expect(model.schema.path('shift_id')).toBeDefined();
+        for (const field of ['class_id', 'public_session_id', 'session_id']) expect(model.schema.path(field)).toBeUndefined();
+      }
     });
   });
 });

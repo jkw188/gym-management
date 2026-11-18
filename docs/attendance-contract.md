@@ -90,7 +90,12 @@ không tự sửa/xóa giờ cũ. Người vận hành đối chiếu bằng ch�
 Nguồn hợp lệ: bổ sung id=_id, trainer_id từ ca, version=0 khi thiếu (baseline CAS
 cho dữ liệu legacy), updated_at=created_at khi thiếu. Không tạo audit giả hay suy
 giờ từ booking; thiếu timestamp/actor gốc phải đối chiếu thủ công. Chạy lại không
-đổi dữ liệu đã có. Không thêm env hoặc dependencies. Migration chưa chạy trên DB
+đổi dữ liệu đã có. EN08 bổ sung kiểm idempotency của schedule guard: migration vẫn
+lấy guard thật trước kiểm snapshot; nếu không có field cần backfill thì abort transaction
+đó, giữ nguyên revision. Collection rỗng chỉ cần tạo index, không mở transaction; vì vậy
+EN01 vẫn khởi tạo index DB standalone chưa có dữ liệu nghiệp vụ được. Có bản ghi thì
+vẫn yêu cầu replica set và guard thật để đối chiếu/backfill. Có backfill mới commit nguồn và revision cùng nhau. Lỗi nguồn
+vẫn abort và báo lỗi, không bị bỏ qua như trường hợp không cần ghi. Không thêm env hoặc dependencies. Migration chưa chạy trên DB
 cá nhân; integration test chạy bằng MongoDB 8.0.17 replica set tạm riêng.
 
 ## Truy vết kiểm thử

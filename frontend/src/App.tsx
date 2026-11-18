@@ -49,6 +49,9 @@ import { RefundsPage } from './features/refunds/RefundsPage';
 import { PosPage } from './features/pos/PosPage';
 import { ShopPage } from './features/shop/ShopPage';
 import { ProductDetailPage } from './features/shop/ProductDetailPage';
+import { MembershipReportsPage } from './features/reports/MembershipReportsPage';
+import { CashFlowReportsPage } from './features/reports/CashFlowReportsPage';
+import { TrainerPerformancePage } from './features/reports/TrainerPerformancePage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
@@ -84,6 +87,9 @@ export default function App() {
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/account" element={<AccountInfoPage role="ADMIN" />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/account" element={<AccountInfoPage role="STAFF" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/reports/memberships" element={<MembershipReportsPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/reports/cash-flow" element={<CashFlowReportsPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/reports/trainers" element={<TrainerPerformancePage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers/activity" element={<TrainerActivityPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/trainer-attendance" element={<TrainerAttendancePage />} /></Route>
