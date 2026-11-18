@@ -45,6 +45,10 @@ export function CartPage() {
   const [inputError, setInputError] = useState('');
   // Chỉ nhận kết quả của lần tải mới nhất (bỏ kết quả cũ về muộn).
   const loadNo = useRef(0);
+  // Giỏ đang hiện trên màn hình, để lần tải sau so đơn giá. Dùng ref vì loadCart không đọc lại state mới nhất.
+  const shownCart = useRef<Cart | null>(null);
+  // productId của các dòng có đơn giá khác lần hiển thị trước (spec mục 3: giá thay khi refresh phải cập nhật rõ).
+  const [priceChanged, setPriceChanged] = useState<string[]>([]);
 
   // Tải giỏ từ server. Lần đầu (chưa có giỏ) hiện "Đang tải"; tải lại sau lệnh thì giữ giỏ cũ trên màn hình.
   const loadCart = useCallback(async () => {
@@ -53,6 +57,17 @@ export function CartPage() {
     try {
       const result = await cartApi.get();
       if (myNo !== loadNo.current) return;
+      // US-40-TC16: dòng vẫn còn trong giỏ nhưng đơn giá khác lần trước → đánh dấu để báo "Giá đã thay đổi".
+      // Lần tải đầu (chưa có giỏ cũ) thì không báo.
+      const previous = shownCart.current;
+      const changed = previous === null ? [] : result.items
+        .filter(item => {
+          const old = previous.items.find(oldItem => oldItem.productId === item.productId);
+          return old !== undefined && old.unitPrice !== item.unitPrice;
+        })
+        .map(item => item.productId);
+      shownCart.current = result;
+      setPriceChanged(changed);
       setCart(result);
       setDrafts({});
     } catch (failure) {
@@ -64,6 +79,8 @@ export function CartPage() {
   // US-40-TC16: đổi tài khoản thì bỏ giỏ, lỗi và lệnh đang giữ của tài khoản trước rồi tải giỏ mới.
   useEffect(() => {
     setCart(null);
+    shownCart.current = null;
+    setPriceChanged([]);
     setAlert('');
     setFailedCommand(null);
     void loadCart();
@@ -173,6 +190,8 @@ export function CartPage() {
             <p>Thành tiền: {item.lineTotal !== null ? formatVnd(item.lineTotal) : 'Chưa tính được'}</p>
             {/* US-40-TC05: dòng bị chặn vẫn giữ trong giỏ và nói rõ lý do. */}
             {item.reasons.map(reason => <p key={reason} className="form-error">{reasonText(reason, item)}</p>)}
+            {/* US-40-TC16: báo rõ giá mới, không giữ hay tự chốt giá cũ. */}
+            {priceChanged.includes(item.productId) && <p role="status">Giá đã thay đổi, đơn giá trên là giá hiện tại.</p>}
             <div className="toolbar">
               {/* US-40-TC04, TC06: giảm khóa khi còn 1 (bỏ thì bấm Xóa); dòng bị chặn vẫn giảm được để dọn giỏ. */}
               <button type="button" aria-label={`Giảm ${name}`} disabled={busy || item.quantity <= MIN_QUANTITY}
