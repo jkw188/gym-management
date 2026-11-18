@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { CatalogError, catalogError, PlanForm } from './PlanForm';
 import { PlanPicker, PolicyForm } from './PolicyForm';
-import { formatVnd, plansApi, type CatalogPage, type Plan, type PlanPolicy, type PlansQuery } from './plans.api';
+import { plansApi, type CatalogPage, type Plan, type PlanPolicy, type PlansQuery } from './plans.api';
+import { formatVnd } from '../../utils/money';
 import { Icon } from '../../components/Icon';
 
 export function PlansPage() {

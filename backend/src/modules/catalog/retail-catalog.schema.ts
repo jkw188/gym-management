@@ -43,6 +43,8 @@ export const RetailProductSchema = new Schema<RetailProduct>({ ...fields,
 RetailProductSchema.index({ sku: 1 }, { unique: true, collation: { locale: 'simple' }, name: 'products_sku_unique' });
 RetailProductSchema.index({ category_id: 1, status: 1, name: 1, _id: 1 }, { name: 'products_category_status_name_id' });
 RetailProductSchema.index({ status: 1, name: 1, _id: 1 }, { name: 'products_status_name_id' });
+// US-35: sắp/lọc giá trên shop công khai.
+RetailProductSchema.index({ status: 1, price: 1, _id: 1 }, { name: 'products_status_price_id' });
 
 export const RetailInventorySchema = new Schema<RetailInventory>({
   product_id: { type: Schema.Types.ObjectId, required: true },
