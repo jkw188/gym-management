@@ -16,10 +16,13 @@
 //     Nhập 0, 1000 hoặc chữ → báo "Số lượng từ 1 đến 999", không gửi.
 //     409 CART_VERSION_CONFLICT → role="alert" có "Giỏ hàng đã thay đổi" và tự GET lại (không tự gửi lại lệnh).
 //     Lỗi mạng/503 → role="alert" + nút "Thử lại" gửi lại CÙNG Idempotency-Key và cùng body.
+//   - Tải lại thấy đơn giá khác lần trước → có chữ "Giá đã thay đổi"; giá không đổi thì không có (sinh viên chốt 19/11).
+//   - Vai trò khác MEMBER mở /member/cart: ProtectedRoute hiện "Không có quyền truy cập" tại chỗ, không gọi API giỏ.
 //   - Không bao giờ có nút "Thanh toán"/"Đặt hàng" (canCheckout false ở S05); có chữ "đặt hàng sẽ có" để hướng dẫn.
 //   - Đăng xuất rồi đăng nhập tài khoản khác: không còn thấy dòng của tài khoản cũ; không lưu giỏ/version/key vào localStorage/sessionStorage.
 //   - /shop/:id (Member): bấm "Thêm vào giỏ" → GET /me/cart lấy version → POST /me/cart/items {version, productId, quantity} có key;
 //     thành công: chữ "Đã thêm vào giỏ" + liên kết "Xem giỏ hàng" tới /member/cart. 409 nghiệp vụ → role="alert"; không tự gửi lại.
+//     Bấm đúp thật nhanh chỉ gửi một POST.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -209,10 +212,12 @@ describe('US-40 bước 3: trang giỏ /member/cart – hiển thị', () => {
     noCheckoutButton();
   });
 
-  it.each(['TRAINER', 'STAFF', 'ADMIN'] as const)('US-40-TC02: vai trò %s mở /member/cart không gọi API giỏ', async role => {
+  // ProtectedRoute có sẵn của dự án không chuyển trang khi sai vai trò mà hiện "Không có quyền truy cập" tại chỗ.
+  it.each(['TRAINER', 'STAFF', 'ADMIN'] as const)('US-40-TC02: vai trò %s mở /member/cart thấy "Không có quyền truy cập", không gọi API giỏ', async role => {
     const server = fakeServer({ role });
     await renderApp(server);
-    await waitFor(() => expect(window.location.pathname).not.toBe('/member/cart'));
+    expect(await screen.findByText('Không có quyền truy cập')).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Giỏ hàng' })).toBeNull();
     expect(cartGets(server)).toEqual([]);
   });
 });
@@ -391,6 +396,28 @@ describe('US-40 bước 3: sửa, xóa, version và key', () => {
     expect(document.body.textContent).not.toMatch(/(^|[^\d.])9\.000\s?₫/);
     expect(document.body.textContent).toMatch(/36\.000\s?₫/);
   });
+
+  // Sinh viên chốt 19/11 (spec mục 3 "Giá thay khi refresh phải cập nhật rõ"): có dòng báo "Giá đã thay đổi".
+  it('US-40-TC16: giá đổi khi tải lại → có dòng báo "Giá đã thay đổi"', async () => {
+    const server = fakeServer({ carts: [
+      cartOf([line({ quantity: 2, unitPrice: '9000', lineTotal: '18000' })], { version: 3, subtotal: '18000' }),
+      cartOf([line({ quantity: 3, unitPrice: '12000', lineTotal: '36000' })], { version: 4, subtotal: '36000' }),
+    ] });
+    await renderApp(server);
+    await userEvent.click(await button('Tăng Nước suối'));
+    expect(await screen.findByText(/Giá đã thay đổi/)).toBeTruthy();
+  });
+
+  it('US-40-TC16: giá không đổi khi tải lại → KHÔNG có dòng báo "Giá đã thay đổi"', async () => {
+    const server = fakeServer({ carts: [
+      cartOf([line({ quantity: 2 })], { version: 3 }),
+      cartOf([line({ quantity: 3, lineTotal: '27000' })], { version: 4, subtotal: '27000' }),
+    ] });
+    await renderApp(server);
+    await userEvent.click(await button('Tăng Nước suối'));
+    await waitFor(() => expect(document.body.textContent).toMatch(/27\.000\s?₫/));
+    expect(screen.queryByText(/Giá đã thay đổi/)).toBeNull();
+  });
 });
 
 // =====================================================================
@@ -492,6 +519,20 @@ describe('US-40 bước 3: Member thêm vào giỏ từ /shop/:id', () => {
     expect((await screen.findByRole('alert')).textContent).toContain(message);
     expect(screen.queryByText(/Đã thêm vào giỏ/)).toBeNull();
     expect(cartWrites(server)).toHaveLength(1);
+  });
+
+  it('US-40-TC10: bấm đúp "Thêm vào giỏ" thật nhanh → chỉ một POST', async () => {
+    let release!: (value: Response) => void;
+    const server = fakeServer({ carts: [cartOf([], { version: 0 })], post: () => new Promise<Response>(resolve => { release = resolve; }) });
+    await openDetail(server);
+    const addButton = await button('Thêm vào giỏ');
+    fireEvent.click(addButton);
+    fireEvent.click(addButton);
+    await waitFor(() => expect(cartWrites(server)).toHaveLength(1));
+    release(json({ version: 1, productId: WATER_ID, quantity: 1 }, 201));
+    expect(await screen.findByText(/Đã thêm vào giỏ/)).toBeTruthy();
+    expect(cartWrites(server)).toHaveLength(1);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('US-40-TC03: Member chưa liên kết bấm "Thêm vào giỏ" → báo "chưa được liên kết", không gửi POST', async () => {
