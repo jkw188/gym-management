@@ -86,6 +86,10 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   PT_BOOKING_CORRECT: ACCESS_POLICY['ptBookings.correct'].roles,
   // US-65: quyền ptReviews.createOwn chỉ cho MEMBER.
   PT_REVIEW_CREATE: ACCESS_POLICY['ptReviews.createOwn'].roles,
+  // US-40: quyền cart.writeOwn chỉ cho MEMBER.
+  CART_ADD_ITEM: ACCESS_POLICY['cart.writeOwn'].roles,
+  CART_SET_ITEM: ACCESS_POLICY['cart.writeOwn'].roles,
+  CART_REMOVE_ITEM: ACCESS_POLICY['cart.writeOwn'].roles,
 };
 
 // Số lần thử lại khi hai request cùng key chạy đua và request này thua ở unique index.

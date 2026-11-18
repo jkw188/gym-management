@@ -35,6 +35,7 @@ const { ensureAttendanceIntegrity } = require('../dist/modules/attendance/attend
 const { ensurePublicSessionsIntegrity } = require('../dist/modules/public-sessions/public-sessions-migration');
 const { ensureRetailCatalogIntegrity } = require('../dist/modules/catalog/retail-catalog.migration');
 const { STOCK_MODELS } = require('../dist/modules/stock/stock.schema');
+const { CartSchema } = require('../dist/modules/cart/schemas/cart.schema');
 const { ensureOrdersIntegrity } = require('../dist/modules/orders/orders-migration');
 const { ensureReturnsIntegrity } = require('../dist/modules/returns/returns-migration');
 const { ensureRefundsIntegrity } = require('../dist/modules/refunds/refunds-migration');
@@ -82,6 +83,8 @@ async function run() {
       await ensureRefundsIntegrity(connection);
       // US-36: indexes are installed without rewriting any historical receipt or movement.
       for (const { name, schema } of STOCK_MODELS) await connection.model(name, schema).createIndexes();
+      // US-40 bước 1: index carts (một dòng mỗi member/product, thứ tự dòng); cart_states chỉ cần index _id mặc định.
+      await connection.model('Cart', CartSchema).createIndexes();
       // US-14: keep old sale terms intact; only backfill absent business versions.
       for (const [name, schema] of [['Plan', PlanSchema], ['ServiceSale', ServiceSaleSchema],
         ['Membership', MembershipSchema], ['Transaction', TransactionSchema]]) {
