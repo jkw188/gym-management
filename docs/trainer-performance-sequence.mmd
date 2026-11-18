@@ -1,0 +1,37 @@
+sequenceDiagram
+    actor Admin
+    participant React as React /admin/reports/trainers
+    participant Guard as JWT + RBAC US02
+    participant API as TrainerPerformanceController
+    participant Service as TrainerPerformanceService / S08-P01
+    participant Repo as TrainerPerformanceRepository
+    participant DB as MongoDB primary
+    Admin->>React: Chọn PT/kỳ ngày VN
+    React->>Guard: GET /api/reports/trainers/performance
+    Guard->>Guard: ACTIVE/session/auth_version + ADMIN reports.trainers.read
+    Guard->>API: Query allowlist/DTO hợp lệ
+    API->>Service: list(query)
+    Service->>Service: observedAt, W và effectiveTo
+    Service->>Repo: snapshot(session)
+    Repo->>DB: Read-only snapshot primary (cùng session)
+    loop Nguồn độc lập và tham chiếu
+        Repo->>DB: Ca/booking intersect, attendance, review created_at, IDs tham chiếu
+        DB-->>Repo: Projection an toàn, cùng atClusterTime kể cả getMore
+    end
+    Repo-->>Service: Các nguồn tách biệt
+    Service->>Service: Clip/union mỗi PT+mỗi nguồn, đánh dấu lỗi
+    Service->>Service: Cộng milliseconds, weighted rate, review sum/count
+    Service-->>React: Tổng toàn tập + trang PT + quality/range/observedAt
+    Admin->>React: Mở chi tiết PT
+    React->>Guard: GET /api/reports/trainers/:id/performance + bốn page
+    Guard->>API: Kiểm lại JWT/quyền/query
+    API->>Service: detail(id, query), snapshot request mới
+    Service->>Repo: Cùng session cho summary và bốn trang nguồn
+    Repo->>DB: Chỉ đọc, không sửa status/completion/attendance
+    DB-->>Service: Raw/clipped nguồn
+    Service-->>React: Summary + sourcePages + observedAt riêng
+    Admin->>React: Xem nguồn theo sourceID
+    React->>Guard: GET allowlist attendance/booking/review theo ID
+    Guard->>Guard: Kiểm permission endpoint nguồn độc lập
+    Guard-->>React: Nguồn/audit hiện có hoặc 401/403/503
+    Note over React,DB: Refresh sau correction đọc snapshot mới; GET report không ghi nguồn
