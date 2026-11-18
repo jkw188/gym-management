@@ -14,6 +14,7 @@ export interface Membership {
   version: number;
   superseded_at?: Date;
   superseded_by_membership_id?: Types.ObjectId;
+  cancelled_at?: Date;
 }
 
 export const MembershipSchema = new Schema<Membership>({
@@ -24,6 +25,7 @@ export const MembershipSchema = new Schema<Membership>({
   created_at: { type: Date },
   version: { type: Number, required: true, default: 0, min: 0, validate: Number.isSafeInteger },
   superseded_at: { type: Date },
+  cancelled_at: { type: Date },
   superseded_by_membership_id: { type: Schema.Types.ObjectId, ref: 'Membership' },
 }, { collection: 'memberships', id: false, versionKey: false });
 MembershipSchema.index({ service_sale_id: 1 }, { unique: true, name: 'memberships_sale_unique' });

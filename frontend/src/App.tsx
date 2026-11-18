@@ -47,6 +47,7 @@ import { OrdersPage } from './features/orders/OrdersPage';
 import { MyOrdersPage } from './features/orders/MyOrdersPage';
 import { RefundsPage } from './features/refunds/RefundsPage';
 import { PosPage } from './features/pos/PosPage';
+import { MembershipReportsPage } from './features/reports/MembershipReportsPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
@@ -79,6 +80,7 @@ export default function App() {
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/account" element={<AccountInfoPage role="ADMIN" />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/account" element={<AccountInfoPage role="STAFF" />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/reports/memberships" element={<MembershipReportsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers/activity" element={<TrainerActivityPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/trainer-attendance" element={<TrainerAttendancePage />} /></Route>

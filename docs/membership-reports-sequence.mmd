@@ -1,0 +1,27 @@
+sequenceDiagram
+    actor Admin
+    participant React as React /admin/reports/memberships
+    participant Auth as JWT + session + fixed ADMIN policy
+    participant Reports as ReportsModule / S08-M01
+    participant Mongo as MongoDB primary
+    Admin->>React: Chọn timestamp VN, kind, lọc bảng
+    React->>Auth: GET /api/reports/memberships/members
+    Auth->>Auth: Kiểm ACTIVE/session/auth_version/ADMIN
+    Auth->>Reports: DTO allowlist, timezone, paging
+    Reports->>Reports: observedAt; kiểm asOfAt không tương lai
+    Reports->>Mongo: Bắt đầu session transaction readConcern snapshot
+    Reports->>Mongo: Projection members, service_sales, memberships, transactions (tuần tự)
+    Mongo-->>Reports: Nguồn cùng snapshot, không contact/payments/invoices
+    Reports->>Reports: Resolve interval, chất lượng, group distinct theo member
+    Reports->>Reports: KPI toàn phòng + filter/page bảng; không thay denominator
+    Reports->>Mongo: Kết thúc snapshot chỉ đọc
+    Reports-->>React: KPI + items + asOfAt/observedAt/S08-V1/quality/warnings
+    React-->>Admin: Một response cho KPI và bảng; null khác zero
+    Admin->>React: Mở quyền nguồn của hội viên
+    React->>Auth: GET /reports/memberships/members/:id?asOfAt
+    Auth->>Reports: Kiểm lại JWT/vai trò/DTO
+    Reports->>Mongo: Session snapshot mới, chỉ đọc nguồn
+    Mongo-->>Reports: Quyền và snapshot kỳ nguồn
+    Reports-->>React: effectiveStart/End, reasonCodes, currentStatus, observedAt riêng
+    React-->>Admin: Chi tiết lịch sử; nhãn lần đọc riêng
+    Note over Reports,Mongo: Không ghi status, settlement, quota, hủy gói hoặc snapshot định kỳ
