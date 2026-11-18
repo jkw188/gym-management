@@ -1,7 +1,9 @@
 // Tầng giao diện – trang (US-17 bước 3, US-19 bước 3): trang /member/memberships – gói hiện hành, chờ hiệu lực, lịch sử,
 // giao dịch chờ xác nhận, lịch sử mua và chứng từ của chính Member. timeState và số buổi lấy từ server, React không tự tính.
 // US-19: nút "Gia hạn" mở RenewalPanel; kỳ nào có nút do server quyết định qua field renewal.
+// US-20: gói đang hiệu lực có link "Nâng cấp" sang trang MembershipUpgradePage.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { useAccountId } from '../notifications/inbox-signals';
 import {
@@ -67,6 +69,8 @@ function MembershipCard({ item, inHistory, onRenew }: { item: MyMembership; inHi
       : <p>Không áp dụng số buổi PT</p>}
     {/* US-19-TC12: chỉ kỳ đuôi còn gia hạn được (server trả renewal) mới có nút. */}
     {item.renewal && <button type="button" onClick={() => onRenew(item)}>Gia hạn</button>}
+    {/* US-20-TC01: chỉ gói đang hiệu lực có link "Nâng cấp"; gói đích được phép vẫn do server quyết định. */}
+    {isCurrent(item) && <Link to={`/member/memberships/${item.id}/upgrade`}>Nâng cấp</Link>}
   </article>;
 }
 
