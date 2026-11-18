@@ -30,7 +30,7 @@ sequenceDiagram
         Gate->>Evidence: Resolved requests + before/after + PIDs
     end
     Gate->>Oracle: Declarative fixtures + literal expected (reference only)
-    Note over Oracle,Evidence: US50/51/52 API/UI absent: actual report comparison BLOCKED, never PASS from reference oracle
+    Note over Oracle,Evidence: US50 has a separate committed-source/API suite; US51/52 and full EN08 retest remain BLOCKED
     Gate->>Gate: Real isolated Jest PASS / intentional FAIL / SKIP probes
     Gate->>Evidence: Reject missing/skip/TODO/unknown; write all 20 TC
     Note over Operator,Evidence: EN07 HTTPS React → Nest → Mongo smoke/restore needs real UAT; currently BLOCKED
