@@ -4,6 +4,9 @@ const path = require('node:path');
 const { assessQualityReport } = require('./test-report.cjs');
 
 const root = path.resolve(__dirname, '..');
+const options = process.argv.slice(2);
+if (options.length > 1 || options.some(option => option !== '--continue-on-failure')) throw new Error('INVALID_QUALITY_GATE_OPTION');
+const continueOnFailure = options.includes('--continue-on-failure');
 const prefixScript = path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-prefix.js');
 const npmPrefix = existsSync(prefixScript) ? spawnSync(process.execPath, [prefixScript], { encoding: 'utf8', windowsHide: true }).stdout?.trim() : undefined;
 const npmCli = [process.env.npm_execpath,
@@ -11,7 +14,7 @@ const npmCli = [process.env.npm_execpath,
   path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'),
   path.resolve(path.dirname(process.execPath), '../lib/node_modules/npm/bin/npm-cli.js')].find(file => file && existsSync(file));
 if (!npmCli) throw new Error('NPM_CLI_NOT_FOUND: use the Node/npm installation documented in README');
-const artifactDir = path.join(root, 'artifacts');
+const artifactDir = process.env.EN04_EVIDENCE_DIR ? path.resolve(process.env.EN04_EVIDENCE_DIR) : path.join(root, 'artifacts');
 mkdirSync(artifactDir, { recursive: true });
 const reportFile = path.join(artifactDir, 'quality-gate.json');
 const git = args => {
@@ -30,10 +33,10 @@ const steps = [
   ['backend', ['ci', '--no-audit', '--no-fund']], ['frontend', ['ci', '--no-audit', '--no-fund']],
   ['backend', ['run', 'typecheck']], ['backend', ['run', 'typecheck:test']], ['frontend', ['run', 'typecheck']],
   ['backend', ['run', 'build']], ['frontend', ['run', 'build']],
-  ['backend', ['run', 'test:unit', '--', '--json', '--outputFile=../artifacts/unit.json'], 'unit.json'],
-  ['frontend', ['test', '--', '--pool=threads', '--maxWorkers=1', '--reporter=json', '--outputFile=../artifacts/frontend.json'], 'frontend.json'],
-  ['backend', ['run', 'test:integration', '--', '--json', '--outputFile=../artifacts/integration.json'], 'integration.json'],
-  ['backend', ['run', 'test:e2e', '--', '--json', '--outputFile=../artifacts/e2e.json'], 'e2e.json'],
+  ['backend', ['run', 'test:unit', '--', '--json', `--outputFile=${path.join(artifactDir, 'unit.json')}`], 'unit.json'],
+  ['frontend', ['test', '--', '--pool=threads', '--maxWorkers=1', '--reporter=json', `--outputFile=${path.join(artifactDir, 'frontend.json')}`], 'frontend.json'],
+  ['backend', ['run', 'test:integration', '--', '--json', `--outputFile=${path.join(artifactDir, 'integration.json')}`], 'integration.json'],
+  ['backend', ['run', 'test:e2e', '--', '--json', `--outputFile=${path.join(artifactDir, 'e2e.json')}`], 'e2e.json'],
 ];
 const requiredTests = {
   'unit.json': ['backend/test/foundation.spec.ts', 'backend/test/auth.spec.ts', 'backend/test/users.spec.ts', 'backend/test/test-database.spec.ts'],
@@ -52,9 +55,10 @@ for (const [directory, args, resultName] of steps) {
   if (resultName) rmSync(path.join(artifactDir, resultName), { force: true });
   const step = { directory, command: `npm ${args.join(' ')}`, startedAt: new Date().toISOString() };
   console.info(`[EN-04] ${directory}: ${step.command}`);
-  const child = spawnSync(process.execPath, [npmCli, ...args], {
+  const timeout = (args.includes('test:integration') ? 60 : 20) * 60 * 1000;
+  const child = spawnSync(process.execPath, [path.join(__dirname, 'quality-step.cjs'), String(timeout), npmCli, ...args], {
     cwd: path.join(root, directory), stdio: 'inherit', windowsHide: true,
-    timeout: 20 * 60 * 1000, env: { ...process.env, NODE_ENV: 'test', EN04_EVIDENCE_DIR: artifactDir,
+    timeout: timeout + 15000, env: { ...process.env, NODE_ENV: 'test', EN04_EVIDENCE_DIR: artifactDir,
       npm_config_cache: process.env.npm_config_cache || path.join(root, '.cache', 'npm'),
       MONGOMS_DOWNLOAD_DIR: process.env.MONGOMS_DOWNLOAD_DIR || path.join(root, '.cache', 'mongodb-binaries') },
   });
@@ -80,9 +84,12 @@ for (const [directory, args, resultName] of steps) {
   }
   report.steps.push(step);
   save();
-  if (step.exitCode !== 0) { report.status = 'failed'; report.exitCode = step.exitCode; process.exitCode = step.exitCode; break; }
+  if (step.exitCode !== 0) {
+    report.status = 'failed'; report.exitCode = step.exitCode; process.exitCode = step.exitCode;
+    if (!continueOnFailure) break;
+  }
 }
 if (report.status === 'running') { report.status = 'passed'; report.exitCode = 0; }
 report.finishedAt = new Date().toISOString();
 save();
-console.info('[EN-04] Evidence: artifacts/quality-gate.json');
+console.info(`[EN-04] Evidence: ${reportFile}`);

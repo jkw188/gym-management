@@ -54,7 +54,9 @@ describe('US-33 / UC-34: Admin tổng hợp review nguồn US-65', () => {
   beforeEach(async () => {
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    jest.spyOn(app.get(ServerClock), 'now').mockReturnValue(new Date('2026-11-17T05:00:00Z'));
+    // The integrated module graph contains multiple clock providers; freeze the review writer
+    // and reader together so submission dates and default periods use the same test instant.
+    jest.spyOn(ServerClock.prototype, 'now').mockReturnValue(new Date('2026-11-17T05:00:00Z'));
     for (const name of ['trainers', 'members', 'pt_bookings', 'trainer_reviews', 'schedule_guards']) await db().collection(name).deleteMany({});
     ptA = new ObjectId(); ptB = new ObjectId(); emptyPt = new ObjectId(); memberId = new ObjectId();
     await db().collection('trainers').insertMany([ptA, ptB, emptyPt].map((id, index) => ({

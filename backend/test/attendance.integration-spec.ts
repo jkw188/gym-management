@@ -237,11 +237,19 @@ describe('US-63 / UC-34: attendance, two Nest instances and real replica set', (
   });
   it('migration: reconciles legacy ownership/version without changing original times or fabricating audit', async () => {
     await db().collection('trainer_attendance').insertOne({ shift_id: shiftId, check_in_at: now, recorded_by: auth.ADMIN.id, created_at: now });
-    await ensureAttendanceIntegrity(connection); await ensureAttendanceIntegrity(connection);
+    await ensureAttendanceIntegrity(connection);
+    const guardAfterBackfill = await db().collection('schedule_guards').findOne({});
+    await ensureAttendanceIntegrity(connection);
+    expect(await db().collection('schedule_guards').findOne({})).toEqual(guardAfterBackfill);
     const record = await db().collection('trainer_attendance').findOne();
     expect(record).toMatchObject({ trainer_id: trainerId, version: 0, check_in_at: now, created_at: now, updated_at: now });
     expect(record!.id).toEqual(record!._id);
     expect(await db().collection('attendance_events').countDocuments()).toBe(0);
+  });
+  it('migration: empty attendance validates/indexes without advancing the schedule guard', async () => {
+    const before = await db().collection('schedule_guards').findOne({});
+    await ensureAttendanceIntegrity(connection);
+    expect(await db().collection('schedule_guards').findOne({})).toEqual(before);
   });
   it('migration: invalid source stops all backfill', async () => {
     await db().collection('trainer_attendance').insertOne({ shift_id: shiftId, trainer_id: new ObjectId(), check_in_at: now, recorded_by: auth.ADMIN.id, created_at: now });

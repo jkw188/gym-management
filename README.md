@@ -1,5 +1,7 @@
 # Gym Management — EN-01, EN-04 và các nghiệp vụ Sprint 1
 
+EN-08 bổ sung runner hồi quy nghiêm ngặt S01–S08, ma trận 66 requirement/237 AC, oracle báo cáo độc lập và S07 race qua hai process (10 vòng ×20 request). Chạy `node scripts/en08.cjs` tại gốc; [runbook EN-08](docs/en08-runbook.md) mô tả bằng chứng và phụ thuộc. **Chưa nghiệm thu**: thiếu API/UI US50/51/52, WEBSITE/self-service upgrade và UAT thật; BLOCKED/TODO/SKIP/unknown không được đổi thành PASS.
+
 EN-07 bổ sung bộ triển khai UAT một Nest instance sau Caddy HTTPS, guard cấu hình/DB, seed demo opt-in qua API thật, CLI backup/restore/migration rehearsal và deployment record. [Runbook EN-07](docs/en07-runbook.md) ghi thứ tự triển khai, secrets, rollback, ma trận nghiệm thu và phụ thuộc còn thiếu. **Chưa deploy/nghiệm thu**: cần hạ tầng UAT thật, WEBSITE checkout/report và gate EN-08; không có URL hoặc bằng chứng restore thực trong repository.
 
 US-49 tự nhắc hết hạn gói (3D/1D) và lịch PT (24H/2H) trong ứng dụng, theo giờ Việt Nam; worker catch-up mỗi 60 giây/batch 50, lưu occurrence và EN-03 outbox cùng transaction, chống trùng nhiều instance. Chạy `npm run ensure-indexes` ở backend trước production. Cấu hình tùy chọn `REMINDER_TICK_MS=60000`, `REMINDER_BATCH_SIZE=50`; không thêm dependency. Hợp đồng UC-13/37, Q13, schema/index, OpenAPI và kiểm thử: [docs/reminders-contract.md](docs/reminders-contract.md), [sequence](docs/reminders-sequence.mmd).

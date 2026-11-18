@@ -109,7 +109,7 @@ Secret được CLI truyền cho Database Tools qua file YAML tạm mode600 và 
 
 Trước đổi phiên bản: chốt commit sạch, release notes, schema changes, previous image digests/commit/config, backup đọc được + restore rehearsal + migration-plan đã review. `ensure-indexes` hiện không nguyên tử toàn bộ migration; nếu lỗi, tiếp tục maintenance, không mở writer và không xóa record để ép index. Fixture không chạy lại trên DB đang dùng.
 
-Deploy thứ tự: maintenance → dừng backend → backup/rehearsal → migrations/index → seed roles/Admin nếu cần → backend/worker → readiness → frontend/routes → browser smoke → EN-08 cùng commit/URL. Chỉ mở UAT sau các gate môi trường; chỉ ghi bản **nghiệm thu** sau EN-08 đạt. EN-08 chưa có runner trong source hiện tại, không thay bằng EN-04 hay đánh dấu TC15 tự động.
+Deploy thứ tự: maintenance → dừng backend → backup/rehearsal → migrations/index → seed roles/Admin nếu cần → backend/worker → readiness → frontend/routes → browser smoke → EN-08 cùng commit/URL. Chỉ mở UAT sau các gate môi trường; chỉ ghi bản **nghiệm thu** sau EN-08 đạt. [Runner EN-08](en08-runbook.md) đã có nhưng còn NOT_ACCEPTED do thiếu story/bằng chứng UAT; không thay bằng EN-04 hay đánh dấu TC15 tự động.
 
 Nếu backend không ready hoặc smoke fail: bật/giữ maintenance, dừng tiếp nhận ghi. Khi schema tương thích, đổi `RELEASE_ID` về commit/artifact trước và dùng đúng config version, tránh build lại source mới dưới tag cũ; `docker compose up -d --no-deps backend web` rồi kiểm health/browser/worker. Khi schema không tương thích hoặc đã có ghi mới: dừng và đối soát các giao dịch sau backup, review kế hoạch restore/cutover sang **DB mới** trước thay cấu hình. Không restore đè hoặc âm thầm bỏ giao dịch mới. Ghi commit, thời điểm, lý do, phạm vi dữ liệu, người quyết định và evidence kiểm lại trong record. TC12 phải diễn tập thực, không đánh dấu đạt từ mô tả này.
 
@@ -123,7 +123,7 @@ Nếu backend không ready hoặc smoke fail: bật/giữ maintenance, dừng ti
 | 09–10 | Restart/catch-up, ngắt DB, đối chiếu nguồn và lỗi UI | Chưa chạy UAT |
 | 11 | Archive hash + restore JSON + nguồn/ledger/payment/refund + report | Chưa chạy tools; report bị chặn |
 | 12–14 | Rollback thực, người khác tái tạo, Swagger/test hook không public | Chưa chạy UAT |
-| 15 | EN-08 trên đúng commit/URL, evidence đạt | Chưa chạy, thiếu runner |
+| 15 | EN-08 trên đúng commit/URL, evidence đạt | Có runner; chưa đạt và chưa chạy trên UAT |
 
 Lệnh kiểm phát triển (build trước integration vì CLI dùng dist): backend `npm run typecheck`, `npm run typecheck:test`, `npm run build`, `npm run test:unit -- --runTestsByPath test/en07.spec.ts test/foundation.spec.ts`, `npm test -- --runTestsByPath test/en07.integration-spec.ts test/environment-check.integration-spec.ts`; frontend `npm run build`, auth/logout/notifications tests. Test EN07 dùng MongoMemoryReplSet thật, credentials ngẫu nhiên, mô phỏng copy BSON chỉ để kiểm oracle — **không phải** bằng chứng `mongodump/mongorestore` hay UAT.
 

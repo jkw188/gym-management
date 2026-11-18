@@ -88,7 +88,11 @@ describe('US-03 logout against an isolated real mongod', () => {
   function expiredToken(source: string, overrides: Record<string, unknown> = {}) {
     const { sub, sid, av } = app.get(JwtService).decode(source) as Record<string, unknown>;
     const now = Math.floor(Date.now() / 1000);
-    return app.get(JwtService).signAsync({ sub, sid, av, iat: now - 1000, exp: now - 100, ...overrides });
+    // Other features also register JwtService. Sign with this fixture's auth configuration,
+    // rather than depending on whichever module app.get resolves last.
+    const signer = new JwtService({ secret: process.env.JWT_ACCESS_SECRET,
+      signOptions: { algorithm: 'HS256', issuer: 'gym-api', audience: 'gym-web' } });
+    return signer.signAsync({ sub, sid, av, iat: now - 1000, exp: now - 100, ...overrides });
   }
   function expectCookieCleared(response: { headers: Record<string, unknown> }) {
     const raw = (response.headers['set-cookie'] as unknown as string[])[0];

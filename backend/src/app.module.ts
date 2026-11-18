@@ -32,7 +32,8 @@ import { StockModule } from './modules/stock/stock.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: process.env.DEPLOYMENT_ENV === 'uat', load: [configuration] }),
+    ConfigModule.forRoot({ isGlobal: true,
+      ignoreEnvFile: process.env.NODE_ENV === 'test' || process.env.DEPLOYMENT_ENV === 'uat', load: [configuration] }),
     DatabaseModule,
     HealthModule,
     AuthModule,
