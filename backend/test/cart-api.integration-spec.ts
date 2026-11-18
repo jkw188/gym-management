@@ -278,7 +278,8 @@ describe('US-40 bước 2: API giỏ hàng của Member', () => {
       const value = field === 'price' ? '1' : field === 'memberId' ? other.memberId.toHexString() : other.accountId;
       expectError(await add(me.token, { version: 0, productId: id, quantity: 1, [field]: value }), 400);
       expect(await count('carts')).toBe(0);
-      expect(await count('operation_requests')).toBe(0);
+      // Chỉ đếm operation của giỏ: fixture tạo sản phẩm qua API Admin cũng ghi CATEGORY_CREATE/PRODUCT_CREATE.
+      expect(await count('operation_requests', { operation: /^CART_/ })).toBe(0);
     });
 
     it('US-40-TC02: tài khoản bị khóa dùng token cũ → 401, giỏ không đổi', async () => {
@@ -310,7 +311,7 @@ describe('US-40 bước 2: API giỏ hàng của Member', () => {
       expect(await count('members')).toBe(0);
       expect(await count('carts')).toBe(0);
       expect(await count('cart_states')).toBe(0);
-      expect(await count('operation_requests')).toBe(0);
+      expect(await count('operation_requests', { operation: /^CART_/ })).toBe(0);
     });
 
     it('US-40-TC03: đã liên kết nhưng chưa có state → GET version 0, subtotal "0", không ghi DB, no-store', async () => {
@@ -586,6 +587,38 @@ describe('US-40 bước 2: API giỏ hàng của Member', () => {
       // Không cộng tổng thiếu dòng: subtotal phải null chứ không phải "5000".
       expect(cart).toMatchObject({ subtotal: null, totalsState: 'UNAVAILABLE', readyForOrder: false });
       expect(await count('carts', { member_id: me.memberId })).toBe(2);
+    });
+
+    // Giá không tính được: sản phẩm vẫn còn nhưng price hỏng (dữ liệu bất thường). Sinh viên chốt dùng mã PRODUCT_UNAVAILABLE (18/11).
+    it.each([['null', null], ['chuỗi không phải số', 'abc'], ['số lẻ', Decimal128.fromString('9000.5')]])(
+      'US-40-TC08: giá %s sau khi thêm → dòng BLOCKED PRODUCT_UNAVAILABLE, giá null, subtotal null UNAVAILABLE', async (_label, badPrice) => {
+        const me = await member();
+        const { id } = await product({ price: '9000' });
+        await add(me.token, { version: 0, productId: id, quantity: 2 }).expect(201);
+        await db().collection('products').updateOne({ _id: new ObjectId(id) }, { $set: { price: badPrice } });
+
+        const cart = await cartOf(me.token);
+        expect(cart.items[0]).toMatchObject({ productId: id, quantity: 2, unitPrice: null, lineTotal: null, lineState: 'BLOCKED' });
+        expect(cart.items[0].reasons).toContain('PRODUCT_UNAVAILABLE');
+        expect(cart).toMatchObject({ subtotal: null, totalsState: 'UNAVAILABLE', readyForOrder: false });
+      });
+
+    it('US-40-TC08: sản phẩm có giá không tính được → POST thêm 409 PRODUCT_UNAVAILABLE, không ghi dòng', async () => {
+      const me = await member();
+      const { id } = await product({ price: '9000' });
+      await db().collection('products').updateOne({ _id: new ObjectId(id) }, { $set: { price: 'abc' } });
+      expectError(await add(me.token, { version: 0, productId: id, quantity: 1 }), 409, 'PRODUCT_UNAVAILABLE');
+      expect(await count('carts')).toBe(0);
+    });
+
+    it('US-40-TC08: dòng có giá không tính được vẫn giảm/xóa được (dọn giỏ)', async () => {
+      const me = await member();
+      const { id } = await product({ price: '9000' });
+      await add(me.token, { version: 0, productId: id, quantity: 3 }).expect(201);
+      await db().collection('products').updateOne({ _id: new ObjectId(id) }, { $set: { price: null } });
+      await setQty(me.token, id, { version: 1, quantity: 1 }).expect(200);
+      await remove(me.token, id, 2).expect(200);
+      expect(await count('carts')).toBe(0);
     });
 
     it('US-40-TC08: thêm làm tổng vượt 999999999999 → 400 AMOUNT_LIMIT_EXCEEDED, giỏ giữ nguyên', async () => {
