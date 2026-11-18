@@ -55,7 +55,7 @@ const membership = (extra: Record<string, unknown> = {}) => ({
 const page = (items: unknown[]) => ({ memberLinked: true, items, page: 1, limit: 20, total: items.length,
   totalPages: items.length ? 1 : 0, asOf });
 const target = (extra: Record<string, unknown> = {}) => ({ targetPlanId, targetPlanVersion: 2, policyVersion: 1, name: 'Gym VIP',
-  price: '600000', durationDays: 30, sessionsQuota: 0, ...extra });
+  price: '600000', durationDays: 30, sessionsQuota: 0, benefits: 'Tập Gym VIP và xông hơi', ...extra });
 const optionsOf = (items: unknown[] = [target()], sourceVersion = 4) => ({ items, sourceVersion, asOf });
 const quote = (body: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
   baseValue: '300000', totalDays: 30, remainingDays: 15, rawCredit: '150000', appliedCredit: '150000', excessCredit: '0',
@@ -160,6 +160,8 @@ describe('US-20 bước 3: trang nâng cấp /member/memberships/:id/upgrade', (
     const card = await screen.findByRole('article', { name: 'Gym VIP' });
     expect(within(card).getByText(/600\.000/)).toBeDefined();
     expect(within(card).getByText(/30 ngày/)).toBeDefined();
+    // Quyền lợi gói đích từ options (spec bản 1.1) để so sánh với gói hiện tại.
+    expect(within(card).getByText(/Tập Gym VIP và xông hơi/)).toBeDefined();
     expect(callsTo('GET', '/me/memberships/:id/upgrade-options')[0].path).toContain(membershipId);
   });
 

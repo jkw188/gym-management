@@ -10,7 +10,8 @@ import { origin, startUs18App, stopUs18App, seedUs18World, us18Api, Us18App, Us1
 
 // Hợp đồng test đặt ra cho Builder (US-20 bước 1, theo mục 1 và 2 của spec):
 //   GET  /api/me/memberships/:id/upgrade-options  MEMBER owner
-//        -> 200 {items:[{targetPlanId,targetPlanVersion,policyVersion,name,price,durationDays,sessionsQuota}],sourceVersion,asOf}
+//        -> 200 {items:[{targetPlanId,targetPlanVersion,policyVersion,name,price,durationDays,sessionsQuota,benefits}],sourceVersion,asOf}
+//        (benefits: quyền lợi gói đích, thêm theo spec bản 1.1 ngày 2026-11-18).
 //        chỉ đích có cạnh policy ACTIVE, gói đích ACTIVE, cùng kind; không có thì items = [].
 //   POST /api/me/service-upgrades/preview  MEMBER; {sourceMembershipId,sourceVersion,targetPlanId,targetPlanVersion,policyVersion,
 //        preferredPaymentMethod} -> quote giống POST /api/service-upgrades/preview của US-16 cho cùng hồ sơ; không tạo gì.
@@ -101,7 +102,7 @@ describe('US-20 bước 1: Member tự nâng cấp qua UpgradeService dùng chun
     expect(response.body.sourceVersion).toBe(0);
     expect(response.body.asOf).toBeDefined();
     expect(response.body.items).toEqual([{ targetPlanId, targetPlanVersion: 0, policyVersion: 0, name: 'Gói GYM_VIP',
-      price: '600000', durationDays: 30, sessionsQuota: 0 }]);
+      price: '600000', durationDays: 30, sessionsQuota: 0, benefits: 'Quyền lợi GYM_VIP' }]);
   });
 
   // Mỗi trường hợp tạo thêm một gói đích KHÔNG hợp lệ; options vẫn chỉ trả đúng GYM_VIP.
