@@ -12,6 +12,7 @@ export interface UpgradeOption {
   price: string;            // chuỗi VND, ví dụ "600000"
   durationDays: number;
   sessionsQuota: number;
+  benefits: string;         // quyền lợi gói đích (spec bản 1.1)
 }
 
 export interface UpgradeOptions {

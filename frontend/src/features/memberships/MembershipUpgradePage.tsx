@@ -265,6 +265,8 @@ export function MembershipUpgradePage() {
           <p>Giá: {formatVnd(option.price)}</p>
           <p>Thời hạn: {option.durationDays} ngày</p>
           {option.sessionsQuota > 0 && <p>Số buổi PT: {option.sessionsQuota}</p>}
+          {/* US-20 spec bản 1.1: quyền lợi gói đích để so sánh với gói hiện tại. */}
+          <p>{option.benefits}</p>
           <button type="button" aria-pressed={selected?.targetPlanId === option.targetPlanId} onClick={() => choose(option)}>
             Chọn gói này
           </button>

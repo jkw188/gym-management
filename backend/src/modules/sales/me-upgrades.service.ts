@@ -28,6 +28,8 @@ export class MeUpgradesService {
       price: item.price,
       durationDays: item.durationDays,
       sessionsQuota: item.sessions,
+      // US-20 spec bản 1.1: quyền lợi gói đích để trang so sánh với gói hiện tại.
+      benefits: item.benefits,
     }));
     return { items, sourceVersion: result.source.version, asOf: result.asOf };
   }
