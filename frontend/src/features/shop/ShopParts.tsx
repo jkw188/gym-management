@@ -1,6 +1,13 @@
-// Tầng giao diện – thành phần dùng chung (US-35 bước 3): ảnh sản phẩm có placeholder và nhãn tình trạng kho.
+// Tầng giao diện – thành phần dùng chung (US-35 bước 3): ảnh sản phẩm có placeholder, nhãn tình trạng kho, luật nút "Thử lại".
 import { useState } from 'react';
+import { ApiError } from '../../api/client';
 import type { Availability } from './shop.api';
+
+// Chỉ lỗi mạng (không có status) và lỗi 5xx mới nên "Thử lại"; lỗi 4xx gửi lại y nguyên vẫn sai.
+export function canRetry(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return true;
+  return error.status === undefined || error.status >= 500;
+}
 
 // US-35-TC03: nhãn hiển thị cho từng tình trạng kho.
 export const AVAILABILITY_TEXT: Record<Availability, string> = {

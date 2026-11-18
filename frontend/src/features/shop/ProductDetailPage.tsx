@@ -7,10 +7,10 @@ import { Icon } from '../../components/Icon';
 import { useAuth } from '../auth/AuthProvider';
 import { formatVnd } from '../plans/plans.api';
 import { shopApi, type PublicProduct } from './shop.api';
-import { AVAILABILITY_TEXT, ShopImage } from './ShopParts';
+import { AVAILABILITY_TEXT, canRetry, ShopImage } from './ShopParts';
 
-// Số lượng chọn trên trang: số nguyên 1–99 (giỏ hàng US-40 sẽ kiểm lại với tồn thật).
-const MAX_QUANTITY = 99;
+// Số lượng chọn trên trang: số nguyên 1–999, khớp giới hạn mỗi dòng giỏ của US-40 (US-40 kiểm lại với tồn thật).
+const MAX_QUANTITY = 999;
 
 // Giờ Việt Nam, ví dụ "10:00 18/11/2026".
 function formatTime(iso: string): string {
@@ -26,6 +26,8 @@ export function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notAvailable, setNotAvailable] = useState(false);
   const [error, setError] = useState('');
+  // Lỗi hiện tại có nên cho bấm "Thử lại" không.
+  const [retry, setRetry] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [notice, setNotice] = useState('');
@@ -43,7 +45,10 @@ export function ProductDetailPage() {
         if (ignore) return;
         // US-35-TC02: sản phẩm ngừng bán hoặc danh mục ngừng → 404 PRODUCT_NOT_AVAILABLE.
         if (failure instanceof ApiError && failure.status === 404) setNotAvailable(true);
-        else setError(failure instanceof ApiError ? failure.message : 'Không kết nối được máy chủ.');
+        else {
+          setError(failure instanceof ApiError ? failure.message : 'Không kết nối được máy chủ.');
+          setRetry(canRetry(failure));
+        }
       })
       .finally(() => { if (!ignore) setLoading(false); });
     return () => { ignore = true; };
@@ -66,10 +71,10 @@ export function ProductDetailPage() {
     <Link to="/shop">Quay lại cửa hàng</Link>
   </section>;
 
-  // US-35-TC12: lỗi mạng/503 có nút thử lại, không hiện giá giả.
+  // US-35-TC12: lỗi mạng/503 có nút thử lại, không hiện giá giả. Lỗi 400 (id sai cú pháp) chỉ hiện lý do.
   if (error || !product) return <section className="auth-card">
     <div className="form-error" role="alert"><p>{error || 'Không tải được sản phẩm.'}</p>
-      <button type="button" onClick={() => setReloadCount(count => count + 1)}><Icon name="retry" label="Thử lại" /></button></div>
+      {retry && <button type="button" onClick={() => setReloadCount(count => count + 1)}><Icon name="retry" label="Thử lại" /></button>}</div>
     <Link to="/shop">Quay lại cửa hàng</Link>
   </section>;
 

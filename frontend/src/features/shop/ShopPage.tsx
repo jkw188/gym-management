@@ -6,19 +6,13 @@ import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { formatVnd } from '../plans/plans.api';
 import { shopApi, type PublicCategory, type PublicPage, type PublicProduct } from './shop.api';
-import { AVAILABILITY_TEXT, ShopImage } from './ShopParts';
+import { AVAILABILITY_TEXT, canRetry, ShopImage } from './ShopParts';
 
 // Lỗi 400 có details thì hiện lý do cụ thể; lỗi khác hiện message của server hoặc câu chung.
 function errorText(error: unknown): string {
   if (!(error instanceof ApiError)) return 'Không kết nối được máy chủ. Bộ lọc vẫn được giữ, hãy thử lại.';
   if (error.details && error.details.length > 0) return error.details.map(detail => detail.message).join('. ');
   return error.message;
-}
-
-// Chỉ lỗi mạng (không có status) và lỗi 5xx mới nên "Thử lại"; lỗi 4xx gửi lại y nguyên vẫn sai.
-function canRetry(error: unknown): boolean {
-  if (!(error instanceof ApiError)) return true;
-  return error.status === undefined || error.status >= 500;
 }
 
 export function ShopPage() {
