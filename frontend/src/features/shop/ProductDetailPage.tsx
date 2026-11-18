@@ -34,8 +34,8 @@ export function ProductDetailPage() {
   // Giữ đúng chữ người dùng gõ (không tự sửa giữa chừng); kiểm 1–999 khi bấm thêm.
   const [quantityText, setQuantityText] = useState('1');
   // US-40: trạng thái nút thêm giỏ của Member.
-  // adding: để khóa nút trên màn hình. addingRef: chặn bấm đúp NGAY LẬP TỨC – state chỉ đổi sau lần render kế tiếp,
-  // nên hai click liên tiếp vẫn cùng thấy adding = false (US-40-TC10, giống busyRef của CartPage).
+  // adding: để khóa nút trên màn hình. addingRef: chặn gửi lệnh thứ hai một cách chắc chắn, vì ref đổi ngay khi gán
+  // và không phụ thuộc lúc React vẽ lại (US-40-TC10, giống busyRef của CartPage).
   const [adding, setAdding] = useState(false);
   const addingRef = useRef(false);
   const [added, setAdded] = useState(false);
