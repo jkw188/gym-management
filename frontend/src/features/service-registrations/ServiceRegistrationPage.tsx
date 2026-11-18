@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useAccountId } from '../notifications/inbox-signals';
-import { formatVnd } from '../plans/plans.api';
+import { formatVnd } from '../../utils/money';
 import type { PublicPlan } from '../services/services.api';
 import {
   isValidCancelReason, serviceRegistrationsApi, type CancelInput, type MySale, type PaymentInstructions, type PaymentMethod,

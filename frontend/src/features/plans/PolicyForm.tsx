@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError } from '../../api/client';
 import { CatalogError, catalogError } from './PlanForm';
-import { findCreatedPolicy, formatVnd, plansApi, type CatalogPage, type CatalogStatus, type Plan, type PlanPolicy } from './plans.api';
+import { findCreatedPolicy, plansApi, type CatalogPage, type CatalogStatus, type Plan, type PlanPolicy } from './plans.api';
+import { formatVnd } from '../../utils/money';
 import { Icon } from '../../components/Icon';
 
 // Search/page rather than truncating the selectable catalog to its first 100 entries.

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
-import { formatVnd } from '../plans/plans.api';
+import { formatVnd } from '../../utils/money';
 import { servicesApi, type PublicPlan, type PublicPlanPage } from './services.api';
 
 // US-13-TC06: lỗi 400 để câu chung "Dữ liệu không hợp lệ" ở message, lý do cụ thể nằm trong details

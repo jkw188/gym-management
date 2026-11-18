@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
-import { formatVnd } from '../plans/plans.api';
+import { formatVnd } from '../../utils/money';
 import { shopApi, type PublicCategory, type PublicPage, type PublicProduct } from './shop.api';
 import { AVAILABILITY_TEXT, canRetry, ShopImage } from './ShopParts';
 

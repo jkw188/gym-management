@@ -28,7 +28,8 @@ export const plansApi = {
   updatePolicy: (id: string, input: { version: number; status: CatalogStatus; note?: string }) =>
     apiClient.requestOnce<{ policy: PlanPolicy; changed: boolean }>(`/admin/plan-policies/${encodeURIComponent(id)}`, json('PATCH', input)),
 };
-export const formatVnd = (price: string) => `${new Intl.NumberFormat('vi-VN').format(BigInt(price))} ₫`;
+// formatVnd đã chuyển sang utils/money.ts; giữ export lại để code cũ và test import từ đây vẫn chạy.
+export { formatVnd } from '../../utils/money';
 
 // Resolve uncertain POST responses by the unique business key before allowing another POST.
 export async function findCreatedPlan(code: string) {

@@ -5,7 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { useAuth } from '../auth/AuthProvider';
-import { formatVnd } from '../plans/plans.api';
+import { formatVnd } from '../../utils/money';
 import { shopApi, type PublicProduct } from './shop.api';
 import { AVAILABILITY_TEXT, canRetry, ShopImage } from './ShopParts';
 
