@@ -1,4 +1,7 @@
+import { ReturnsModule } from './modules/returns/returns.module';
+import { RemindersModule } from './modules/reminders/reminders.module';
 import { Module } from '@nestjs/common';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { DatabaseModule } from './config/database.module';
@@ -29,7 +32,7 @@ import { StockModule } from './modules/stock/stock.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    ConfigModule.forRoot({ isGlobal: true, ignoreEnvFile: process.env.DEPLOYMENT_ENV === 'uat', load: [configuration] }),
     DatabaseModule,
     HealthModule,
     AuthModule,
@@ -42,13 +45,16 @@ import { StockModule } from './modules/stock/stock.module';
     WorkoutsModule,
     ProductsModule,
     OrdersModule,
+    ReturnsModule,
     InventoryModule,
     StockModule,
     PaymentsModule,
     NotificationsModule,
+    RemindersModule,
     ReportsModule,
     OperationsModule,
     ShiftsModule,
+    AttendanceModule,
     PublicSessionsModule,
     SalesModule,
     PlansModule,

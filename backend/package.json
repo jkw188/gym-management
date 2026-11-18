@@ -11,6 +11,8 @@
     "build": "nest build",
     "start:prod": "node dist/main.js",
     "typecheck": "tsc --noEmit",
+    "uat": "node scripts/uat.cjs",
+    "seed:demo": "npm run build && node scripts/uat.cjs seed-demo",
     "ensure-indexes": "npm run build && node scripts/admin.cjs ensure-indexes",
     "check-environment": "npm run build && node scripts/admin.cjs check-environment",
     "reconcile:inventory": "npm run build && node scripts/admin.cjs reconcile-inventory",

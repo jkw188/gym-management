@@ -8,11 +8,13 @@ import { ReadState } from './notifications.types';
 import { NotificationCounter } from './schemas/notification-counter.schema';
 import { NotificationOutbox } from './schemas/notification-outbox.schema';
 import { NotificationRecipient } from './schemas/notification-recipient.schema';
+import { NotificationBroadcast } from './schemas/notification-broadcast.schema';
 import { Notification } from './schemas/notification.schema';
 
 export interface NewNotification {
   eventKey: string; title: string; body: string; sequence: bigint; createdAt: Date;
   memberId?: Types.ObjectId; transactionId?: Types.ObjectId; createdBy?: Types.ObjectId;
+  sourceType?: 'MEMBERSHIP' | 'PT_BOOKING'; sourceId?: Types.ObjectId; dueAt?: Date;
 }
 
 const GLOBAL_COUNTER_ID = 'global';
@@ -20,6 +22,7 @@ const GLOBAL_COUNTER_ID = 'global';
 @Injectable()
 export class NotificationsRepository implements OnModuleInit {
   constructor(
+    @InjectModel('NotificationBroadcast') private readonly broadcasts: Model<NotificationBroadcast>,
     @InjectModel('Notification') private readonly notifications: Model<Notification>,
     @InjectModel('NotificationRecipient') private readonly recipients: Model<NotificationRecipient>,
     @InjectModel('NotificationOutbox') private readonly outbox: Model<NotificationOutbox>,
@@ -29,7 +32,7 @@ export class NotificationsRepository implements OnModuleInit {
 
   // Tạo index và counter TRƯỚC khi nhận ghi (EN-03 bước 1). Dev/test tự tạo index; production chỉ kiểm tra.
   async onModuleInit(): Promise<void> {
-    const models: Model<any>[] = [this.notifications, this.recipients, this.outbox];
+    const models: Model<any>[] = [this.notifications, this.recipients, this.outbox, this.broadcasts];
     for (const model of models) {
       if (this.config.get('nodeEnv') !== 'production') await model.createIndexes();
       const actual = await model.collection.listIndexes().toArray();
@@ -64,6 +67,7 @@ export class NotificationsRepository implements OnModuleInit {
     const [created] = await this.notifications.create([{
       event_key: data.eventKey, title: data.title, body: data.body, sequence: data.sequence, created_at: data.createdAt,
       member_id: data.memberId, transaction_id: data.transactionId, created_by: data.createdBy,
+      source_type: data.sourceType, source_id: data.sourceId, due_at: data.dueAt,
     }], { session });
     return created._id;
   }

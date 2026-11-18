@@ -1,5 +1,16 @@
 # US-37 — UC-27: tra cứu tồn kho và lịch sử biến động
 
+S07 US46 mở nguồn `RETURN_RECEIVE:<returnItemId>` qua InventoryWriter chung: chỉ restockable=true
+cộng quantity vào onHand, reserved không đổi, sequence=version mới. Guard không tăng sequence;
+reconciliation kiểm nguồn returns/return_items, tình trạng bán lại và delta. Xem [hợp đồng US46](returns-contract.md).
+
+Phần mở rộng S07 US-39 (S05-I01, giữ nguyên mã truy vết): picker hợp thêm `stockAdjustments.manage` chỉ ADMIN.
+Writer cho phép chỉ lấy guard tại trần version khi lập nháp/ghi nhận delta0; `apply` vẫn chặn movement vượt trần.
+ADJUSTMENT_POST chỉ tồn tại khi delta≠0; kiểm dòng/phiếu ADJUSTMENT POSTED, baseline version=sequence−1,
+baseOnHand=beforeOnHand, countedQuantity=afterOnHand, delta/snapshot/event_key và reservedDelta=0.
+History cấp sourcePath `/stock-adjustments/:id` với nguồn hợp lệ; chỉ Admin có link UI nguồn, không trả cost.
+Xem [stock-adjustments-contract.md](stock-adjustments-contract.md) và sequence US-39.
+
 Phần mở rộng S07 US-38: picker hợp thêm `stockIssues.manage` (ADMIN), không trả cost hay mở quyền nhập.
 ISSUE_POST kiểm nguồn `document_item_id → ISSUE POSTED`, delta âm/reservedDelta 0,
 snapshot/event key khi đối chiếu ledger. History cấp sourcePath `/stock-issues/:id` có căn cứ;

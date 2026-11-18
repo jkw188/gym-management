@@ -1,0 +1,64 @@
+sequenceDiagram
+  actor Admin
+  participant React as React /admin/stock-adjustments
+  participant Auth as JWT + fixed RBAC
+  participant API as StockAdjustmentsController
+  participant Service as StockAdjustmentsService
+  participant UoW as IdempotencyService / TransactionRunner
+  participant Writer as InventoryWriter (S05-I01)
+  participant DB as MongoDB replica set
+  Admin->>React: Chọn SKU, kiểm đếm thực tế
+  React->>Auth: GET product-options và inventory/:productId
+  Auth->>DB: Kiểm account/session/auth_version/role hiện hành
+  Auth-->>React: SKU (gồm INACTIVE), onHand/reserved/version
+  Admin->>React: Nhập count, unitCost, reason và nguồn
+  React->>Auth: POST/PATCH adjustment + UUID v4 key
+  Auth->>API: ADMIN stockAdjustments.manage + DTO hợp lệ
+  API->>Service: save(actor từ principal, DTO, key)
+  Service->>UoW: execute(actor,operation,key,normalized payload,target)
+  UoW->>DB: BEGIN snapshot/majority/primary; lookup key/hash
+  alt Cùng key/payload đã commit
+    DB-->>React: HTTP/body gốc (trước kiểm version)
+  else Ý định mới
+    UoW->>DB: Tăng catalog_state revision thật
+    UoW->>Writer: lock SKU cũ/mới theo productId tăng
+    Writer->>DB: Tăng guard_revision; đọc balance và kiểm ledger
+    UoW->>DB: Kiểm expectedInventoryVersion, chụp baseline/count time
+    UoW->>DB: CAS DRAFT, thay items, audit, operation result
+    UoW->>DB: COMMIT
+    UoW-->>React: DRAFT, count/base/delta và totalCost
+  end
+  Admin->>React: Đối chiếu và xác nhận toàn phiếu
+  React->>Auth: POST :id/post {version} + key
+  Auth->>API: Kiểm lại quyền/phiên, kể cả replay
+  API->>Service: post(actor,id,version,key)
+  Service->>UoW: Replay hoặc BEGIN, khóa catalog
+  UoW->>Writer: lock inventory theo productId tăng
+  Writer->>DB: Guard thật, balance/ledger cùng session
+  alt Baseline khác current version/onHand
+    UoW->>DB: ABORT mọi ghi
+    UoW-->>React: 409 COUNT_SNAPSHOT_STALE
+    React->>API: GET current/history chỉ để đối chiếu
+    Admin->>React: Kiểm đếm lại và nhập số mới
+    React->>API: GET phiếu/version và current inventory
+    React->>React: Xóa count cũ; chờ nhập lại tất cả dòng
+    Admin->>React: Nhập count thực tế và lưu PATCH có expected version mới
+  else Count thấp hơn reserved
+    UoW->>DB: ABORT
+    UoW-->>React: 409 COUNT_BELOW_RESERVED; giữ nguyên đơn/reserved
+  else Mọi dòng hợp lệ
+    UoW->>DB: CAS DRAFT → POSTED, server actor/time
+    loop Mỗi dòng delta khác 0
+      UoW->>Writer: apply(delta=count-base, reservedDelta=0)
+      Writer->>DB: CAS onHand/version, ADJUSTMENT_POST:itemId, sequence/version+1
+    end
+    Note over UoW,DB: Delta0 chỉ ghi nhận kiểm kê, không movement/version kho
+    UoW->>DB: Audit + operation result cùng transaction
+    UoW->>DB: COMMIT
+    UoW-->>React: POSTED + movementIds (có thể rỗng)
+  end
+  opt Mất response / 503 outcome unknown
+    React->>Auth: GET operations hoặc replay cùng key/payload
+    Auth->>UoW: Kiểm phiên/quyền hiện hành + chủ key
+    UoW-->>React: HTTP/body commit gốc hoặc OPERATION_UNKNOWN (giữ key)
+  end

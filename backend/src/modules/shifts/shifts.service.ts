@@ -80,6 +80,7 @@ export class ShiftsService {
         const current = await this.repository.findOwnShift(id, trainer._id, session);
         if (!current) throw notFound();
 
+        await this.assertNoAttendance(id, session);
         // US-24-TC07: chỉ sửa ca SCHEDULED chưa bắt đầu; CONFIRMED/COMPLETED/CANCELLED bất biến ở route này.
         // Lấy giờ server ở mỗi lần chạy (driver có thể chạy lại callback).
         if (current.status !== 'SCHEDULED' || current.start_at.getTime() <= this.clock.now().getTime()) {
@@ -161,6 +162,7 @@ export class ShiftsService {
         const current = await this.repository.findOwnShift(id, trainer._id, session);
         if (!current) throw notFound();
 
+        await this.assertNoAttendance(id, session);
         // US-25-TC05: đếm BOOKED trong cùng transaction, không tin số liệu GET trước đó.
         const bookedCount = await this.repository.countBookedReferences(id, session);
         // US-25-TC04, US-25-TC05, US-25-TC07: luật trạng thái, giờ và BOOKED.
@@ -221,6 +223,12 @@ export class ShiftsService {
       throw new ApplicationError(409, 'TRAINER_UNAVAILABLE', 'Hồ sơ PT hoặc tài khoản không còn khả dụng');
     }
     return trainer;
+  }
+
+  private async assertNoAttendance(shiftId: Types.ObjectId, session: ClientSession) {
+    if (await this.repository.hasAttendance(shiftId, session)) {
+      throw new ApplicationError(409, 'SHIFT_HAS_ATTENDANCE', 'Ca đã có chấm công, không thể sửa hoặc hủy');
+    }
   }
 }
 

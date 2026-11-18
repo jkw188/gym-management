@@ -4,6 +4,11 @@ export function readConfiguration(env: NodeJS.ProcessEnv) {
   const invalid: string[] = [];
   const nodeEnv = env.NODE_ENV ?? 'development';
   if (!['development', 'test', 'production'].includes(nodeEnv)) invalid.push('NODE_ENV');
+  const deploymentEnvironment = env.DEPLOYMENT_ENV ?? nodeEnv;
+  if (!['development', 'test', 'production', 'uat'].includes(deploymentEnvironment) ||
+    (deploymentEnvironment === 'uat' ? nodeEnv !== 'production' : deploymentEnvironment !== nodeEnv)) invalid.push('DEPLOYMENT_ENV');
+  const trustProxyText = env.TRUST_PROXY_HOPS ?? '0';
+  if (!/^[01]$/.test(trustProxyText)) invalid.push('TRUST_PROXY_HOPS');
   const portText = env.PORT ?? (nodeEnv === 'production' ? '' : '3000');
   const port = Number(portText);
   if (!/^\d+$/.test(portText) || !Number.isInteger(port) || port < 1 || port > 65535) invalid.push('PORT');
@@ -11,10 +16,23 @@ export function readConfiguration(env: NodeJS.ProcessEnv) {
   try {
     const url = new URL(frontendOrigin);
     if (!['http:', 'https:'].includes(url.protocol) || url.origin !== frontendOrigin) throw new Error();
+    if (deploymentEnvironment === 'uat' && url.protocol !== 'https:') throw new Error();
   } catch { invalid.push('FRONTEND_ORIGIN'); }
   const { mongoUri, mongoDb } = checkMongoVariables(env, nodeEnv, invalid);
+  if (deploymentEnvironment === 'uat') {
+    if (env.UAT_DATA_CLASSIFICATION !== 'DEMO_ONLY') invalid.push('UAT_DATA_CLASSIFICATION');
+    const quoteSecret = env.RETAIL_QUOTE_SECRET ?? '';
+    if (Buffer.byteLength(quoteSecret) < 32 || quoteSecret.trim().length < 32 || quoteSecret === env.JWT_ACCESS_SECRET) invalid.push('RETAIL_QUOTE_SECRET');
+    if (!env.PICKUP_LOCATION?.trim()) invalid.push('PICKUP_LOCATION');
+    if (Object.keys(env).some(key => /^EN0[456]_/.test(key))) invalid.push('EN04/05/06 test-only variables');
+  }
+  const reminderTickMs = Number(env.REMINDER_TICK_MS ?? '60000');
+  const reminderBatchSize = Number(env.REMINDER_BATCH_SIZE ?? '50');
+  if (!Number.isInteger(reminderTickMs) || reminderTickMs < 1000 || reminderTickMs > 60000) invalid.push('REMINDER_TICK_MS');
+  if (!Number.isInteger(reminderBatchSize) || reminderBatchSize < 1 || reminderBatchSize > 50) invalid.push('REMINDER_BATCH_SIZE');
   if (invalid.length) throw new ConfigurationError(`Invalid environment variables: ${invalid.join(', ')}`);
-  return { nodeEnv, port, frontendOrigin, mongoUri, mongoDb };
+  return { nodeEnv, deploymentEnvironment, trustProxyHops: Number(trustProxyText), port, frontendOrigin, mongoUri, mongoDb,
+    reminderTickMs, reminderBatchSize, reminderTimezone: 'Asia/Ho_Chi_Minh' };
 }
 
 // Chỉ kiểm MONGODB_URI, MONGODB_DB cho lệnh quản trị chỉ cần kết nối DB (ensure-indexes, check-environment),
@@ -66,6 +84,10 @@ function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: s
   if (!/^mongodb(?:\+srv)?:\/\//.test(mongoUri)) invalid.push('MONGODB_URI');
   if (!mongoDb || /[\/\\."$*<>:|?\s\0]/.test(mongoDb)) invalid.push('MONGODB_DB');
   if (nodeEnv === 'test' && !/^(?:gym_test_[a-zA-Z0-9_-]+|gym_management_test(?:_[a-zA-Z0-9_-]+)?)$/.test(mongoDb)) invalid.push('MONGODB_DB (test database required)');
+  // EN-07: the same guard protects app startup and administrative commands before connecting.
+  if (env.DEPLOYMENT_ENV === 'uat' && (nodeEnv !== 'production' || !/^gym_uat_[a-z0-9_]+$/.test(mongoDb))) {
+    invalid.push('MONGODB_DB (isolated UAT database required)');
+  }
   return { mongoUri, mongoDb };
 }
 
@@ -73,7 +95,14 @@ function checkMongoVariables(env: NodeJS.ProcessEnv, nodeEnv: string, invalid: s
 export default () => {
   const receivingAccounts = readReceivingAccounts(process.env);
   return { ...readConfiguration(process.env), ...readAuthConfiguration(process.env), receivingAccounts,
+    payoutAccounts: readPayoutAccounts(process.env),
     receivingAccountDetails: readReceivingAccountDetails(process.env, receivingAccounts) };
 };
 
 import { readAuthConfiguration } from './auth.configuration';
+
+// Separate allowlist for money leaving the gym; never infer it from receiving accounts.
+export function readPayoutAccounts(env: NodeJS.ProcessEnv): string[] {
+  try { return readReceivingAccounts({ RECEIVING_ACCOUNTS: env.PAYOUT_ACCOUNTS }); }
+  catch { throw new ConfigurationError('Invalid environment variables: PAYOUT_ACCOUNTS'); }
+}

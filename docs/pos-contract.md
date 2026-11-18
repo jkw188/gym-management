@@ -1,5 +1,9 @@
 # US-53 — bán sản phẩm tại quầy
 
+S07: [US46](returns-contract.md) nhận trả POS/WEBSITE đã COMPLETED/CONSUMED trong 7 ngày lịch VN.
+Giữ nguyên đơn, payment, invoice; nhận hàng, nhập kho bán được và thực chi là các kết quả riêng.
+Nghĩa vụ hoàn định giá từ snapshot và chỉ chi đủ một nghĩa vụ với chứng từ duy nhất.
+
 Nguồn: `PM/SPRINT6/[GM]Requirement_US-53.docx` v1.0; hợp đồng chung US-41-Q01/P01–P04, S06-O01/H01 và S05-I01. Đã đọc văn bản/bảng US-53 và US-41; hai DOCX không có ảnh nhúng. Q03/PD-03 truy vết đến US-53; không sửa bản DOCX nguồn.
 
 ## API và quyền

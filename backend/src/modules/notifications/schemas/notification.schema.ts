@@ -13,6 +13,9 @@ export interface Notification {
   member_id?: Types.ObjectId;
   transaction_id?: Types.ObjectId;
   created_at: Date;
+  source_type?: 'MEMBERSHIP' | 'PT_BOOKING';
+  source_id?: Types.ObjectId;
+  due_at?: Date;
 }
 
 export const NotificationSchema = new Schema<Notification>({
@@ -30,6 +33,9 @@ export const NotificationSchema = new Schema<Notification>({
   member_id: { type: Schema.Types.ObjectId },
   transaction_id: { type: Schema.Types.ObjectId },
   created_at: { type: Date, required: true },
+  source_type: { type: String, enum: ['MEMBERSHIP', 'PT_BOOKING'], immutable: true },
+  source_id: { type: Schema.Types.ObjectId, immutable: true },
+  due_at: { type: Date, immutable: true },
 // id: false tắt virtual id (chuỗi) mặc định của Mongoose để dùng field id thật ở trên.
 }, { collection: 'notifications', id: false, versionKey: false, strict: 'throw' });
 

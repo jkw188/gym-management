@@ -18,21 +18,25 @@ const { AuthRateLimitSchema } = require('../dist/modules/auth/schemas/auth-rate-
 const { PasswordResetSchema } = require('../dist/modules/auth/schemas/password-reset.schema');
 const { ensurePasswordResetRevisions } = require('../dist/modules/auth/password-reset-migration');
 const { OperationRequestSchema } = require('../dist/modules/operations/schemas/operation-request.schema');
+const { NotificationBroadcastSchema } = require('../dist/modules/notifications/schemas/notification-broadcast.schema');
 const { NotificationSchema } = require('../dist/modules/notifications/schemas/notification.schema');
 const { NotificationRecipientSchema } = require('../dist/modules/notifications/schemas/notification-recipient.schema');
 const { NotificationOutboxSchema } = require('../dist/modules/notifications/schemas/notification-outbox.schema');
 const { NotificationCounterSchema } = require('../dist/modules/notifications/schemas/notification-counter.schema');
 const { EnvironmentCheck } = require('../dist/infrastructure/environment/environment-check');
 const { ensureFinancialIntegrity } = require('../dist/infrastructure/transaction/financial-integrity');
+const { ensureRemindersIntegrity } = require('../dist/modules/reminders/reminders-migration');
 const { ensureMembersQueryIndexes } = require('../dist/modules/members/members-query.indexes');
 const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/scheduling-migration');
 const { ensureTrainerReviewsIntegrity } = require('../dist/modules/reviews/trainer-reviews-migration');
 const { ensureTrainersIntegrity } = require('../dist/modules/trainers/trainers-migration');
 const { ensureTrainerActivityIndexes } = require('../dist/modules/trainers/trainer-activity-indexes');
+const { ensureAttendanceIntegrity } = require('../dist/modules/attendance/attendance-migration');
 const { ensurePublicSessionsIntegrity } = require('../dist/modules/public-sessions/public-sessions-migration');
 const { ensureRetailCatalogIntegrity } = require('../dist/modules/catalog/retail-catalog.migration');
 const { STOCK_MODELS } = require('../dist/modules/stock/stock.schema');
 const { ensureOrdersIntegrity } = require('../dist/modules/orders/orders-migration');
+const { ensureReturnsIntegrity } = require('../dist/modules/returns/returns-migration');
 const { ensureRefundsIntegrity } = require('../dist/modules/refunds/refunds-migration');
 const { PlanSchema } = require('../dist/modules/plans/schemas/plan.schema');
 const { ServiceSaleSchema } = require('../dist/modules/memberships/schemas/service-sale.schema');
@@ -44,7 +48,7 @@ const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
   // ConfigModule chỉ nạp .env vào process.env (không in giá trị); mỗi lệnh tự kiểm đúng các biến nó cần.
-  await ConfigModule.forRoot();
+  await ConfigModule.forRoot({ ignoreEnvFile: process.env.DEPLOYMENT_ENV === 'uat' });
   if (process.argv[2] === 'reconcile-inventory') {
     const config = readMongoConfiguration(process.env);
     const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,
@@ -68,11 +72,13 @@ async function run() {
       await connection.asPromise();
       // EN-02: preflight duplicates, install constraints, backfill missing BSON Int64 revisions.
       await ensureFinancialIntegrity(connection);
+      await ensureRemindersIntegrity(connection);
       await ensureMembersQueryIndexes(connection);
       await ensureTrainersIntegrity(connection);
       await ensurePublicSessionsIntegrity(connection);
       await ensureRetailCatalogIntegrity(connection);
       await ensureOrdersIntegrity(connection);
+      await ensureReturnsIntegrity(connection);
       await ensureRefundsIntegrity(connection);
       // US-36: indexes are installed without rewriting any historical receipt or movement.
       for (const { name, schema } of STOCK_MODELS) await connection.model(name, schema).createIndexes();
@@ -106,6 +112,8 @@ async function run() {
       await Promise.all([account.createIndexes(), role.createIndexes(), members.createIndexes(), session.createIndexes(), rateLimit.createIndexes(),
         passwordReset.createIndexes(), operationRequest.createIndexes()]);
       // EN-03 bước 1: index notifications/recipients/outbox và counter sequence phải có trước khi nhận ghi.
+      const broadcast = connection.model('NotificationBroadcast', NotificationBroadcastSchema);
+      await broadcast.createIndexes();
       const notification = connection.model('Notification', NotificationSchema);
       const recipient = connection.model('NotificationRecipient', NotificationRecipientSchema);
       const outbox = connection.model('NotificationOutbox', NotificationOutboxSchema);
@@ -117,6 +125,7 @@ async function run() {
       await ensurePasswordResetRevisions(connection);
       // US-28 bước 1: kiểm dữ liệu lịch, tạo index pt_bookings và guard schedule_guards trước khi mở writer lịch.
       await ensureSchedulingIntegrity(connection);
+      await ensureAttendanceIntegrity(connection);
       await ensureTrainerActivityIndexes(connection);
       // US-65 bước 1: index trainer_reviews và owner/snapshot cho đánh giá cũ; chạy SAU lịch vì đọc booking đã có member_id.
       await ensureTrainerReviewsIntegrity(connection);

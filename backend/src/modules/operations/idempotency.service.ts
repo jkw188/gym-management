@@ -27,6 +27,13 @@ export interface OperationResult { status: number; body: Record<string, unknown>
 
 // Catalog quyền: năm thao tác S02 dành cho STAFF và ADMIN; ca làm việc S04 chỉ dành cho TRAINER (US-24-F01, US-25).
 const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
+  ATTENDANCE_CHECK_IN: ACCESS_POLICY['attendance.record'].roles,
+  ATTENDANCE_CHECK_OUT: ACCESS_POLICY['attendance.record'].roles,
+  ATTENDANCE_CORRECT: ACCESS_POLICY['attendance.correct'].roles,
+  NOTIFICATION_BROADCAST_SEND: ACCESS_POLICY['notifications.broadcast'].roles,
+  RETURN_RECEIVE: ACCESS_POLICY['returns.manage'].roles,
+  REFUND_CONFIRM: ACCESS_POLICY['refunds.confirmPayout'].roles,
+  REFUND_FAIL: ACCESS_POLICY['refunds.confirmPayout'].roles,
   ORDER_CREATE_POS: ACCESS_POLICY['pos.create'].roles,
   ORDER_CANCEL_OWN: ACCESS_POLICY['orders.cancelOwn'].roles,
   ORDER_CANCEL_SUPPORT: ACCESS_POLICY['orders.cancelSupport'].roles,
@@ -34,6 +41,9 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   ORDER_PREPARE: ACCESS_POLICY['orders.prepare'].roles,
   ORDER_FULFILL_WEBSITE: ACCESS_POLICY['orders.fulfill'].roles,
   ORDER_FULFILL_POS: ACCESS_POLICY['pos.fulfill'].roles,
+  STOCK_ADJUST_CREATE: ACCESS_POLICY['stockAdjustments.manage'].roles,
+  STOCK_ADJUST_UPDATE: ACCESS_POLICY['stockAdjustments.manage'].roles,
+  STOCK_ADJUST_POST: ACCESS_POLICY['stockAdjustments.manage'].roles,
   STOCK_ISSUE_CREATE: ACCESS_POLICY['stockIssues.manage'].roles,
   STOCK_ISSUE_UPDATE: ACCESS_POLICY['stockIssues.manage'].roles,
   STOCK_ISSUE_POST: ACCESS_POLICY['stockIssues.manage'].roles,

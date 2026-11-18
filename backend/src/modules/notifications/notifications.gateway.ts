@@ -9,7 +9,7 @@ import { NotificationsService } from './notifications.service';
 import { AckResult, DispatchMessage } from './notifications.types';
 
 // Dữ liệu server tự gắn vào socket sau handshake; client không sửa được.
-interface SocketData { accountId: string; accessToken: string }
+interface SocketData { accountId: string; accessToken: string; roleCode: AuthPrincipal['roleCode'] }
 
 @WebSocketGateway({ namespace: '/notifications' })
 export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
@@ -31,7 +31,7 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     // Chỉ đọc token từ auth.accessToken, không đọc query URL. accountId client tự khai bị bỏ qua (EN-03-TC11).
     const accessToken: unknown = socket.handshake.auth?.accessToken;
     const principal = await this.notifications.authenticateRecipient(accessToken);
-    const data: SocketData = { accountId: principal.id, accessToken: accessToken as string };
+    const data: SocketData = { accountId: principal.id, accessToken: accessToken as string, roleCode: principal.roleCode };
     socket.data = data;
   }
 
@@ -78,7 +78,7 @@ export class NotificationsGateway implements OnGatewayInit, OnGatewayConnection,
     const data = socket.data as SocketData;
     try {
       const principal = await this.notifications.authenticateRecipient(data.accessToken);
-      if (principal.id === data.accountId) return principal;
+      if (principal.id === data.accountId && principal.roleCode === data.roleCode) return principal;
     } catch {
       // Gộp mọi lỗi vào nhánh ngắt kết nối bên dưới.
     }

@@ -1,10 +1,16 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { apiClient } from '../../api/client';
+import { RefundPayout } from './RefundPayout';
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { refundsApi, type RefundDetail, type RefundQuery } from './refunds.api';
 import { orderDate, orderMoney } from '../orders/orders.api';
 import { refundLabel } from '../orders/OrderCancellation';
 
 const initial: RefundQuery = { status: 'PENDING', orderId: '', fromDate: '', toDate: '', page: 1, limit: 20 };
 export function RefundsPage() {
+  const auth = useSyncExternalStore(apiClient.subscribe, apiClient.getSnapshot);
+  return <RefundsWorkspace key={auth.user?.id ?? 'session'} />;
+}
+function RefundsWorkspace() {
   const [filter, setFilter] = useState(initial), [query, setQuery] = useState(initial), [revision, setRevision] = useState(0);
   const [data, setData] = useState<Awaited<ReturnType<typeof refundsApi.list>>>(), [row, setRow] = useState<RefundDetail | null>(null);
   const [loading, setLoading] = useState(true), [error, setError] = useState('');
@@ -25,6 +31,8 @@ export function RefundsPage() {
       {row.payment && <><p>Khoản thu {row.payment.id} · {orderMoney(row.payment.amount)} · {row.payment.method} · {row.payment.receiptPurpose}</p>
         <p>Tham chiếu đối soát khoản thu: {row.payment.reference}</p><p>Báo có: {row.payment.paidAt ? orderDate(row.payment.paidAt) : '—'} · Xác minh: {row.payment.verifiedAt ? orderDate(row.payment.verifiedAt) : '—'}</p>
         <p>Căn cứ: {row.payment.evidenceNote ?? '—'}</p></>}
+      <p>Nghĩa vụ: {orderMoney(row.refundAmount ?? row.amount)} · Đã hoàn tiền: {orderMoney(row.refundedAmount ?? (row.status === 'SUCCEEDED' ? row.amount : '0'))} · Còn phải hoàn: {orderMoney(row.outstandingRefundAmount ?? (row.status === 'SUCCEEDED' ? '0' : row.amount))}</p>
+      <RefundPayout key={row.id} refund={row} onChanged={async () => { setRow(await refundsApi.detail(row.id)); setRevision(value => value + 1); }} />
       <button disabled={loading} onClick={() => setRow(null)}>Về hàng đợi</button>
     </section> : <><form onSubmit={apply}>
       <label>Trạng thái<select value={filter.status} onChange={event => setFilter({ ...filter, status: event.target.value })}><option value="">Tất cả</option>{['PENDING', 'FAILED', 'SUCCEEDED'].map(value => <option key={value} value={value}>{refundLabel(value)}</option>)}</select></label>

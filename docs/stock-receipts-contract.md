@@ -1,5 +1,10 @@
 # US-36 — UC-25: lập và ghi sổ phiếu nhập
 
+Mở rộng schema chung S07 US-39: `stock_document_items` có các field tùy chọn counted_quantity,
+base_on_hand, base_inventory_version, counted_at với validator snapshot đủ trường/delta đúng nếu có count.
+RECEIPT/ISSUE cũ không phải backfill count và giữ API/giới hạn cũ. ADJUSTMENT bắt buộc snapshot qua service riêng,
+code ADJ-ObjectId, total_cost là giá trị biến động; xem [stock-adjustments-contract.md](stock-adjustments-contract.md).
+
 Nguồn: `docs/PM/SPRINT5/[GM]Requirement_US-36.docx` phiên bản 1.0.
 US-34 sở hữu S05-C01; US-37 sở hữu S05-I01 và hợp đồng picker.
 Tài liệu mô tả implementation, không thay đổi mã F/AC/TC hoặc chính sách requirement.

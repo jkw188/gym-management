@@ -1,4 +1,8 @@
+import { BroadcastsPage } from './features/notifications/BroadcastsPage';
+import { NotificationToast } from './features/notifications/NotificationToast';
+import { ReturnsPage } from './features/returns/ReturnsPage';
 import { StockIssuesPage } from './features/stock/StockIssuesPage';
+import { StockAdjustmentsPage } from './features/stock/StockAdjustmentsPage';
 // Tầng giao diện – khung chung: thanh menu, banner, vùng nội dung <main>, chân trang và khai báo mọi route.
 import { FoundationStatus } from './features/foundation/FoundationStatus';
 import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
@@ -17,6 +21,7 @@ import { ChangePasswordPage } from './features/security/ChangePasswordPage';
 import { UsersPage } from './features/users/UsersPage';
 import { TrainersPage } from './features/trainers/TrainersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
+import { TrainerAttendancePage } from './features/trainer-attendance/TrainerAttendancePage';
 import { TrainerBookingsPage } from './features/pt-bookings/TrainerBookingsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
 import { AdminClassesPage } from './features/classes/AdminClassesPage';
@@ -54,8 +59,13 @@ export default function App() {
     {/* Dải banner tối dưới thanh menu: tiêu đề lớn và khẩu hiệu. */}
     <section className="hero"><div className="hero-inner"><h1>Gym Management</h1>
       <p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p></div></section>
+    <NotificationToast />
     <main>
-    <Routes><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
+    <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
+      <Route path="/admin/notifications" element={<BroadcastsPage />} />
+      <Route path="/admin/notifications/new" element={<BroadcastsPage />} />
+      <Route path="/admin/notifications/:id" element={<BroadcastsPage />} />
+    </Route><Route path="/" element={<HomeRedirect />} /><Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/health" element={<FoundationStatus />} />
       {/* US-26: lịch lớp miễn phí công khai, KHÔNG bọc ProtectedRoute nên Guest xem được. */}
@@ -71,6 +81,8 @@ export default function App() {
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers/activity" element={<TrainerActivityPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/trainer-attendance" element={<TrainerAttendancePage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainer-attendance" element={<TrainerAttendancePage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainer-reviews" element={<AdminTrainerReviewsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/classes" element={<AdminClassesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>
@@ -82,11 +94,14 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/pos" element={<PosPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/pos" element={<PosPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/orders" element={<OrdersPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/returns" element={<ReturnsPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/returns" element={<ReturnsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/refunds" element={<RefundsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/refunds" element={<RefundsPage />} /></Route>
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/orders" element={<MyOrdersPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/stock-receipts" element={<StockReceiptsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /><Route path="/admin/stock-issues" element={<StockIssuesPage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-adjustments" element={<StockAdjustmentsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/inventory" element={<InventoryPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/inventory" element={<InventoryPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/members" element={<MembersPage />} /></Route>

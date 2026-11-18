@@ -10,8 +10,9 @@ export function resolveReturnTo(value: unknown, role: RoleCode): string {
   try {
     const parsed = new URL(value, 'https://gym.invalid');
     const allowed = [home, ...(role === 'ADMIN' ? ['/admin/users', '/admin/categories', '/admin/products'] : []),
-      ...(role === 'ADMIN' ? [`${home}/stock-issues`] : []),
-      ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/members`, `${home}/members/new`, `${home}/stock-receipts`, `${home}/inventory`, `${home}/orders`, `${home}/refunds`] : []),
+      ...(role === 'ADMIN' ? [`${home}/stock-issues`, `${home}/stock-adjustments`] : []),
+      ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/trainer-attendance`] : []),
+      ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/members`, `${home}/members/new`, `${home}/stock-receipts`, `${home}/inventory`, `${home}/orders`, `${home}/refunds`, `${home}/returns`] : []),
       ...(role === 'MEMBER' ? ['/member/orders'] : []),
       ...(role === 'MEMBER' || role === 'TRAINER' ? [`${home}/profile`, `${home}/security`] : [])];
     const memberDetail = (role === 'ADMIN' || role === 'STAFF') &&
