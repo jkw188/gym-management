@@ -76,7 +76,11 @@ Staff chỉ đọc ca/công và ghi vào/ra; Admin mới nhận audit và sửa 
 `/admin/trainer-attendance`. US-32 giữ quyền ADMIN trainers.activity.read,
 chỉ đọc nguồn và refresh sau commit; không sửa attendance qua endpoint báo cáo.
 
-US-52 có thể tái sử dụng định nghĩa nguồn; không gọi completedCount là attendanceCount.
+US-52 đã có [hợp đồng hiệu suất S08-P01](trainer-performance-contract.md) và
+[sequence UC-38](trainer-performance-sequence.mmd). US-32 giữ lọc start_at,
+US-52 chọn interval giao kỳ và cắt độ dài; không lấy tổng S07 thay công thức
+S08 hoặc gọi completedCount là attendanceCount. Drill-down US-52 truyền sourceID
+tới attendance/booking endpoint hiện hành, nên ca bắt đầu trước kỳ vẫn truy được.
 
 ## Truy vết kiểm thử
 
