@@ -17,7 +17,8 @@ export interface CartLine {
 
 export const CartSchema = new Schema<CartLine>({
   member_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true, immutable: true },
-  product_id: { type: Schema.Types.ObjectId, ref: 'Product', required: true, immutable: true },
+  // ref phải trùng tên model sản phẩm đã đăng ký trong retail-catalog.schema.ts (RETAIL_MODELS).
+  product_id: { type: Schema.Types.ObjectId, ref: 'RetailProduct', required: true, immutable: true },
   // US-40-TC04: quantity Int32, số nguyên 1–999; không lưu dòng 0 (xóa dòng dùng DELETE).
   // Int32 của Mongoose không có min/max nên kiểm khoảng trong validate (giống trainer-review.schema.ts).
   quantity: { type: Schema.Types.Int32, required: true,
