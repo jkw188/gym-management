@@ -1,0 +1,39 @@
+sequenceDiagram
+  actor User as Staff / Admin
+  participant UI as React trainer-attendance
+  participant HTTP as Nest JWT/RBAC/DTO
+  participant Service as AttendanceService
+  participant UOW as IdempotencyService / TransactionRunner
+  participant DB as MongoDB replica set
+  User->>UI: Chọn ngày/PT/ca, xác minh thực tế
+  UI->>HTTP: GET work-shifts và attendance
+  HTTP->>HTTP: Phiên hiện hành + attendance.read
+  HTTP->>DB: Snapshot ca, công; audit chỉ Admin
+  DB-->>UI: Giờ ca/giờ thực riêng, MISSING/OPEN/CLOSED
+  User->>UI: Ghi vào/ra hoặc Admin sửa có lý do
+  UI->>HTTP: POST command + UUID v4, version khi đã có record
+  HTTP->>HTTP: Phiên hiện hành + attendance.record/correct, DTO allowlist
+  HTTP->>Service: Actor từ principal, không nhận trainer/time của Staff
+  Service->>UOW: Hash DTO chuẩn hóa + targetId/version
+  UOW->>DB: Transaction primary/snapshot/majority
+  UOW->>DB: Tìm actor/operation/key
+  alt Đã commit
+    DB-->>UOW: HTTP/body gốc hoặc hash conflict
+  else Key mới
+    Service->>DB: Tăng schedule_guards revision
+    Service->>DB: Recheck ca CONFIRMED/COMPLETED, trainer và attendance
+    Service->>Service: Đọc clock server mỗi retry, kiểm thời gian/version
+    Service->>DB: Insert unique shift hoặc CAS attendance.version
+    Service->>DB: Append attendance_events before/after/actor/server time
+    UOW->>DB: Insert operation_requests, commit
+    Note over Service,DB: Lỗi trước commit rollback cả công, audit và key
+    Note over Service,DB: Không đổi ca/booking/quota; writer ca cùng guard chặn SHIFT_HAS_ATTENDANCE
+  end
+  UOW-->>HTTP: Chỉ thành công sau commit / replay
+  HTTP-->>UI: HTTP/body gốc
+  UI->>HTTP: Refresh công, US-32 đọc cùng nguồn độc lập
+  opt Mất response hoặc unknown outcome
+    UI->>HTTP: GET operations hoặc POST lại cùng key/body
+    HTTP->>HTTP: Kiểm lại auth trước tra cứu/replay
+    HTTP-->>UI: COMMITTED hoặc UNKNOWN, không tự đổi key
+  end

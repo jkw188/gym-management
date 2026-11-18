@@ -21,6 +21,7 @@ import { ChangePasswordPage } from './features/security/ChangePasswordPage';
 import { UsersPage } from './features/users/UsersPage';
 import { TrainersPage } from './features/trainers/TrainersPage';
 import { ShiftsPage } from './features/shifts/ShiftsPage';
+import { TrainerAttendancePage } from './features/trainer-attendance/TrainerAttendancePage';
 import { TrainerBookingsPage } from './features/pt-bookings/TrainerBookingsPage';
 import { ClassesPage } from './features/classes/ClassesPage';
 import { AdminClassesPage } from './features/classes/AdminClassesPage';
@@ -79,6 +80,8 @@ export default function App() {
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/users" element={<UsersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers" element={<TrainersPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainers/activity" element={<TrainerActivityPage />} /></Route>
+      <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/trainer-attendance" element={<TrainerAttendancePage />} /></Route>
+      <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainer-attendance" element={<TrainerAttendancePage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/trainer-reviews" element={<AdminTrainerReviewsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/classes" element={<AdminClassesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/plans" element={<PlansPage />} /></Route>

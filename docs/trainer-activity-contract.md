@@ -16,7 +16,7 @@ endpoint báo cáo. Chạy `npm run seed:access` để đồng bộ catalog.
 | --- | --- |
 | `/admin/trainers/activity` | trainerId?, fromDate?, toDate?, page=1, limit=20≤100; `{items,page,limit,total,totalPages,asOf,range,summary}`; phân trang PT |
 | `/admin/trainers/:id/activity` | fromDate?, toDate?, shiftPage=1, bookingPage=1, limit=20≤100; `{trainer,range,asOf,summary,shiftsPage,bookingsPage}`; total riêng từng nguồn |
-| `/work-shifts/:id/attendance` | Adapter Admin chỉ đọc cho US-32: `{asOf,state,shift,events}`; ca, attendance hiện tại, version, người ghi/sửa và audit allowlist |
+| `/work-shifts/:id/attendance` | US-63 attendance.read cho STAFF/ADMIN: `{asOf,state,shift,note,events?}`; chỉ Admin có audit events. Staff không được đọc dashboard/tổng US-32. |
 | `/admin/pt-bookings/:id` | Adapter Admin US-64: thời gian buổi, completedAt/By, completionRevision, quotaSource và events COMPLETE/REOPEN; cùng snapshot |
 
 Ngày VN `YYYY-MM-DD` thật; `[00:00 fromDate +07:00, 00:00 ngày sau toDate +07:00)`.
@@ -69,13 +69,12 @@ Không PATCH summary hoặc sửa inline. Focus/online/nút tải lại đọc l
 
 ## Phụ thuộc và giới hạn
 
-US-63 **chưa có writer/UI** trong repository tại lúc triển khai US-32. Adapter
-attendance chỉ dành Admin activity.read; không giả tích hợp check-in/out/correction
-hoặc mở quyền Staff. US-63 sau này cần hợp nhất GET nguồn này với attendance.read,
-thêm schema/writer/audit/migration và blocker ca của chính US-63. Báo cáo hiện đọc
-được dữ liệu đúng hợp đồng US-63, chưa có dữ liệu thì MISSING. Không có nút sửa
-attendance vì command nguồn chưa tồn tại. US-64 command correction đã có; báo cáo
-chỉ dẫn tới nguồn đọc và refresh sau thay đổi đã commit.
+US-63 đã hợp nhất GET nguồn vào attendance.read, thêm writer check-in/out/correction,
+schema/audit/migration và blocker SHIFT_HAS_ATTENDANCE cho ca US-24/25.
+Xem [hợp đồng US-63/UC-34](attendance-contract.md) và [sequence](attendance-sequence.mmd).
+Staff chỉ đọc ca/công và ghi vào/ra; Admin mới nhận audit và sửa sai tại
+`/admin/trainer-attendance`. US-32 giữ quyền ADMIN trainers.activity.read,
+chỉ đọc nguồn và refresh sau commit; không sửa attendance qua endpoint báo cáo.
 
 US-52 có thể tái sử dụng định nghĩa nguồn; không gọi completedCount là attendanceCount.
 
@@ -85,9 +84,9 @@ US-52 có thể tái sử dụng định nghĩa nguồn; không gọi completedC
 | --- | --- |
 | AC01 / TC01–04 | trainer-activity.integration-spec.ts: JWT/role/session/status/auth_version, ID/filter, ngày VN và xác nhận muộn |
 | AC02 / TC05–08 | Integration MISSING/OPEN/CLOSED 90 phút, BOOKED quá giờ, ca COMPLETED, phân trang tổng độc lập và cập nhật đồng thời trong snapshot |
-| AC03 / TC09 | Integration command COMPLETE/REOPEN US-64 thật; attendance correction là fixture nguồn đã commit, chưa thay thế test writer US-63 |
+| AC03 / TC09 | trainer-activity.integration-spec.ts kiểm COMPLETE/REOPEN US-64 và fixture nguồn; attendance.integration-spec.ts bổ sung checkout/correction US-63 thật rồi GET US-32, giữ booking/quota. |
 | AC03 / TC10–12 | Integration orphan/giờ sai/index unique/no mutation/lỗi DB; trainer-activity.test.tsx: hai vùng/filter/pagination/source allowlist/loading/error/retry/account/route |
 
 Chạy build/typecheck/test theo package.json. Hồi quy US-24/25, US-64, RBAC và EN-04
-theo kết quả thực tế từng lần chạy; browser/mobile và writer US-63 cần xác minh
-riêng. Không tự commit hoặc đánh dấu toàn bộ AC/DoD đã hoàn tất.
+theo kết quả thực tế từng lần chạy; browser/mobile cần xác minh riêng.
+Không tự commit hoặc đánh dấu toàn bộ AC/DoD đã hoàn tất.

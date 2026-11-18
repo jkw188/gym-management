@@ -1,6 +1,7 @@
 import { ReturnsModule } from './modules/returns/returns.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { Module } from '@nestjs/common';
+import { AttendanceModule } from './modules/attendance/attendance.module';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { DatabaseModule } from './config/database.module';
@@ -53,6 +54,7 @@ import { StockModule } from './modules/stock/stock.module';
     ReportsModule,
     OperationsModule,
     ShiftsModule,
+    AttendanceModule,
     PublicSessionsModule,
     SalesModule,
     PlansModule,

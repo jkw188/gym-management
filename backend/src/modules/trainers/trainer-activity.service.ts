@@ -79,21 +79,21 @@ export class TrainerActivityService {
     });
   }
 
-  attendance(id: string) {
+  attendance(id: string, includeAudit = true) {
     return this.transactions.run(async session => {
       const asOf = this.clock.now().toISOString();
       const row = await this.repository.shift(new ObjectId(id), session);
       if (!row) throw new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy ca');
       const shift = activityShift(row);
-      const events = await this.repository.attendanceEvents(new ObjectId(id), session);
+      const events = includeAudit ? await this.repository.attendanceEvents(new ObjectId(id), session) : [];
       const snapshot = (value: Record<string, unknown> | undefined) => value ? {
         checkInAt: sourceDate(value.check_in_at), checkOutAt: sourceDate(value.check_out_at), version: value.version ?? null,
       } : null;
-      return { asOf, state: shift.attendance.state, shift, events: events.map(event => ({
+      return { asOf, state: shift.attendance.state, shift, note: row.attendance?.[0]?.note ?? null, ...(includeAudit ? { events: events.map(event => ({
         id: sourceId(event._id), attendanceId: sourceId(event.attendance_id), action: event.action,
         actorId: sourceId(event.actor_id), occurredAt: sourceDate(event.occurred_at), reason: event.reason ?? null,
         before: snapshot(event.before), after: snapshot(event.after),
-      })) };
+      })) } : {}) };
     });
   }
   private checkPage(page: number, limit: number) {
