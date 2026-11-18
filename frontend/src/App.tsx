@@ -47,13 +47,15 @@ import { OrdersPage } from './features/orders/OrdersPage';
 import { MyOrdersPage } from './features/orders/MyOrdersPage';
 import { RefundsPage } from './features/refunds/RefundsPage';
 import { PosPage } from './features/pos/PosPage';
+import { ShopPage } from './features/shop/ShopPage';
+import { ProductDetailPage } from './features/shop/ProductDetailPage';
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
     {/* Thanh trên cùng: logo bên trái, menu bên phải. NavLink tự thêm class "active" cho trang đang mở. */}
     <header className="site-header"><div className="site-header-inner">
       <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">GM</span>Gym Management</Link>
-      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink>
+      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink><NavLink to="/shop">Cửa hàng</NavLink>
         <NavLink to="/health">Kiểm tra nền tảng</NavLink><MemberNotificationBell /><LogoutButton /></nav>
     </div></header>
     {/* Dải banner tối dưới thanh menu: tiêu đề lớn và khẩu hiệu. */}
@@ -72,6 +74,9 @@ export default function App() {
       <Route path="/classes" element={<ClassesPage />} />
       {/* US-13: danh mục gói GYM/PT công khai, KHÔNG bọc ProtectedRoute nên Guest xem được. */}
       <Route path="/services" element={<ServicesPage />} />
+      {/* US-35: cửa hàng bán lẻ công khai, KHÔNG bọc ProtectedRoute nên Guest xem được. */}
+      <Route path="/shop" element={<ShopPage />} />
+      <Route path="/shop/:id" element={<ProductDetailPage />} />
       {/* US-05: hai trang con dùng chung PasswordResetFlow để giữ challenge trong bộ nhớ khi chuyển trang. */}
       <Route element={<PasswordResetFlow />}><Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} /></Route>

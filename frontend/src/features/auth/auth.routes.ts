@@ -17,7 +17,9 @@ export function resolveReturnTo(value: unknown, role: RoleCode): string {
       ...(role === 'MEMBER' || role === 'TRAINER' ? [`${home}/profile`, `${home}/security`] : [])];
     const memberDetail = (role === 'ADMIN' || role === 'STAFF') &&
       new RegExp(`^${home}/members/[a-f\\d]{24}$`, 'i').test(parsed.pathname);
-    if (parsed.origin !== 'https://gym.invalid' || (!allowed.includes(parsed.pathname) && !memberDetail)) return home;
+    // US-35-TC11: trang cửa hàng công khai /shop và /shop/<id> được quay lại với mọi vai trò.
+    const shopPage = /^\/shop(\/[a-f\d]{24})?$/i.test(parsed.pathname);
+    if (parsed.origin !== 'https://gym.invalid' || (!allowed.includes(parsed.pathname) && !memberDetail && !shopPage)) return home;
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch { return home; }
 }
