@@ -7025,11 +7025,13 @@
             "US-51-TC01",
             "US-51-TC05"
           ],
-          "suiteCandidates": [],
+          "suiteCandidates": [
+            "backend/test/cash-flow.integration-spec.ts"
+          ],
           "status": "NOT_RUN",
-          "coverage": "BLOCKED_DEPENDENCY",
+          "coverage": "NEEDS_AC_REVIEW",
           "evidence": [],
-          "reviewNote": "Required production API/UI is absent. Reference oracle does not establish AC acceptance."
+          "reviewNote": "Production API/UI and committed-source oracle comparison implemented; review assertions and frozen-candidate EN08 evidence before acceptance."
         },
         {
           "id": "US-51-AC02",
@@ -7039,11 +7041,13 @@
             "US-51-TC06",
             "US-51-TC10"
           ],
-          "suiteCandidates": [],
+          "suiteCandidates": [
+            "backend/test/cash-flow.integration-spec.ts"
+          ],
           "status": "NOT_RUN",
-          "coverage": "BLOCKED_DEPENDENCY",
+          "coverage": "NEEDS_AC_REVIEW",
           "evidence": [],
-          "reviewNote": "Required production API/UI is absent. Reference oracle does not establish AC acceptance."
+          "reviewNote": "Production API/UI and committed-source oracle comparison implemented; review assertions and frozen-candidate EN08 evidence before acceptance."
         },
         {
           "id": "US-51-AC03",
@@ -7053,16 +7057,33 @@
             "US-51-TC11",
             "US-51-TC15"
           ],
-          "suiteCandidates": [],
+          "suiteCandidates": [
+            "backend/test/cash-flow.integration-spec.ts",
+            "frontend/src/features/reports/cash-flow.test.tsx"
+          ],
           "status": "NOT_RUN",
-          "coverage": "BLOCKED_DEPENDENCY",
+          "coverage": "NEEDS_AC_REVIEW",
           "evidence": [],
-          "reviewNote": "Required production API/UI is absent. Reference oracle does not establish AC acceptance."
+          "reviewNote": "Production API/UI and committed-source oracle comparison implemented; review assertions and frozen-candidate EN08 evidence before acceptance."
         }
       ],
-      "sourceCandidates": [],
-      "testCandidates": [],
-      "coverage": "BLOCKED_NO_SUITE",
+      "sourceCandidates": [
+        "backend/src/modules/reports/cash-flow.controller.ts",
+        "backend/src/modules/reports/cash-flow.dto.ts",
+        "backend/src/modules/reports/cash-flow.metrics.ts",
+        "backend/src/modules/reports/cash-flow.repository.ts",
+        "backend/src/modules/reports/cash-flow.service.ts",
+        "frontend/src/features/reports/CashFlowReportsPage.tsx",
+        "frontend/src/features/reports/cash-flow.api.ts",
+        "docs/cash-flow-contract.md",
+        "docs/cash-flow-sequence.mmd"
+      ],
+      "testCandidates": [
+        "backend/test/cash-flow.integration-spec.ts",
+        "frontend/src/features/reports/cash-flow.test.tsx",
+        "backend/test/en08-oracle.spec.ts"
+      ],
+      "coverage": "NEEDS_AC_REVIEW",
       "evidence": "steps/integration.json, steps/frontend.json, steps/unit.json; EN05/EN06/S07 linked run evidence (see run manifest)",
       "status": "NOT_RUN",
       "requiredApiUi": [

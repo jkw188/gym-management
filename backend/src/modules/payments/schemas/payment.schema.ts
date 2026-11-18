@@ -44,3 +44,4 @@ export const PaymentSchema = new Schema<Payment>({
   receipt_purpose: { type: String, enum: ['ORDER_SETTLEMENT', 'LATE_CANCELLED_ORDER'], default: 'ORDER_SETTLEMENT' },
 }, { collection: 'payments', id: false, versionKey: false });
 PaymentSchema.index({ transaction_id: 1 }, { name: 'payments_transaction' });
+PaymentSchema.index({ status: 1, paid_at: -1, _id: -1 }, { name: 'payments_status_paid' });

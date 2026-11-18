@@ -1,0 +1,32 @@
+sequenceDiagram
+  actor Admin
+  participant React as CashFlowReportsPage
+  participant API as NestJS /reports/cash-flow
+  participant Auth as JWT + RolesGuard
+  participant Service as CashFlowService
+  participant Repo as CashFlowRepository
+  participant DB as MongoDB primary
+  Admin->>React: Chọn kỳ VN, kind, method thu/chi
+  React->>API: GET events (filter + page)
+  API->>Auth: Kiểm session/account/auth_version/ADMIN
+  Auth-->>API: reports.cashFlow.read
+  API->>Service: DTO đã validate
+  Service->>Repo: snapshot(session snapshot:true)
+  Note over Service,DB: observedAt từ server trước lần đọc đầu
+  Repo->>DB: payments SUCCEEDED (projection), session primary
+  DB-->>Repo: Receipts + atClusterTime
+  Repo->>DB: refunds SUCCEEDED/PENDING/FAILED, cùng session
+  DB-->>Repo: Refund sources cùng snapshot
+  Repo->>DB: transactions, orders, invoices (projection), cùng session
+  DB-->>Repo: Kind và mã/ID chứng từ
+  Repo-->>Service: Các nguồn riêng biệt, không join items/attempts
+  Service->>Service: Tổng thu/hoàn riêng, hợp nhất ngày VN, kiểm quality
+  Service->>Service: Nghĩa vụ hiện tại chỉ lọc kind; page events
+  Service-->>API: KPI + groups + page + observedAt
+  API-->>React: 200 hoặc lỗi EN01 (400/401/403/503)
+  React-->>Admin: Thu / Đã hoàn / Thu trừ hoàn và nghĩa vụ riêng
+  Admin->>React: Mở event nguồn
+  React->>API: GET events/RECEIPT|REFUND/id
+  Note over API,DB: Kiểm quyền lại và snapshot request mới; không ghi nguồn
+  API-->>React: Projection nguồn, lateReceipt, invoice có thể null
+  React-->>Admin: Chi tiết có observedAt riêng, không evidence/ngân hàng

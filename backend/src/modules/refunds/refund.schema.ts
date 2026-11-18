@@ -31,3 +31,4 @@ RefundSchema.index({ obligation_key: 1 }, { unique: true, name: 'refunds_obligat
 RefundSchema.index({ order_id: 1, created_at: -1, _id: -1 }, { name: 'refunds_order_created' });
 RefundSchema.index({ payment_id: 1 }, { name: 'refunds_payment' });
 RefundSchema.index({ status: 1, created_at: -1, _id: -1 }, { name: 'refunds_status_created' });
+RefundSchema.index({ status: 1, refunded_at: -1, _id: -1 }, { name: 'refunds_status_refunded' });
