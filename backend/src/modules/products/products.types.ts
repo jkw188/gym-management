@@ -1,5 +1,5 @@
 // Tầng kiểu dữ liệu (US-35 bước 1–2): kiểu trả về và kiểu lọc dùng chung của API sản phẩm công khai.
-import { Decimal128, ObjectId } from 'mongodb';
+import { Decimal128, Document, ObjectId } from 'mongodb';
 
 export const PRODUCT_SORTS = ['NAME_ASC', 'PRICE_ASC', 'PRICE_DESC'] as const;
 export type ProductSort = typeof PRODUCT_SORTS[number];
@@ -45,6 +45,11 @@ export interface PublicProductFilter {
   minPrice?: string;
   maxPrice?: string;
   availability?: AvailabilityFilter;
+}
+
+// Luật tình trạng kho do service tạo (biểu thức MongoDB đọc field "stock" = bản ghi inventory), repository chỉ áp dụng.
+export interface StockRules {
+  availability: Document;
 }
 
 // Dòng repository trả về: chỉ gồm các field nằm trong allowlist (projection ngay ở MongoDB).

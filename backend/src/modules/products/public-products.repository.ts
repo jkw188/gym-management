@@ -4,7 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Decimal128, Document, ObjectId } from 'mongodb';
 import { Connection } from 'mongoose';
-import { CategoryRow, ProductRow, ProductSort, PublicProductFilter } from './products.types';
+import { CategoryRow, ProductRow, ProductSort, PublicProductFilter, StockRules } from './products.types';
 
 // Sắp tên theo thứ tự chữ cái tiếng Việt (giống US-13).
 const NAME_COLLATION = { locale: 'vi' };
@@ -23,24 +23,15 @@ const PRODUCT_FIELDS = {
   category: { _id: '$category._id', name: '$category.name' },
 };
 
-// US-35-F03: nối bản ghi inventory (US-37) và đổi số tồn thành nhãn, tính ngay trong MongoDB
-// để lọc availability xong mới đếm total và phân trang.
-const ADD_AVAILABILITY: Document[] = [
-  { $lookup: { from: 'inventory', localField: '_id', foreignField: 'product_id', as: 'stock' } },
-  { $set: { stock: { $first: '$stock' } } },
-  { $set: { availability: { $switch: {
-    branches: [
-      // US-35-TC03: thiếu inventory (hoặc số tồn không phải số) là dữ liệu lỗi → UNAVAILABLE, không giả định còn hàng.
-      { case: { $not: [{ $and: [{ $isNumber: '$stock.on_hand' }, { $isNumber: '$stock.reserved' }] }] }, then: 'UNAVAILABLE' },
-      // Số dư âm hoặc reserved > onHand là lỗi toàn vẹn → cũng UNAVAILABLE để chặn bán hàng đó.
-      { case: { $or: [{ $lt: ['$stock.reserved', 0] }, { $gt: ['$stock.reserved', '$stock.on_hand'] }] }, then: 'UNAVAILABLE' },
-      // US-35-TC08: available = onHand − reserved; > 0 là còn hàng.
-      { case: { $gt: ['$stock.on_hand', '$stock.reserved'] }, then: 'IN_STOCK' },
-    ],
-    // Còn lại: onHand = reserved, tức available = 0.
-    default: 'OUT_OF_STOCK',
-  } } } },
-];
+// Nối bản ghi inventory (US-37) vào field "stock", rồi tính nhãn theo biểu thức service truyền xuống.
+// Tính ngay trong MongoDB để lọc availability xong mới đếm total và phân trang.
+function addAvailability(rules: StockRules): Document[] {
+  return [
+    { $lookup: { from: 'inventory', localField: '_id', foreignField: 'product_id', as: 'stock' } },
+    { $set: { stock: { $first: '$stock' } } },
+    { $set: { availability: rules.availability } },
+  ];
+}
 
 // Thêm "\" trước ký tự đặc biệt để từ khóa được tìm nguyên văn, không chạy regex của client (US-35-TC05).
 function literal(text: string): RegExp {
@@ -88,7 +79,7 @@ export class PublicProductsRepository {
   }
 
   // GET /api/products: các điều kiện lọc kết hợp AND (US-35-TC05).
-  findProductPage(filter: PublicProductFilter, sort: ProductSort, page: number, limit: number): Promise<{ items: ProductRow[]; total: number }> {
+  findProductPage(filter: PublicProductFilter, rules: StockRules, sort: ProductSort, page: number, limit: number): Promise<{ items: ProductRow[]; total: number }> {
     const match: Document = { status: 'ACTIVE' };
     if (filter.categoryId) match.category_id = new ObjectId(filter.categoryId);
     // Giá so sánh bằng Decimal128, tính cả hai đầu khoảng.
@@ -107,7 +98,7 @@ export class PublicProductsRepository {
       const [result] = await this.connection.db!.collection('products').aggregate<PageResult<ProductRow>>([
         { $match: match },
         ...JOIN_ACTIVE_CATEGORY,
-        ...ADD_AVAILABILITY,
+        ...addAvailability(rules),
         ...matchAvailability,
         { $sort: SORTS[sort] },
         { $facet: {
@@ -120,12 +111,12 @@ export class PublicProductsRepository {
   }
 
   // GET /api/products/:id: chỉ trả khi sản phẩm và danh mục đều ACTIVE, ngược lại null.
-  findProduct(id: string): Promise<ProductRow | null> {
+  findProduct(id: string, rules: StockRules): Promise<ProductRow | null> {
     return this.withSnapshot(async session => {
       const [row] = await this.connection.db!.collection('products').aggregate<ProductRow>([
         { $match: { _id: new ObjectId(id), status: 'ACTIVE' } },
         ...JOIN_ACTIVE_CATEGORY,
-        ...ADD_AVAILABILITY,
+        ...addAvailability(rules),
         { $project: PRODUCT_FIELDS },
       ], { session, maxTimeMS: 5000 }).toArray();
       return row ?? null;
