@@ -5,6 +5,7 @@ import { RoleCode } from './schemas/role.schema';
 // Fixed module policy: decorators and the explanatory DB catalog use this same source.
 // Other modules add their permissions only with their own requirements and tests.
 export const ACCESS_POLICY = {
+  'reports.cashFlow.read': { name: 'Xem báo cáo khoản thu và hoàn tiền', roles: ['ADMIN'] },
   'reports.memberships.read': { name: 'Xem báo cáo hội viên và quyền gói theo thời điểm', roles: ['ADMIN'] },
   'attendance.read': { name: 'Tra cứu ca và chấm công PT', roles: ['STAFF', 'ADMIN'] },
   'attendance.record': { name: 'Ghi giờ vào ra của PT', roles: ['STAFF', 'ADMIN'] },

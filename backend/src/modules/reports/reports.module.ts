@@ -3,7 +3,10 @@ import { TransactionModule } from '../../infrastructure/transaction/transaction.
 import { MembershipReportsController } from './membership-reports.controller';
 import { MembershipReportsRepository } from './membership-reports.repository';
 import { MembershipReportsService } from './membership-reports.service';
+import { CashFlowController } from './cash-flow.controller';
+import { CashFlowRepository } from './cash-flow.repository';
+import { CashFlowService } from './cash-flow.service';
 
-@Module({ imports: [TransactionModule], controllers: [MembershipReportsController],
-  providers: [MembershipReportsRepository, MembershipReportsService] })
+@Module({ imports: [TransactionModule], controllers: [MembershipReportsController, CashFlowController],
+  providers: [MembershipReportsRepository, MembershipReportsService, CashFlowRepository, CashFlowService] })
 export class ReportsModule {}
