@@ -97,6 +97,11 @@ export class ShiftsRepository {
     return (await this.countBookedReferences(shiftId, session)) > 0;
   }
 
+  async hasAttendance(shiftId: Types.ObjectId, session: ClientSession): Promise<boolean> {
+    return await this.connection.db!.collection('trainer_attendance').findOne({ shift_id: shiftId },
+      { session, projection: { _id: 1 } }) !== null;
+  }
+
   // US-25-TC05: đếm MỌI booking BOOKED tham chiếu ca, không lọc theo giờ (booking giờ bất thường vẫn chặn hủy).
   // Không truyền session khi GET chi tiết ca (chỉ là ảnh chụp cho UI).
   countBookedReferences(shiftId: Types.ObjectId, session?: ClientSession): Promise<number> {

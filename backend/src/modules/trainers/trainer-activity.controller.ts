@@ -2,7 +2,7 @@ import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiResponse, ApiTags, SchemaObject } from '@nestjs/swagger';
 import { ErrorResponseDto } from '../../common/http/error.dto';
 import { FixedPermission } from '../users/access.policy';
-import { ActivityDetailQueryDto, ActivityIdDto, ActivityListQueryDto, EmptyActivityQueryDto } from './trainer-activity.dto';
+import { ActivityDetailQueryDto, ActivityIdDto, ActivityListQueryDto } from './trainer-activity.dto';
 import { TrainerActivityService } from './trainer-activity.service';
 import { ACTIVITY_METRICS } from './trainer-activity.types';
 
@@ -27,10 +27,6 @@ const bookingSchema = object({ id: { type: 'string' }, trainerId: stringValue, m
   startAt: timestamp, endAt: timestamp, status: stringValue, completedAt: timestamp, completedBy: stringValue,
   completionRevision: revision, dataIssue });
 const pageSchema = (items: SchemaObject): SchemaObject => object({ ...pageProperties, items: { type: 'array', items } });
-const attendanceSnapshot = { ...object({ checkInAt: timestamp, checkOutAt: timestamp, version: revision }), nullable: true };
-const attendanceEventSchema = object({ id: stringValue, attendanceId: stringValue, action: { type: 'string', enum: ['CHECK_IN', 'CHECK_OUT', 'CORRECT'] },
-  actorId: stringValue, occurredAt: timestamp, reason: stringValue, before: attendanceSnapshot, after: attendanceSnapshot });
-
 @ApiTags('trainer-activity') @ApiBearerAuth()
 @ApiResponse({ status: 400, type: ErrorResponseDto }) @ApiResponse({ status: 401, type: ErrorResponseDto })
 @ApiResponse({ status: 403, type: ErrorResponseDto }) @ApiResponse({ status: 404, type: ErrorResponseDto })
@@ -48,18 +44,4 @@ export class TrainerActivityController {
     asOf: pageProperties.asOf, summary: summarySchema,
     shiftsPage: pageSchema(shiftSchema), bookingsPage: pageSchema(bookingSchema) } } })
   detail(@Param() params: ActivityIdDto, @Query() query: ActivityDetailQueryDto) { return this.activity.detail(params.id, query); }
-}
-
-// US-63 source contract, read adapter only. Record/correction commands remain owned by US-63.
-@ApiTags('trainer-activity') @ApiBearerAuth()
-@ApiResponse({ status: 400, type: ErrorResponseDto }) @ApiResponse({ status: 401, type: ErrorResponseDto })
-@ApiResponse({ status: 403, type: ErrorResponseDto }) @ApiResponse({ status: 404, type: ErrorResponseDto })
-@ApiResponse({ status: 503, type: ErrorResponseDto })
-@Controller('work-shifts') @FixedPermission('trainers.activity.read')
-export class ActivityAttendanceController {
-  constructor(private readonly activity: TrainerActivityService) {}
-  @Get(':id/attendance') @ApiOperation({ summary: 'Admin: nguồn ca, attendance/revision/audit; không cấp quyền ghi' })
-  @ApiOkResponse({ schema: { type: 'object', properties: { asOf: pageProperties.asOf, state: { type: 'string', enum: ['MISSING', 'OPEN', 'CLOSED'] },
-    shift: shiftSchema, events: { type: 'array', items: attendanceEventSchema } } } })
-  detail(@Param() params: ActivityIdDto, @Query() _query: EmptyActivityQueryDto) { return this.activity.attendance(params.id); }
 }

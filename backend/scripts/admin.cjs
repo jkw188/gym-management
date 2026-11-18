@@ -31,6 +31,7 @@ const { ensureSchedulingIntegrity } = require('../dist/modules/scheduling/schedu
 const { ensureTrainerReviewsIntegrity } = require('../dist/modules/reviews/trainer-reviews-migration');
 const { ensureTrainersIntegrity } = require('../dist/modules/trainers/trainers-migration');
 const { ensureTrainerActivityIndexes } = require('../dist/modules/trainers/trainer-activity-indexes');
+const { ensureAttendanceIntegrity } = require('../dist/modules/attendance/attendance-migration');
 const { ensurePublicSessionsIntegrity } = require('../dist/modules/public-sessions/public-sessions-migration');
 const { ensureRetailCatalogIntegrity } = require('../dist/modules/catalog/retail-catalog.migration');
 const { STOCK_MODELS } = require('../dist/modules/stock/stock.schema');
@@ -124,6 +125,7 @@ async function run() {
       await ensurePasswordResetRevisions(connection);
       // US-28 bước 1: kiểm dữ liệu lịch, tạo index pt_bookings và guard schedule_guards trước khi mở writer lịch.
       await ensureSchedulingIntegrity(connection);
+      await ensureAttendanceIntegrity(connection);
       await ensureTrainerActivityIndexes(connection);
       // US-65 bước 1: index trainer_reviews và owner/snapshot cho đánh giá cũ; chạy SAU lịch vì đọc booking đã có member_id.
       await ensureTrainerReviewsIntegrity(connection);

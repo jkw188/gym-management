@@ -27,6 +27,7 @@ sequenceDiagram
   UI-->>Admin: Hai vùng Ca và chấm công / Buổi PT
   Admin->>UI: Xem nguồn
   UI->>HTTP: GET fixed attendance hoặc Admin US-64 adapter + validated ID
+  HTTP->>HTTP: Attendance dùng attendance.read; audit chỉ Admin, dashboard vẫn activity.read
   HTTP->>DB: Snapshot nguồn hiện tại + revision/audit allowlist
   DB-->>UI: Dữ liệu nguồn, không URL tùy ý hoặc quyền ghi
   opt Nguồn được hiệu chỉnh bởi command riêng

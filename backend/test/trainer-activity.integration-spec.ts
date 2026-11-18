@@ -119,7 +119,8 @@ describe('US-32 / UC-34: independent activity sources (real MongoDB snapshot + H
     for (const role of ['STAFF', 'TRAINER', 'MEMBER']) {
       await get(undefined, role).expect(403);
       await get(`/api/admin/trainers/${trainerId}/activity`, role).expect(403);
-      await get(`/api/work-shifts/${shiftId}/attendance`, role).expect(403);
+      const source = await get(`/api/work-shifts/${shiftId}/attendance`, role).expect(role === 'STAFF' ? 200 : 403);
+      if (role === 'STAFF') expect(source.body.events).toBeUndefined();
       await get(`/api/admin/pt-bookings/${bookingId}`, role).expect(403);
     }
     await request(app.getHttpServer()).get('/api/admin/trainers/activity').expect(401);

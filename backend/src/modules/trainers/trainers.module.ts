@@ -7,7 +7,7 @@ import { TrainerEventSchema } from './schemas/trainer-event.schema';
 import { TrainersController } from './trainers.controller';
 import { TrainersRepository } from './trainers.repository';
 import { TrainersService } from './trainers.service';
-import { ActivityAttendanceController, TrainerActivityController } from './trainer-activity.controller';
+import { TrainerActivityController } from './trainer-activity.controller';
 import { TrainerActivityRepository } from './trainer-activity.repository';
 import { TrainerActivityService } from './trainer-activity.service';
 
@@ -15,7 +15,8 @@ import { TrainerActivityService } from './trainer-activity.service';
   imports: [TransactionModule, OperationsModule, MongooseModule.forFeature([
     { name: 'Trainer', schema: TrainerSchema }, { name: 'TrainerEvent', schema: TrainerEventSchema },
   ])],
-  controllers: [TrainersController, TrainerActivityController, ActivityAttendanceController],
+  controllers: [TrainersController, TrainerActivityController],
   providers: [TrainersRepository, TrainersService, TrainerActivityRepository, TrainerActivityService],
+  exports: [TrainerActivityService],
 })
 export class TrainersModule {}
