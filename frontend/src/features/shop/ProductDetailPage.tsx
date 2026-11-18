@@ -1,10 +1,12 @@
 // Tầng giao diện – trang (US-35 bước 3): /shop/:id – xem chi tiết sản phẩm, chọn số lượng và nút "Thêm vào giỏ".
 // Guest bấm thêm thì sang đăng nhập kèm returnTo; PT/Staff/Admin không có nút mua (US-35-F05, TC11).
+// US-40 bước 3: Member bấm thêm → GET giỏ lấy version → POST /me/cart/items có Idempotency-Key.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { useAuth } from '../auth/AuthProvider';
+import { cartApi, isOutcomeUnknown, type CartCommand } from '../cart/cart.api';
 import { formatVnd } from '../../utils/money';
 import { shopApi, type PublicProduct } from './shop.api';
 import { AVAILABILITY_TEXT, canRetry, ShopImage } from './ShopParts';
@@ -29,8 +31,14 @@ export function ProductDetailPage() {
   // Lỗi hiện tại có nên cho bấm "Thử lại" không.
   const [retry, setRetry] = useState(false);
   const [reloadCount, setReloadCount] = useState(0);
-  const [quantity, setQuantity] = useState(1);
-  const [notice, setNotice] = useState('');
+  // Giữ đúng chữ người dùng gõ (không tự sửa giữa chừng); kiểm 1–999 khi bấm thêm.
+  const [quantityText, setQuantityText] = useState('1');
+  // US-40: trạng thái nút thêm giỏ của Member.
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+  const [addError, setAddError] = useState('');
+  // Lệnh thêm chưa biết kết quả (lỗi mạng/5xx): "Thử lại" gửi đúng key và body cũ (US-40-TC10).
+  const [pendingAdd, setPendingAdd] = useState<CartCommand | null>(null);
 
   // Luôn hỏi lại server khi mở trang, không dùng bản trong danh sách (US-35-TC10).
   useEffect(() => {
@@ -60,8 +68,55 @@ export function ProductDetailPage() {
       navigate(`/login?returnTo=${encodeURIComponent(`/shop/${id}`)}`);
       return;
     }
-    // Giỏ hàng của Member làm ở US-40 (chưa có API). Không báo thành công giả (US-35-TC12).
-    setNotice('Giỏ hàng trực tuyến chưa mở. Vui lòng mua tại quầy.');
+    void addForMember();
+  }
+
+  // US-40-TC01: lấy version giỏ hiện tại rồi gửi lệnh thêm với key mới.
+  async function addForMember() {
+    if (adding) return;
+    setAdding(true);
+    setAdded(false);
+    setAddError('');
+    // US-40-TC04: số lượng phải là số nguyên 1–999, sai thì báo và không gọi API.
+    const quantity = Number(quantityText);
+    if (!/^\d+$/.test(quantityText.trim()) || quantity < 1 || quantity > MAX_QUANTITY) {
+      setAddError(`Số lượng từ 1 đến ${MAX_QUANTITY}`);
+      setAdding(false);
+      return;
+    }
+    try {
+      const cart = await cartApi.get();
+      // US-40-TC03: chưa liên kết hồ sơ → báo, không gửi POST.
+      if (!cart.memberLinked) {
+        setAddError('Tài khoản của bạn chưa được liên kết hồ sơ hội viên. Vui lòng liên hệ quầy lễ tân.');
+        return;
+      }
+      await sendAdd({ kind: 'ADD', key: crypto.randomUUID(), body: { version: cart.version, productId: id, quantity } });
+    } catch (failure) {
+      setAddError(failure instanceof ApiError ? failure.message : 'Không kết nối được máy chủ.');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  // Gửi (hoặc gửi lại) lệnh thêm. Lỗi 409 nghiệp vụ chỉ báo, không tự gửi lại (US-40-TC05).
+  async function sendAdd(command: CartCommand) {
+    setAddError('');
+    try {
+      await cartApi.send(command);
+      setPendingAdd(null);
+      setAdded(true);
+    } catch (failure) {
+      setPendingAdd(isOutcomeUnknown(failure) ? command : null);
+      setAddError(failure instanceof ApiError ? failure.message : 'Không kết nối được máy chủ.');
+    }
+  }
+
+  async function retryAdd() {
+    if (!pendingAdd || adding) return;
+    setAdding(true);
+    await sendAdd(pendingAdd);
+    setAdding(false);
   }
 
   if (loading) return <section className="auth-card"><p>Đang tải sản phẩm...</p></section>;
@@ -98,11 +153,13 @@ export function ProductDetailPage() {
 
     {showBuy && <div className="toolbar">
       <label>Số lượng
-        <input type="number" min={1} max={MAX_QUANTITY} step={1} value={quantity} disabled={!canBuy}
-          onChange={event => setQuantity(Math.min(MAX_QUANTITY, Math.max(1, Math.trunc(Number(event.target.value)) || 1)))} />
+        <input type="number" min={1} max={MAX_QUANTITY} step={1} value={quantityText} disabled={!canBuy}
+          onChange={event => setQuantityText(event.target.value)} />
       </label>
-      <button type="button" disabled={!canBuy} onClick={addToCart}>Thêm vào giỏ</button>
+      <button type="button" disabled={!canBuy || adding} onClick={addToCart}>Thêm vào giỏ</button>
     </div>}
-    {notice && <p role="status">{notice}</p>}
+    {added && <p role="status">Đã thêm vào giỏ. <Link to="/member/cart">Xem giỏ hàng</Link></p>}
+    {addError && <div className="form-error" role="alert"><p>{addError}</p>
+      {pendingAdd && <button type="button" disabled={adding} onClick={() => void retryAdd()}><Icon name="retry" label="Thử lại" /></button>}</div>}
   </section>;
 }

@@ -13,7 +13,8 @@ export function resolveReturnTo(value: unknown, role: RoleCode): string {
       ...(role === 'ADMIN' ? [`${home}/stock-issues`, `${home}/stock-adjustments`] : []),
       ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/trainer-attendance`] : []),
       ...(role === 'ADMIN' || role === 'STAFF' ? [`${home}/members`, `${home}/members/new`, `${home}/stock-receipts`, `${home}/inventory`, `${home}/orders`, `${home}/refunds`, `${home}/returns`] : []),
-      ...(role === 'MEMBER' ? ['/member/orders'] : []),
+      // US-40: Member đăng nhập lại được quay về giỏ hàng của mình.
+      ...(role === 'MEMBER' ? ['/member/orders', '/member/cart'] : []),
       ...(role === 'MEMBER' || role === 'TRAINER' ? [`${home}/profile`, `${home}/security`] : [])];
     const memberDetail = (role === 'ADMIN' || role === 'STAFF') &&
       new RegExp(`^${home}/members/[a-f\\d]{24}$`, 'i').test(parsed.pathname);
