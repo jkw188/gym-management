@@ -1,10 +1,10 @@
-// Kiểm thử tích hợp (Jest) – US-35 bước 1: API công khai xem danh mục/sản phẩm.
+// Kiểm thử tích hợp (Jest) – US-35 bước 1–2: API công khai xem danh mục/sản phẩm và tình trạng kho.
 // Dữ liệu mẫu tạo qua API Admin của US-34; test gọi GET /api/categories, /api/products, /api/products/:id.
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { getConnectionToken } from '@nestjs/mongoose';
-import { ObjectId } from 'mongodb';
+import { Decimal128, Int32, ObjectId } from 'mongodb';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import { Connection } from 'mongoose';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -354,6 +354,162 @@ describe('US-35 bước 1: tra cứu sản phẩm công khai', () => {
       await guestGet('/products?page=0').expect(400);
       await guestGet('/products?page=1.5').expect(400);
       await guestGet('/categories?limit=101').expect(400);
+    });
+  });
+
+  // ================= Bước 2: tồn kho công khai (US-35-F03) =================
+
+  // Đặt tồn kho của sản phẩm (inventory do US-34 tạo sẵn khi tạo sản phẩm, on_hand = reserved = 0).
+  async function setStock(productId: string, onHand: number, reserved: number) {
+    await connection.db!.collection('inventory').updateOne({ product_id: new ObjectId(productId) },
+      { $set: { on_hand: new Int32(onHand), reserved: new Int32(reserved) } });
+  }
+  // Dữ liệu lỗi: sản phẩm không có bản ghi inventory.
+  async function removeInventory(productId: string) {
+    await connection.db!.collection('inventory').deleteOne({ product_id: new ObjectId(productId) });
+  }
+  const availabilityOf = (body: { items: Array<{ name: string; availability: string }> }) =>
+    Object.fromEntries(body.items.map(item => [item.name, item.availability]));
+
+  describe('US-35-TC03: hàng hết tồn và hàng thiếu inventory', () => {
+    it('US-35-TC03: hàng tồn 0 vẫn hiện trong list với OUT_OF_STOCK, detail vẫn 200', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'EMPTY_01', 'Hàng hết', '9000');
+      await setStock(productId, 0, 0);
+
+      const list = await guestGet('/products').expect(200);
+      expect(availabilityOf(list.body)).toEqual({ 'Hàng hết': 'OUT_OF_STOCK' });
+
+      const detail = await guestGet(`/products/${productId}`).expect(200);
+      expect(detail.body.availability).toBe('OUT_OF_STOCK');
+    });
+
+    it('US-35-TC03: hàng còn tồn trả IN_STOCK', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'HAVE_01', 'Hàng còn', '9000');
+      await setStock(productId, 3, 0);
+
+      expect((await guestGet(`/products/${productId}`).expect(200)).body.availability).toBe('IN_STOCK');
+    });
+
+    it('US-35-TC03: hàng thiếu inventory trả UNAVAILABLE ở list và detail, không giả định còn hàng', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'BROKEN_01', 'Hàng lỗi dữ liệu', '9000');
+      await removeInventory(productId);
+
+      const list = await guestGet('/products').expect(200);
+      expect(availabilityOf(list.body)).toEqual({ 'Hàng lỗi dữ liệu': 'UNAVAILABLE' });
+
+      const detail = await guestGet(`/products/${productId}`).expect(200);
+      expect(detail.body.availability).toBe('UNAVAILABLE');
+    });
+  });
+
+  describe('US-35-TC04: response công khai không lộ dữ liệu kho/nội bộ', () => {
+    it('US-35-TC04: list và detail không trả tồn số chính xác, giá vốn hay audit', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'SECRET_01', 'Hàng kiểm riêng tư', '9000');
+      // Số tồn dễ nhận ra để kiểm không lọt ra ngoài: on_hand 4321, reserved 1234 → còn 3087.
+      await setStock(productId, 4321, 1234);
+      // Field "mồi": nếu code trả nguyên document inventory thì giá vốn 777777 sẽ lộ ra.
+      await connection.db!.collection('inventory').updateOne({ product_id: new ObjectId(productId) },
+        { $set: { unit_cost: Decimal128.fromString('777777') } });
+
+      const list = await guestGet('/products').expect(200);
+      const detail = await guestGet(`/products/${productId}`).expect(200);
+
+      for (const body of [list.body.items[0], detail.body]) {
+        expect(body.availability).toBe('IN_STOCK');
+        for (const key of Object.keys(body)) expect(PRODUCT_FIELDS).toContain(key);
+        // Bỏ id/asOf/category.id trước khi dò số, vì chuỗi hex/thời gian có thể tình cờ chứa "1234".
+        const { id: _id, asOf: _asOf, category: _category, ...rest } = body;
+        const text = JSON.stringify(rest);
+        expect(text).not.toMatch(/onHand|on_hand|reserved|quantityAvailable|available"|unitCost|unit_cost|guard_revision|created_by|updated_by|movement|receipt/i);
+        expect(text).not.toMatch(/4321|1234|3087|777777/);
+      }
+    });
+
+    it('US-35-TC04: mô tả và ảnh HTTPS trả nguyên văn dạng text, không có field nội bộ kèm theo', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const created = await adminPost('products', { categoryId, sku: 'IMG_01', name: 'Hàng có ảnh', price: '9000', status: 'ACTIVE',
+        description: '<b>Đậm</b> & ngon', imageUrl: 'https://example.test/a.png' }).expect(201);
+
+      const detail = await guestGet(`/products/${created.body.id}`).expect(200);
+
+      expect(detail.body).toMatchObject({ description: '<b>Đậm</b> & ngon', imageUrl: 'https://example.test/a.png' });
+      for (const key of Object.keys(detail.body)) expect(PRODUCT_FIELDS).toContain(key);
+    });
+  });
+
+  describe('US-35-TC05: lọc theo tình trạng kho', () => {
+    async function seedThreeStates() {
+      const categoryId = await createCategory('Đồ uống');
+      const have = await createProduct(categoryId, 'S_HAVE', 'Còn hàng', '1000');
+      const empty = await createProduct(categoryId, 'S_EMPTY', 'Hết hàng', '1000');
+      const broken = await createProduct(categoryId, 'S_BROKEN', 'Thiếu kho', '1000');
+      await setStock(have, 2, 0);
+      await setStock(empty, 0, 0);
+      await removeInventory(broken);
+    }
+
+    it('US-35-TC05: availability=IN_STOCK chỉ trả hàng còn, không nhận bản UNAVAILABLE', async () => {
+      await seedThreeStates();
+      const response = await guestGet('/products?availability=IN_STOCK').expect(200);
+      expect(names(response.body)).toEqual(['Còn hàng']);
+      expect(response.body.total).toBe(1);
+    });
+
+    it('US-35-TC05: availability=OUT_OF_STOCK chỉ trả hàng hết, không nhận bản UNAVAILABLE', async () => {
+      await seedThreeStates();
+      const response = await guestGet('/products?availability=OUT_OF_STOCK').expect(200);
+      expect(names(response.body)).toEqual(['Hết hàng']);
+      expect(response.body.total).toBe(1);
+    });
+
+    it('US-35-TC05: không gửi availability thì trả cả ba trạng thái', async () => {
+      await seedThreeStates();
+      const response = await guestGet('/products').expect(200);
+      expect(availabilityOf(response.body)).toEqual({ 'Còn hàng': 'IN_STOCK', 'Hết hàng': 'OUT_OF_STOCK', 'Thiếu kho': 'UNAVAILABLE' });
+    });
+
+    it('US-35-TC05: availability kết hợp AND với khoảng giá', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const cheap = await createProduct(categoryId, 'A_CHEAP', 'Rẻ còn hàng', '1000');
+      const pricey = await createProduct(categoryId, 'A_PRICEY', 'Đắt còn hàng', '90000');
+      const cheapEmpty = await createProduct(categoryId, 'A_EMPTY', 'Rẻ hết hàng', '1000');
+      await setStock(cheap, 1, 0); await setStock(pricey, 1, 0); await setStock(cheapEmpty, 0, 0);
+
+      const response = await guestGet('/products?availability=IN_STOCK&maxPrice=5000').expect(200);
+      expect(names(response.body)).toEqual(['Rẻ còn hàng']);
+    });
+  });
+
+  describe('US-35-TC07: giá trị availability sai trả 400', () => {
+    it.each(['UNAVAILABLE', 'in_stock', 'ALL', ''])('US-35-TC07: availability=%s trả 400', async (value) => {
+      await guestGet(`/products?availability=${encodeURIComponent(value)}`).expect(400);
+    });
+  });
+
+  describe('US-35-TC08: tình trạng tính theo onHand − reserved', () => {
+    it('US-35-TC08: reserved bằng onHand thì OUT_OF_STOCK dù onHand > 0', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'RES_01', 'Hàng đã giữ hết', '9000');
+      await setStock(productId, 5, 5);
+
+      expect((await guestGet(`/products/${productId}`).expect(200)).body.availability).toBe('OUT_OF_STOCK');
+      expect(names((await guestGet('/products?availability=OUT_OF_STOCK').expect(200)).body)).toEqual(['Hàng đã giữ hết']);
+      expect((await guestGet('/products?availability=IN_STOCK').expect(200)).body.items).toEqual([]);
+    });
+
+    it('US-35-TC08: reserved tăng nhưng onHand giữ nguyên, còn 1 thì vẫn IN_STOCK, hết thì đổi sang OUT_OF_STOCK', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'RES_02', 'Hàng đang được giữ', '9000');
+
+      await setStock(productId, 5, 4);
+      expect((await guestGet(`/products/${productId}`).expect(200)).body.availability).toBe('IN_STOCK');
+
+      await setStock(productId, 5, 5);
+      expect((await guestGet(`/products/${productId}`).expect(200)).body.availability).toBe('OUT_OF_STOCK');
     });
   });
 });
