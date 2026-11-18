@@ -7,6 +7,8 @@ coverage/
 !.env.example
 !.env.test.example
 artifacts/
+backups/
+deploy/*.env
 *.tsbuildinfo
 *.log
 .DS_Store

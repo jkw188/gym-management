@@ -1,0 +1,49 @@
+name: gym-uat
+services:
+  backend:
+    image: gym-uat-backend:${RELEASE_ID:?Set RELEASE_ID to the deployed commit}
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    env_file:
+      - path: ${UAT_BACKEND_ENV_FILE:?Set absolute backend env file path}
+        required: true
+    environment:
+      NODE_ENV: production
+      DEPLOYMENT_ENV: uat
+      PORT: '3000'
+      FRONTEND_ORIGIN: https://${UAT_DOMAIN:?Set UAT_DOMAIN}
+      TRUST_PROXY_HOPS: '1'
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 60s
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+  web:
+    image: gym-uat-web:${RELEASE_ID:?Set RELEASE_ID to the deployed commit}
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        VITE_API_BASE_URL: https://${UAT_DOMAIN:?Set UAT_DOMAIN}/api
+    environment:
+      UAT_DOMAIN: ${UAT_DOMAIN:?Set UAT_DOMAIN}
+      UAT_MAINTENANCE: ${UAT_MAINTENANCE:-1}
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on:
+      backend: { condition: service_healthy }
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+volumes:
+  caddy_data:
+  caddy_config:
