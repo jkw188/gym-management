@@ -19,7 +19,7 @@ const SORTS: Record<ProductSort, Document> = {
 
 // Projection allowlist: chỉ lấy field được công khai, không đọc status, created_by, số tồn, giá vốn… (US-35-F03, TC04).
 const PRODUCT_FIELDS = {
-  _id: 1, sku: 1, name: 1, description: 1, image_url: 1, price: 1, version: 1, availability: 1,
+  _id: 1, sku: 1, name: 1, description: 1, image_url: 1, price: 1, version: 1, availability: 1, stock_error: 1,
   category: { _id: '$category._id', name: '$category.name' },
 };
 
@@ -29,7 +29,7 @@ function addAvailability(rules: StockRules): Document[] {
   return [
     { $lookup: { from: 'inventory', localField: '_id', foreignField: 'product_id', as: 'stock' } },
     { $set: { stock: { $first: '$stock' } } },
-    { $set: { availability: rules.availability } },
+    { $set: { availability: rules.availability, stock_error: rules.stockError } },
   ];
 }
 

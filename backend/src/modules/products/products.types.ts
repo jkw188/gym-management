@@ -50,6 +50,7 @@ export interface PublicProductFilter {
 // Luật tình trạng kho do service tạo (biểu thức MongoDB đọc field "stock" = bản ghi inventory), repository chỉ áp dụng.
 export interface StockRules {
   availability: Document;
+  stockError: Document;
 }
 
 // Dòng repository trả về: chỉ gồm các field nằm trong allowlist (projection ngay ở MongoDB).
@@ -67,4 +68,6 @@ export interface ProductRow {
   version: number;
   category: CategoryRow;
   availability: Availability;
+  // true khi tồn âm hoặc reserved > onHand; chỉ dùng để báo vận hành, không trả ra response.
+  stock_error: boolean;
 }
