@@ -16,6 +16,8 @@ export function toPublicProduct(row: ProductRow, asOf: string): PublicProductDto
     // Decimal128 → chuỗi VND chính xác, không qua Number (US-35-TC01).
     price: fromVndDecimal(row.price),
     version: row.version,
+    // Chỉ nhãn IN_STOCK/OUT_OF_STOCK/UNAVAILABLE, không chép số tồn (US-35-TC04).
+    availability: row.availability,
     asOf,
   };
   // description?, imageUrl? chỉ có khi sản phẩm có dữ liệu.

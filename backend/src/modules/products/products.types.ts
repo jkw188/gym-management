@@ -1,8 +1,13 @@
-// Tầng kiểu dữ liệu (US-35 bước 1): kiểu trả về và kiểu lọc dùng chung của API sản phẩm công khai.
+// Tầng kiểu dữ liệu (US-35 bước 1–2): kiểu trả về và kiểu lọc dùng chung của API sản phẩm công khai.
 import { Decimal128, ObjectId } from 'mongodb';
 
 export const PRODUCT_SORTS = ['NAME_ASC', 'PRICE_ASC', 'PRICE_DESC'] as const;
 export type ProductSort = typeof PRODUCT_SORTS[number];
+
+// US-35-F03: tình trạng kho công khai. UNAVAILABLE = thiếu hoặc lỗi inventory, client không lọc được theo giá trị này.
+export const AVAILABILITY_FILTERS = ['IN_STOCK', 'OUT_OF_STOCK'] as const;
+export type AvailabilityFilter = typeof AVAILABILITY_FILTERS[number];
+export type Availability = AvailabilityFilter | 'UNAVAILABLE';
 
 // US-35-F03: danh mục công khai chỉ có {id,name}.
 export interface PublicCategoryDto {
@@ -10,7 +15,7 @@ export interface PublicCategoryDto {
   name: string;
 }
 
-// US-35-F03: ProductPublicDto chỉ có các field này. availability làm ở bước 2 (US-37).
+// US-35-F03: ProductPublicDto chỉ có các field này; không có onHand/reserved/giá vốn (US-35-TC04).
 export interface PublicProductDto {
   id: string;
   sku: string;
@@ -20,6 +25,7 @@ export interface PublicProductDto {
   imageUrl?: string;
   price: string;
   version: number;
+  availability: Availability;
   asOf: string;
 }
 
@@ -38,6 +44,7 @@ export interface PublicProductFilter {
   categoryId?: string;
   minPrice?: string;
   maxPrice?: string;
+  availability?: AvailabilityFilter;
 }
 
 // Dòng repository trả về: chỉ gồm các field nằm trong allowlist (projection ngay ở MongoDB).
@@ -54,4 +61,5 @@ export interface ProductRow {
   price: Decimal128;
   version: number;
   category: CategoryRow;
+  availability: Availability;
 }

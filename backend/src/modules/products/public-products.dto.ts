@@ -4,7 +4,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsInt, IsMongoId, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { queryInteger } from '../../common/utils/query-integer';
-import { PRODUCT_SORTS, ProductSort } from './products.types';
+import { AVAILABILITY_FILTERS, AvailabilityFilter, PRODUCT_SORTS, ProductSort } from './products.types';
 
 // Giá VND là chuỗi số nguyên 0–999999999999: không âm, không phần lẻ, không exponent, không dấu phân cách (US-35-TC07).
 const VND_INTEGER = /^\d{1,12}$/;
@@ -38,6 +38,10 @@ export class PublicProductQueryDto extends PublicCategoryQueryDto {
   // Chỉ nhận 3 cách sắp; không cho client sắp theo field tùy ý (US-35-TC07).
   @ApiPropertyOptional({ enum: PRODUCT_SORTS, default: 'NAME_ASC' })
   @IsOptional() @IsIn(PRODUCT_SORTS) sort: ProductSort = 'NAME_ASC';
+
+  // US-35-TC07: chỉ nhận IN_STOCK/OUT_OF_STOCK; UNAVAILABLE, chữ thường hay chuỗi rỗng → 400.
+  @ApiPropertyOptional({ enum: AVAILABILITY_FILTERS })
+  @IsOptional() @IsIn(AVAILABILITY_FILTERS) availability?: AvailabilityFilter;
 }
 
 // Detail không nhận query nào; ?status=... → 400 (US-35-TC02).

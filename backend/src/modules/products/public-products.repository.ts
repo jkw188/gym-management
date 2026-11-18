@@ -1,5 +1,5 @@
-// Tầng dữ liệu (US-35 bước 1): nơi duy nhất module products đọc categories/products cho shop công khai. Chỉ đọc.
-// Mỗi lần list/detail dùng một phiên snapshot nên thấy cùng một ảnh chụp dữ liệu (US-35-F04).
+// Tầng dữ liệu (US-35 bước 1–2): nơi duy nhất module products đọc categories/products/inventory cho shop công khai. Chỉ đọc.
+// Mỗi lần list/detail dùng một phiên snapshot nên catalog và tồn kho thấy cùng một ảnh chụp dữ liệu (US-35-F04).
 import { Injectable } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { ClientSession, Decimal128, Document, ObjectId } from 'mongodb';
@@ -17,11 +17,30 @@ const SORTS: Record<ProductSort, Document> = {
   PRICE_DESC: { price: -1, _id: 1 },
 };
 
-// Projection allowlist: chỉ lấy field được công khai, không đọc status, created_by, inventory… (US-35-F03).
+// Projection allowlist: chỉ lấy field được công khai, không đọc status, created_by, số tồn, giá vốn… (US-35-F03, TC04).
 const PRODUCT_FIELDS = {
-  _id: 1, sku: 1, name: 1, description: 1, image_url: 1, price: 1, version: 1,
+  _id: 1, sku: 1, name: 1, description: 1, image_url: 1, price: 1, version: 1, availability: 1,
   category: { _id: '$category._id', name: '$category.name' },
 };
+
+// US-35-F03: nối bản ghi inventory (US-37) và đổi số tồn thành nhãn, tính ngay trong MongoDB
+// để lọc availability xong mới đếm total và phân trang.
+const ADD_AVAILABILITY: Document[] = [
+  { $lookup: { from: 'inventory', localField: '_id', foreignField: 'product_id', as: 'stock' } },
+  { $set: { stock: { $first: '$stock' } } },
+  { $set: { availability: { $switch: {
+    branches: [
+      // US-35-TC03: thiếu inventory (hoặc số tồn không phải số) là dữ liệu lỗi → UNAVAILABLE, không giả định còn hàng.
+      { case: { $not: [{ $and: [{ $isNumber: '$stock.on_hand' }, { $isNumber: '$stock.reserved' }] }] }, then: 'UNAVAILABLE' },
+      // Số dư âm hoặc reserved > onHand là lỗi toàn vẹn → cũng UNAVAILABLE để chặn bán hàng đó.
+      { case: { $or: [{ $lt: ['$stock.reserved', 0] }, { $gt: ['$stock.reserved', '$stock.on_hand'] }] }, then: 'UNAVAILABLE' },
+      // US-35-TC08: available = onHand − reserved; > 0 là còn hàng.
+      { case: { $gt: ['$stock.on_hand', '$stock.reserved'] }, then: 'IN_STOCK' },
+    ],
+    // Còn lại: onHand = reserved, tức available = 0.
+    default: 'OUT_OF_STOCK',
+  } } } },
+];
 
 // Thêm "\" trước ký tự đặc biệt để từ khóa được tìm nguyên văn, không chạy regex của client (US-35-TC05).
 function literal(text: string): RegExp {
@@ -81,11 +100,15 @@ export class PublicProductsRepository {
     }
     // Tìm theo tên hoặc SKU, không phân biệt hoa/thường.
     if (filter.keyword) match.$or = [{ name: literal(filter.keyword) }, { sku: literal(filter.keyword) }];
+    // US-35-TC05: lọc theo nhãn đã tính; bản UNAVAILABLE không khớp IN_STOCK lẫn OUT_OF_STOCK.
+    const matchAvailability: Document[] = filter.availability ? [{ $match: { availability: filter.availability } }] : [];
 
     return this.withSnapshot(async session => {
       const [result] = await this.connection.db!.collection('products').aggregate<PageResult<ProductRow>>([
         { $match: match },
         ...JOIN_ACTIVE_CATEGORY,
+        ...ADD_AVAILABILITY,
+        ...matchAvailability,
         { $sort: SORTS[sort] },
         { $facet: {
           items: [{ $skip: (page - 1) * limit }, { $limit: limit }, { $project: PRODUCT_FIELDS }],
@@ -102,6 +125,7 @@ export class PublicProductsRepository {
       const [row] = await this.connection.db!.collection('products').aggregate<ProductRow>([
         { $match: { _id: new ObjectId(id), status: 'ACTIVE' } },
         ...JOIN_ACTIVE_CATEGORY,
+        ...ADD_AVAILABILITY,
         { $project: PRODUCT_FIELDS },
       ], { session, maxTimeMS: 5000 }).toArray();
       return row ?? null;

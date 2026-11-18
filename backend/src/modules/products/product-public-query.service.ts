@@ -1,4 +1,4 @@
-// Tầng nghiệp vụ (US-35 bước 1): Guest/Member tìm và xem sản phẩm đang bán (effectiveActive của US-34).
+// Tầng nghiệp vụ (US-35 bước 1–2): Guest/Member tìm và xem sản phẩm đang bán (effectiveActive của US-34).
 // Chỉ đọc: không tạo giỏ, đơn, thanh toán, không giữ hàng hay giữ giá (US-35-F04).
 // Lỗi MongoDB không bắt ở đây: HttpErrorFilter chung đổi thành 503 DATABASE_UNAVAILABLE, lỗi code thành 500.
 import { Injectable } from '@nestjs/common';
@@ -33,6 +33,7 @@ export class ProductPublicQueryService {
       categoryId: query.categoryId,
       minPrice: query.minPrice,
       maxPrice: query.maxPrice,
+      availability: query.availability,
     }, query.sort, query.page, query.limit);
     return toPage(items.map(row => toPublicProduct(row, asOf)), query.page, query.limit, total);
   }
