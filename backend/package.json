@@ -27,7 +27,8 @@
     "test:en05": "npm run build && node scripts/test-en05.cjs",
     "test:en05:regression": "npm run build && node scripts/test-en05.cjs --regression",
     "test:en06": "npm run build && node scripts/test-en06.cjs",
-    "test:en06:foundation": "npm run build && node scripts/test-en06.cjs --foundation"
+    "test:en06:foundation": "npm run build && node scripts/test-en06.cjs --foundation",
+    "test:en08": "node ../scripts/en08.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

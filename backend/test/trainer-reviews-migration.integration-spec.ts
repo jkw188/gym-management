@@ -107,8 +107,12 @@ describe('US-65 bước 1: schema, index và migration trainer_reviews', () => {
       full_name: 'Nguyễn Văn Hội Viên', phone: '+84900000001', address: '2 Nguyễn Huệ', version: 0,
     });
     const trainerId = new ObjectId();
+    const profileCreatedAt = new Date('2026-11-01T00:00:00+07:00');
     await db().collection('trainers').insertOne({
       _id: trainerId, id: trainerId, account_id: trainerAccountId, specialty: 'Gym', status: 'ACTIVE',
+      // CLI runs the US23 trainer preflight before the review migration. Keep that source valid;
+      // missing history below belongs to the legacy review, not to an unrelated trainer profile.
+      created_at: profileCreatedAt, updated_at: profileCreatedAt, created_by: trainerAccountId, updated_by: trainerAccountId,
     });
     const bookingId = new ObjectId();
     const status = options.status ?? 'COMPLETED';

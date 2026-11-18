@@ -1,0 +1,46 @@
+name: EN-08 full acceptance (strict)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NODE_ENV: test
+      npm_config_cache: ${{ github.workspace }}/.cache/npm
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Pin npm
+        run: npm install --global npm@11.11.1
+      - uses: actions/cache@v4
+        with:
+          path: .cache/mongodb-binaries
+          key: mongod-${{ runner.os }}-${{ runner.arch }}-8.0.17
+      - name: Bootstrap runner dependencies
+        run: npm ci --prefix backend --no-audit --no-fund
+      - name: Full EN04 EN05 EN06 S07 and EN08 evidence gate
+        run: node scripts/en08.cjs
+      - name: Preserve evidence including blocked and failed cases
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: en08-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            artifacts/en08-*/
+            artifacts/en05-*/
+            artifacts/en06-*/
+          retention-days: 14
+          if-no-files-found: error

@@ -8,7 +8,11 @@ import { AttendanceEventSchema, AttendanceSchema } from './attendance.schema';
 export async function ensureAttendanceIntegrity(connection: Connection): Promise<void> {
   const transactions = new TransactionRunner(connection);
   const guards = new DataGuardsService(connection);
-  await transactions.run(async session => {
+  const noBackfill = new Error('ATTENDANCE_MIGRATION_NO_BACKFILL');
+  // Writers are stopped for this operational migration. An empty collection needs indexes only,
+  // preserving the EN01 ability to ensure indexes on a standalone DB before any feature data exists.
+  const hasAttendance = await connection.db!.collection('trainer_attendance').findOne({}, { projection: { _id: 1 } });
+  if (hasAttendance) await transactions.run(async session => {
     await guards.acquire(session, { schedule: true });
     const db = connection.db!;
     const rows = await db.collection('trainer_attendance').find({}, { session }).toArray();
@@ -33,11 +37,14 @@ export async function ensureAttendanceIntegrity(connection: Connection): Promise
         ...(row.version === undefined ? { version: 0 } : {}), ...(row.updated_at === undefined ? { updated_at: row.created_at } : {}),
       } });
     }
+    // A validation-only rerun must not commit a schedule revision change. Keep the real guard
+    // while checking the snapshot, then abort the transaction if there is nothing to backfill.
+    if (changes.every(change => Object.keys(change.fields).length === 0)) throw noBackfill;
     // Validate the entire source before writing any backfill; transaction also rolls back later failures.
     for (const change of changes) if (Object.keys(change.fields).length) {
       await db.collection('trainer_attendance').updateOne({ _id: change.id }, { $set: change.fields }, { session });
     }
-  });
+  }).catch((error: unknown) => { if (error !== noBackfill) throw error; });
   await connection.model('Attendance', AttendanceSchema).createIndexes();
   // Partial unique index preserves legacy audit without inventing operation IDs for old events.
   await connection.model('AttendanceEvent', AttendanceEventSchema).createIndexes();

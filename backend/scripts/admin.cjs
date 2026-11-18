@@ -47,8 +47,8 @@ const { PlanPolicySchema } = require('../dist/modules/plans/schemas/plan-policy.
 const { mapError } = require('../dist/common/http/http-error.filter');
 
 async function run() {
-  // ConfigModule chỉ nạp .env vào process.env (không in giá trị); mỗi lệnh tự kiểm đúng các biến nó cần.
-  await ConfigModule.forRoot({ ignoreEnvFile: process.env.DEPLOYMENT_ENV === 'uat' });
+  // Tests and UAT use explicit configuration; never fill missing test settings from a personal .env.
+  await ConfigModule.forRoot({ ignoreEnvFile: process.env.NODE_ENV === 'test' || process.env.DEPLOYMENT_ENV === 'uat' });
   if (process.argv[2] === 'reconcile-inventory') {
     const config = readMongoConfiguration(process.env);
     const connection = mongoose.createConnection(config.mongoUri, { dbName: config.mongoDb,

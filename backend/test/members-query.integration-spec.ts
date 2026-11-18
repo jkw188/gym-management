@@ -47,7 +47,9 @@ describe('US-11 / UC-17: lookup with real MongoDB joins, indexes and JWT', () =>
   }, 600000);
   beforeEach(async () => {
     jest.spyOn(console, 'error').mockImplementation(() => undefined);
-    jest.spyOn(app.get(ServerClock), 'now').mockReturnValue(now);
+    // Multiple feature modules provide ServerClock. Freeze every instance used by the reader,
+    // rather than the last instance returned by app.get after the integrated module graph grows.
+    jest.spyOn(ServerClock.prototype, 'now').mockReturnValue(now);
     const limiter = new LoginLimiter();
     jest.spyOn(app.get(LoginLimiter), 'consume').mockImplementation(limiter.consume.bind(limiter));
     for (const collection of await db().collections()) await collection.deleteMany({});
@@ -224,7 +226,7 @@ describe('US-11 / UC-17: lookup with real MongoDB joins, indexes and JWT', () =>
     for (const path of ['', `/${id}`, `/${id}/memberships`, `/${id}/transactions`]) await get(path).expect(200);
     expect(await snapshot()).toEqual(before);
     await db().collection('transactions').updateOne({ _id: pending.transaction }, { $set: { status: 'SETTLED' } });
-    jest.spyOn(app.get(ServerClock), 'now').mockReturnValue(new Date('2026-11-08T18:01:00Z'));
+    jest.spyOn(ServerClock.prototype, 'now').mockReturnValue(new Date('2026-11-08T18:01:00Z'));
     const settled = (await get(`/${id}`).expect(200)).body;
     expect(settled.entitlementSummary.GYM).toEqual(['CURRENT']); expect(settled.asOf).toBe('2026-11-08T18:01:00.000Z');
   });
