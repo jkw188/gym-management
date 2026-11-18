@@ -20,6 +20,8 @@ function validationDetails(errors: ValidationError[], prefix = ''): ErrorDetail[
 
 export function configureHttp(app: INestApplication): void {
   const config = app.get(ConfigService);
+  // Only enable one trusted hop behind the isolated EN-07 reverse proxy; never trust arbitrary chains.
+  app.getHttpAdapter().getInstance().set('trust proxy', config.get<number>('trustProxyHops', 0));
   app.setGlobalPrefix('api');
   app.use((req: Request & { requestId?: string }, res: Response, next: NextFunction) => {
     req.requestId = randomUUID();

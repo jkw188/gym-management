@@ -1,0 +1,28 @@
+{
+	admin off
+}
+
+{$UAT_DOMAIN} {
+	encode zstd gzip
+	@maintenance expression `{$UAT_MAINTENANCE:1} == 1`
+	route {
+		handle @maintenance {
+			respond "UAT maintenance" 503
+		}
+		handle /api {
+			reverse_proxy backend:3000
+		}
+		handle /api/* {
+			reverse_proxy backend:3000
+		}
+		handle /socket.io/* {
+			reverse_proxy backend:3000
+		}
+		handle {
+			root * /srv
+			try_files {path} /index.html
+			header /index.html Cache-Control "no-store"
+			file_server
+		}
+	}
+}

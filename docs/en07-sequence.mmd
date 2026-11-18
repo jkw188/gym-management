@@ -1,0 +1,27 @@
+sequenceDiagram
+    actor Operator
+    participant Proxy as Caddy / React SPA
+    participant API as NestJS (1 instance)
+    participant DB as MongoDB replica set UAT
+    Operator->>DB: Backup + manifest (writers stopped)
+    Operator->>DB: Restore into new gym_uat_restore_* DB
+    Operator->>DB: Compare BSON/counts/indexes/source/ledger/finance
+    Operator->>DB: Rehearse migrations on verified restore
+    Operator->>DB: Review, then ensure-indexes on UAT
+    Operator->>API: Start production config + DEPLOYMENT_ENV=uat
+    API->>DB: Validate indexes + write/abort transaction probe
+    alt gate fails
+        API-->>Operator: STARTUP_FAILED, no HTTP listener
+    else gate passes
+        API->>API: Start outbox/expiry/reminder workers
+        Operator->>API: GET /api/health/ready
+        API->>DB: ping
+        API-->>Operator: ready / 503
+        Operator->>Proxy: Open HTTPS UAT routes
+        Proxy->>API: /api/auth/login, refresh, logout (4 roles)
+        API->>DB: Authenticate / persist sessions
+        API-->>Proxy: HttpOnly Secure SameSite=Lax cookie + response
+        Proxy->>API: /socket.io transport, /notifications namespace
+        API->>DB: Verify session / sync persisted notifications
+        Operator->>Proxy: Browser smoke + EN08 on same commit/URL
+    end
