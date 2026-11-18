@@ -1,4 +1,4 @@
-// Kiểm thử tích hợp (Jest) – US-35 bước 1–2: API công khai xem danh mục/sản phẩm và tình trạng kho.
+// Kiểm thử tích hợp (Jest) – US-35 bước 1–4: API công khai xem danh mục/sản phẩm, tình trạng kho, đọc thuần và dữ liệu đổi sau khi xem.
 // Dữ liệu mẫu tạo qua API Admin của US-34; test gọi GET /api/categories, /api/products, /api/products/:id.
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
@@ -510,6 +510,136 @@ describe('US-35 bước 1: tra cứu sản phẩm công khai', () => {
 
       await setStock(productId, 5, 5);
       expect((await guestGet(`/products/${productId}`).expect(200)).body.availability).toBe('OUT_OF_STOCK');
+    });
+  });
+
+  // ================= Bước 4: đọc thuần và thay đổi sau khi đã xem (US-35-F04) =================
+
+  // Chụp toàn bộ dữ liệu (trừ phiên đăng nhập) thành chuỗi để so sánh trước/sau.
+  async function snapshotDatabase(): Promise<Record<string, string>> {
+    const result: Record<string, string> = {};
+    for (const collection of await connection.db!.collections()) {
+      if (collection.collectionName === 'auth_sessions') continue;
+      const rows = await collection.find({}).sort({ _id: 1 }).toArray();
+      result[collection.collectionName] = JSON.stringify(rows);
+    }
+    return result;
+  }
+  // Admin sửa sản phẩm (US-34) với version hiện tại.
+  async function patchProduct(productId: string, body: object) {
+    await http().patch(`/api/admin/products/${productId}`).set('Authorization', `Bearer ${adminToken}`)
+      .set('Idempotency-Key', randomUUID()).send(body).expect(200);
+  }
+
+  describe('US-35-TC09: GET không tạo tác động kinh doanh', () => {
+    it('US-35-TC09: GET lặp và nhiều người xem cùng lúc không đổi bất kỳ dữ liệu nào (không cart/order/reserved/payment/movement)', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'WATER_01', 'Nước suối', '9000');
+      await setStock(productId, 10, 2);
+      const before = await snapshotDatabase();
+
+      // 10 Guest + 10 Member xem list, detail và danh mục song song
+      const calls = Array.from({ length: 10 }, () => [
+        guestGet('/products'), guestGet(`/products/${productId}`), guestGet('/categories'),
+        memberGet('/products?availability=IN_STOCK'), memberGet(`/products/${productId}`),
+      ]).flat();
+      for (const response of await Promise.all(calls)) expect(response.status).toBe(200);
+
+      expect(await snapshotDatabase()).toEqual(before);
+    });
+
+    it('US-35-TC09: GET detail của sản phẩm bị ẩn hoặc id sai cũng không ghi dữ liệu', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const hiddenId = await createProduct(categoryId, 'HIDE_01', 'Hàng ngừng bán', '1000', 'INACTIVE');
+      const before = await snapshotDatabase();
+
+      await guestGet(`/products/${hiddenId}`).expect(404);
+      await guestGet('/products/khong-phai-id').expect(400);
+      await guestGet('/products?status=INACTIVE').expect(400);
+
+      expect(await snapshotDatabase()).toEqual(before);
+    });
+  });
+
+  describe('US-35-TC10: catalog/tồn đổi sau khi đã xem', () => {
+    it('US-35-TC10: Admin đổi giá sau khi Guest đã xem list → detail và list trả giá mới, version mới', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'WATER_01', 'Nước suối', '9000');
+      expect((await guestGet('/products').expect(200)).body.items[0]).toMatchObject({ price: '9000', version: 0 });
+
+      await patchProduct(productId, { version: 0, price: '12000' });
+
+      expect((await guestGet(`/products/${productId}`).expect(200)).body).toMatchObject({ price: '12000', version: 1 });
+      expect((await guestGet('/products').expect(200)).body.items[0]).toMatchObject({ price: '12000', version: 1 });
+    });
+
+    it('US-35-TC10: Admin ngừng sản phẩm sau khi đã xem list → detail 404 PRODUCT_NOT_AVAILABLE, list không còn', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'WATER_01', 'Nước suối', '9000');
+      expect(names((await guestGet('/products').expect(200)).body)).toEqual(['Nước suối']);
+
+      await patchProduct(productId, { version: 0, status: 'INACTIVE' });
+
+      expect((await guestGet(`/products/${productId}`).expect(404)).body.error.code).toBe('PRODUCT_NOT_AVAILABLE');
+      expect((await guestGet('/products').expect(200)).body.items).toEqual([]);
+    });
+
+    it('US-35-TC10: Admin ngừng danh mục sau khi đã xem detail → detail 404, danh mục biến khỏi /categories', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'WATER_01', 'Nước suối', '9000');
+      await guestGet(`/products/${productId}`).expect(200);
+
+      await stopCategory(categoryId);
+
+      expect((await guestGet(`/products/${productId}`).expect(404)).body.error.code).toBe('PRODUCT_NOT_AVAILABLE');
+      expect((await guestGet('/categories').expect(200)).body.items).toEqual([]);
+    });
+
+    it('US-35-TC10: tồn bị giữ hết sau khi đã xem → lần xem sau đổi sang OUT_OF_STOCK, không giữ trạng thái cũ', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'WATER_01', 'Nước suối', '9000');
+      await setStock(productId, 3, 0);
+      expect((await guestGet(`/products/${productId}`).expect(200)).body.availability).toBe('IN_STOCK');
+
+      await setStock(productId, 3, 3);
+
+      expect((await guestGet(`/products/${productId}`).expect(200)).body.availability).toBe('OUT_OF_STOCK');
+      expect((await guestGet('/products?availability=IN_STOCK').expect(200)).body.items).toEqual([]);
+    });
+
+    it('US-35-TC10: asOf của lần xem sau không sớm hơn lần xem trước', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'WATER_01', 'Nước suối', '9000');
+
+      const first = (await guestGet(`/products/${productId}`).expect(200)).body.asOf as string;
+      const second = (await guestGet(`/products/${productId}`).expect(200)).body.asOf as string;
+
+      expect(Date.parse(second)).toBeGreaterThanOrEqual(Date.parse(first));
+    });
+
+    it('US-35-TC10: GET public trả Cache-Control no-store để không dùng bản cũ sau khi Admin sửa', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      const productId = await createProduct(categoryId, 'WATER_01', 'Nước suối', '9000');
+
+      for (const path of ['/products', `/products/${productId}`, '/categories']) {
+        expect((await guestGet(path).expect(200)).headers['cache-control']).toContain('no-store');
+      }
+    });
+  });
+
+  describe('US-35-TC06: sắp giá theo số ở biên lớn', () => {
+    it('US-35-TC06: giá tới 999999999999 vẫn sắp đúng theo số (PRICE_ASC và PRICE_DESC)', async () => {
+      const categoryId = await createCategory('Đồ uống');
+      await createProduct(categoryId, 'P_MAX', 'Giá tối đa', '999999999999');
+      await createProduct(categoryId, 'P_9', 'Giá 9', '9');
+      await createProduct(categoryId, 'P_BIG', 'Giá trăm tỷ', '100000000000');
+      await createProduct(categoryId, 'P_10', 'Giá 10', '10');
+
+      expect(names((await guestGet('/products?sort=PRICE_ASC').expect(200)).body)).toEqual(['Giá 9', 'Giá 10', 'Giá trăm tỷ', 'Giá tối đa']);
+      expect(names((await guestGet('/products?sort=PRICE_DESC').expect(200)).body)).toEqual(['Giá tối đa', 'Giá trăm tỷ', 'Giá 10', 'Giá 9']);
+      // Giá vẫn là chuỗi chính xác, không bị làm tròn qua kiểu số
+      const max = (await guestGet('/products?minPrice=999999999999').expect(200)).body.items;
+      expect(max.map((item: { price: string }) => item.price)).toEqual(['999999999999']);
     });
   });
 });

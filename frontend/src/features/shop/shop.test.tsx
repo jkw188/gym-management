@@ -1,4 +1,4 @@
-// Tầng kiểm thử frontend (Vitest, jsdom): US-35 bước 3 – trang công khai /shop, chi tiết /shop/:id và chuyển sang đăng nhập.
+// Tầng kiểm thử frontend (Vitest, jsdom): US-35 bước 3–4 – trang công khai /shop, chi tiết /shop/:id và chuyển sang đăng nhập.
 // Dựng nguyên App với fetch giả, nên test chỉ dựa vào route, hợp đồng API US-35 mục 2 và chữ trên màn hình.
 // Hợp đồng giao diện do tester đặt (spec không ghi chữ cụ thể; cần sinh viên xác nhận):
 //   - File frontend/src/features/shop/ShopPage.tsx, ProductDetailPage.tsx, shop.api.ts (gọi qua apiClient). /shop và /shop/:id KHÔNG cần đăng nhập.
@@ -373,5 +373,61 @@ describe('US-35-TC11: Guest, Member và vai trò khác', () => {
     expect(window.location.pathname).toBe(`/shop/${water.id}`);
     expect(memberApiCalls(fetcher)).toEqual([]);
     expect(writeRequests(fetcher)).toEqual([]);
+  });
+});
+
+// =====================================================================
+describe('US-35-TC10: giá/trạng thái đổi sau khi đã xem danh sách', () => {
+  it('US-35-TC10: mở chi tiết luôn hỏi lại server và hiện giá mới, không dùng giá cũ trong danh sách', async () => {
+    let current = water;
+    const fetcher = fakeServer({ detail: (id) => id === water.id ? json(current) : apiError('PRODUCT_NOT_AVAILABLE', 'Sản phẩm không còn được bán', 404) });
+    await renderApp(fetcher);
+    expect((await productItem('Nước suối')).textContent).toMatch(/9\.000\s?₫/);
+
+    // Admin đổi giá sau khi Guest đã thấy danh sách
+    current = { ...water, price: '12000', version: 1 };
+    await userEvent.click(within(await productItem('Nước suối')).getByRole('link', { name: 'Xem chi tiết' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Nước suối' })).toBeTruthy();
+    expect(document.body.textContent).toMatch(/12\.000\s?₫/);
+    expect(document.body.textContent).not.toMatch(/9\.000\s?₫/);
+  });
+
+  it('US-35-TC10: quay lại cửa hàng rồi mở lại chi tiết thì gọi lại API detail (không cache)', async () => {
+    const fetcher = fakeServer();
+    await renderApp(fetcher);
+    const detailCalls = () => requestsOf(fetcher).filter(r => r.url.pathname.endsWith(`/products/${water.id}`)).length;
+
+    await userEvent.click(within(await productItem('Nước suối')).getByRole('link', { name: 'Xem chi tiết' }));
+    await screen.findByRole('heading', { level: 1, name: 'Nước suối' });
+    expect(detailCalls()).toBe(1);
+
+    await userEvent.click(screen.getAllByRole('link', { name: 'Quay lại cửa hàng' })[0]);
+    await userEvent.click(within(await productItem('Nước suối')).getByRole('link', { name: 'Xem chi tiết' }));
+    await screen.findByRole('heading', { level: 1, name: 'Nước suối' });
+    expect(detailCalls()).toBe(2);
+  });
+
+  it('US-35-TC10: sản phẩm bị ngừng sau khi đã xem danh sách → mở chi tiết hiện "không còn được bán", không có nút mua', async () => {
+    const fetcher = fakeServer({ detail: () => apiError('PRODUCT_NOT_AVAILABLE', 'Sản phẩm không còn được bán', 404) });
+    await renderApp(fetcher);
+
+    await userEvent.click(within(await productItem('Nước suối')).getByRole('link', { name: 'Xem chi tiết' }));
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/không còn được bán/i);
+    expect(screen.queryByRole('button', { name: 'Thêm vào giỏ' })).toBeNull();
+    expect(document.body.textContent).not.toMatch(/9\.000\s?₫/);
+  });
+
+  it('US-35-TC10: hàng hết sau khi đã xem danh sách → chi tiết khóa nút "Thêm vào giỏ"', async () => {
+    const fetcher = fakeServer({ detail: () => json({ ...water, availability: 'OUT_OF_STOCK' }) });
+    await renderApp(fetcher);
+    expect((await productItem('Nước suối')).textContent).toContain('Còn hàng');
+
+    await userEvent.click(within(await productItem('Nước suối')).getByRole('link', { name: 'Xem chi tiết' }));
+
+    await screen.findByRole('heading', { level: 1, name: 'Nước suối' });
+    expect(document.body.textContent).toContain('Hết hàng');
+    expect((await addButton() as HTMLButtonElement).disabled).toBe(true);
   });
 });
