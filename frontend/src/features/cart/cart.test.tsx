@@ -18,7 +18,8 @@
 //     Lỗi mạng/503 → role="alert" + nút "Thử lại" gửi lại CÙNG Idempotency-Key và cùng body.
 //   - Tải lại thấy đơn giá khác lần trước → có chữ "Giá đã thay đổi"; giá không đổi thì không có (sinh viên chốt 19/11).
 //   - Vai trò khác MEMBER mở /member/cart: ProtectedRoute hiện "Không có quyền truy cập" tại chỗ, không gọi API giỏ.
-//   - Không bao giờ có nút "Thanh toán"/"Đặt hàng" (canCheckout false ở S05); có chữ "đặt hàng sẽ có" để hướng dẫn.
+//   - Nút đặt hàng theo canCheckout của server (US-41 spec 1.0.2 bước 4 nối S06): canCheckout true → liên kết "Đặt hàng" tới /member/checkout;
+//     canCheckout false (giỏ trống, dòng bị chặn, chưa liên kết) → không có nút/liên kết thanh toán hay đặt hàng.
 //   - Đăng xuất rồi đăng nhập tài khoản khác: không còn thấy dòng của tài khoản cũ; không lưu giỏ/version/key vào localStorage/sessionStorage.
 //   - /shop/:id (Member): bấm "Thêm vào giỏ" → GET /me/cart lấy version → POST /me/cart/items {version, productId, quantity} có key;
 //     thành công: chữ "Đã thêm vào giỏ" + liên kết "Xem giỏ hàng" tới /member/cart. 409 nghiệp vụ → role="alert"; không tự gửi lại.
@@ -44,7 +45,7 @@ type Line = {
 };
 type Cart = {
   memberLinked: boolean; reason?: string; version: number; items: Line[]; subtotal: string | null;
-  totalsState: 'OK' | 'UNAVAILABLE' | 'OVER_LIMIT'; readyForOrder: boolean; canCheckout: false; asOf: string;
+  totalsState: 'OK' | 'UNAVAILABLE' | 'OVER_LIMIT'; readyForOrder: boolean; canCheckout: boolean; asOf: string;
 };
 
 const line = (overrides: Partial<Line> = {}): Line => ({
@@ -137,7 +138,10 @@ async function lineOf(name: string) {
   return within(list).findByText(name).then(node => node.closest('li') as HTMLElement);
 }
 const button = (name: string) => screen.findByRole('button', { name }) as Promise<HTMLButtonElement>;
-const noCheckoutButton = () => expect(screen.queryByRole('button', { name: /thanh toán|đặt hàng/i })).toBeNull();
+const noCheckoutButton = () => {
+  expect(screen.queryByRole('button', { name: /thanh toán|đặt hàng/i })).toBeNull();
+  expect(screen.queryByRole('link', { name: /thanh toán|đặt hàng/i })).toBeNull();
+};
 const failNetwork = () => Promise.reject(new TypeError('Failed to fetch'));
 
 afterEach(() => {
@@ -176,20 +180,28 @@ describe('US-40 bước 3: trang giỏ /member/cart – hiển thị', () => {
     expect(await lineOf('Nước suối')).toBeTruthy();
   });
 
-  it('US-40-TC16: giỏ trống hiện "Giỏ hàng trống", tạm tính 0 ₫, không có nút thanh toán, có hướng dẫn đặt hàng sẽ có sau', async () => {
+  it('US-40-TC16: giỏ trống hiện "Giỏ hàng trống", tạm tính 0 ₫, không có nút/liên kết đặt hàng (canCheckout false)', async () => {
     const server = fakeServer({ carts: [cartOf([], { version: 0 })] });
     await renderApp(server);
     expect(await screen.findByText('Giỏ hàng trống')).toBeTruthy();
     expect(document.body.textContent).toMatch(/Tạm tính[\s\S]*0\s?₫/);
-    expect(document.body.textContent).toMatch(/đặt hàng sẽ có/i);
     noCheckoutButton();
   });
 
-  it('US-40-TC16: giỏ hợp lệ (readyForOrder true) vẫn KHÔNG có nút thanh toán/đặt hàng', async () => {
-    const server = fakeServer({ carts: [cartOf([line()], { readyForOrder: true })] });
+  it('US-40-TC16: server trả canCheckout false (dù readyForOrder true) → KHÔNG có nút/liên kết đặt hàng', async () => {
+    const server = fakeServer({ carts: [cartOf([line()], { readyForOrder: true, canCheckout: false })] });
     await renderApp(server);
     await lineOf('Nước suối');
     noCheckoutButton();
+  });
+
+  it('US-41-TC18: server trả canCheckout true → có liên kết "Đặt hàng" tới /member/checkout, chưa gửi lệnh đặt nào', async () => {
+    const server = fakeServer({ carts: [cartOf([line()], { readyForOrder: true, canCheckout: true })] });
+    await renderApp(server);
+    await lineOf('Nước suối');
+    const link = await screen.findByRole('link', { name: 'Đặt hàng' });
+    expect(link.getAttribute('href')).toBe('/member/checkout');
+    expect(server.calls.some(c => c.path.startsWith('/me/orders'))).toBe(false);
   });
 
   it.each([['lỗi mạng', failNetwork], ['503', () => apiError('SERVICE_UNAVAILABLE', 'Hệ thống bận', 503)]])(
