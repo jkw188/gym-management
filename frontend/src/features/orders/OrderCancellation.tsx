@@ -13,9 +13,11 @@ function recover(storageKey: string, own: boolean): OrderCommand | null {
   } catch { return null; }
 }
 const messageOf = (cause: unknown) => cause instanceof Error ? cause.message : 'Không thực hiện được yêu cầu';
-export function OrderCancellation({ order, own = false, disabled = false, onLockedChange, onChanged }: {
-  order: Target; own?: boolean; disabled?: boolean; onLockedChange: (locked: boolean) => void; onChanged: () => Promise<void>;
+// allowed (US-42): cờ cancelAllowed của server; không truyền thì giữ điều kiện cũ (PENDING/CONFIRMED và còn giữ hàng).
+export function OrderCancellation({ order, own = false, disabled = false, allowed, onLockedChange, onChanged }: {
+  order: Target; own?: boolean; disabled?: boolean; allowed?: boolean; onLockedChange: (locked: boolean) => void; onChanged: () => Promise<void>;
 }) {
+  const showCancelForm = allowed ?? (['PENDING', 'CONFIRMED'].includes(order.status) && order.reservationState === 'HELD');
   const storageKey = `order-cancel:${apiClient.getSnapshot().user?.id ?? 'session'}:${order.id}:${own ? 'own' : 'support'}`;
   const [command, setCommand] = useState<OrderCommand | null>(() => recover(storageKey, own));
   const [reason, setReason] = useState(''), [checked, setChecked] = useState(false), [pending, setPending] = useState(false);
@@ -72,8 +74,10 @@ export function OrderCancellation({ order, own = false, disabled = false, onLock
       <button type="button" disabled={pending} onClick={() => void lookup()}>Tra cứu kết quả hủy / khoản muộn</button>
       <button type="button" disabled={pending || denied || disabled} onClick={() => void send(command)}>Gửi lại cùng yêu cầu hủy / khoản muộn</button></>
       : <>
-        {['PENDING', 'CONFIRMED'].includes(order.status) && order.reservationState === 'HELD' && <form onSubmit={cancel}>
+        {showCancelForm && <form onSubmit={cancel}>
           <h4>Hủy đơn hàng</h4><p>Giải phóng hàng đang giữ. Khoản đã thu được ghi nghĩa vụ chờ hoàn để đối soát.</p>
+          {/* US-42-TC09: đơn đã thu – nói rõ hủy chỉ ghi khoản chờ hoàn, chưa phải tiền đã về. */}
+          {order.transactionStatus === 'SETTLED' && <p>Đơn đã thanh toán: sau khi hủy, số tiền được ghi là khoản chờ hoàn, chưa phải tiền đã về tài khoản của bạn.</p>}
           <label>Lý do hủy<textarea required minLength={10} maxLength={500} value={reason} disabled={pending || disabled || denied} onChange={event => setReason(event.target.value)} /></label>
           <label><input type="checkbox" checked={checked} disabled={pending || disabled || denied} onChange={event => setChecked(event.target.checked)} />Tôi xác nhận hủy toàn bộ đơn chưa bàn giao</label>
           <button type="submit" disabled={!checked || reason.trim().length < 10 || pending || disabled || denied}>Xác nhận hủy đơn</button>
