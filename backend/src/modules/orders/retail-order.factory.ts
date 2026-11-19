@@ -85,6 +85,12 @@ export class RetailOrderFactory {
           actor_id: actor, sku_snapshot: line.sku, name_snapshot: line.name, created_at: now }, session);
       }
 
+      // US-41-F04: tổng 0 đồng → hoàn tất transaction (SETTLED + invoice 0, không có payment) ngay trong session này.
+      // Chỉ transaction đổi; đơn vẫn PENDING + HELD, Staff vẫn phải xác nhận và bàn giao như đơn thường.
+      const invoice = priced.total === '0'
+        ? await this.settlement.completeWithinSession(session, order.toObject() as Order, transaction.toObject(), now)
+        : null;
+
       // US-41-F03: xóa đúng toàn bộ giỏ đã xác nhận (version đã +1 ở trên).
       await this.carts.deleteAllLines(memberId, session);
 
@@ -97,9 +103,10 @@ export class RetailOrderFactory {
         memberId: memberId.toHexString(), transactionId: String(transactionId), createdBy: accountId }, await this.repository.recipient(memberId, session));
 
       return { status: 201, body: { id: String(id), code: order.code, status: 'PENDING', transactionId: String(transactionId),
-        transactionStatus: transaction.status, total: priced.total, reservationExpiresAt: order.reservation_expires_at.toISOString(),
-        reservationState: 'HELD', cartVersion: cart.version + 1, notificationState: notification.notificationState },
-      resultIds: { orderId: id, transactionId } };
+        transactionStatus: invoice ? 'SETTLED' : 'PENDING', total: priced.total, reservationExpiresAt: order.reservation_expires_at.toISOString(),
+        reservationState: 'HELD', cartVersion: cart.version + 1, ...(invoice ? { invoiceId: invoice.id } : {}),
+        notificationState: notification.notificationState },
+      resultIds: { orderId: id, transactionId, ...(invoice ? { invoiceId: invoice.id } : {}) } };
     });
   }
 
