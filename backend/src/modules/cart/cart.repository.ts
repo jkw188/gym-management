@@ -78,4 +78,9 @@ export class CartRepository {
   async deleteLine(memberId: Types.ObjectId, productId: Types.ObjectId, session: ClientSession): Promise<void> {
     await this.carts.deleteOne({ member_id: memberId, product_id: productId }, { session });
   }
+
+  // US-41-F03: tạo đơn website xong thì xóa toàn bộ giỏ đã xác nhận, cùng transaction với đơn (lỗi thì rollback, giỏ còn nguyên).
+  async deleteAllLines(memberId: Types.ObjectId, session: ClientSession): Promise<void> {
+    await this.carts.deleteMany({ member_id: memberId }, { session });
+  }
 }

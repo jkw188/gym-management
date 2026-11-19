@@ -16,6 +16,8 @@ export const ACCESS_POLICY = {
   'refunds.confirmPayout': { name: 'Xác minh thực chi hoàn tiền', roles: ['STAFF', 'ADMIN'] },
   'pos.create': { name: 'Lập đơn bán sản phẩm tại quầy', roles: ['STAFF', 'ADMIN'] },
   'orders.cancelOwn': { name: 'Hủy đơn hàng của mình', roles: ['MEMBER'] },
+  // US-41-TC02: chỉ MEMBER tạo đơn website của chính mình; Staff/Admin lập đơn qua POS.
+  'orders.createOwn': { name: 'Tạo đơn website của mình', roles: ['MEMBER'] },
   'orders.readOwn': { name: 'Xem đơn hàng của mình', roles: ['MEMBER'] },
   'orders.cancelSupport': { name: 'Hủy đơn hàng hỗ trợ', roles: ['STAFF', 'ADMIN'] },
   'refunds.read': { name: 'Đối soát nghĩa vụ hoàn tiền', roles: ['STAFF', 'ADMIN'] },

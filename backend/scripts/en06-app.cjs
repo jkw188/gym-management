@@ -108,6 +108,18 @@ async function main() {
           }
           break;
         }
+        // US-41 nhóm A (TC01): thêm N tài khoản MEMBER để 20 Member khác nhau cùng tranh SKU cuối.
+        case 'memberAccounts': {
+          const users = app.get(UsersRepository), hash = await app.get(PasswordService).hash(message.value.password);
+          const role = await users.findRoleByCode('MEMBER');
+          result = [];
+          for (let i = 0; i < message.value.count; i++) {
+            const account = await users.createAccount({ roleId: String(role.id), fullName: `EN06 fixture member ${i}`,
+              phone: `+849990610${String(i).padStart(2, '0')}`, passwordHash: hash });
+            result.push({ id: String(account._id), phone: account.phone, role: 'MEMBER' });
+          }
+          break;
+        }
         case 'validate': {
           result = {};
           for (const [name, model] of Object.entries(connection.models)) {

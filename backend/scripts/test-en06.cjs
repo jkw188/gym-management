@@ -55,7 +55,9 @@ async function main() {
     writeFileSync(path.join(directory, 'environment.json'), JSON.stringify(metadata, null, 2));
     const env = { ...process.env, EN04_RUN_ID: runId, EN06_REPORT_DIR: directory, EN06_NOW: metadata.clock,
       JWT_ACCESS_SECRET: randomBytes(32).toString('base64url'), RESET_OTP_PEPPER: '', SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '', SMTP_FROM: '',
-      FRONTEND_ORIGIN: 'http://localhost:5173', RECEIVING_ACCOUNTS: '["GYM_MAIN"]' };
+      FRONTEND_ORIGIN: 'http://localhost:5173', RECEIVING_ACCOUNTS: '["GYM_MAIN"]',
+      // US-41 nhóm A: preview/create đơn WEBSITE cần quote ký bằng secret riêng và quầy nhận cấu hình thật (giá trị test, không phải secret thật).
+      RETAIL_QUOTE_SECRET: randomBytes(32).toString('base64url'), PICKUP_LOCATION: 'Quầy kiểm thử EN06' };
     const result = await run(process.execPath, [require.resolve('jest/bin/jest'), '--config', 'jest.en06.config.cjs', '--runInBand',
       '--json', '--outputFile', path.join(directory, 'jest.json')], env);
     const report = readJson(path.join(directory, 'cases.json'), { cases: [], setupFailed: true });

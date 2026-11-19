@@ -4,7 +4,7 @@
 //   TC09: nhiều lệnh cùng version qua hai instance → đúng một thành công, còn lại 409 CART_VERSION_CONFLICT; không lost update, không vượt 999.
 //   TC10: 20 request cùng key + cùng payload qua hai instance → mọi phản hồi thành công có cùng body gốc (hoặc 409 khi lệnh gốc đang chạy);
 //         giỏ chỉ đổi một lần, version +1 một lần, một operation_requests.
-//   TC14: mỗi GET là MỘT snapshot: quantity khớp version, lineTotal = unitPrice × quantity, subtotal = tổng lineTotal, có asOf, canCheckout false.
+//   TC14: mỗi GET là MỘT snapshot: quantity khớp version, lineTotal = unitPrice × quantity, subtotal = tổng lineTotal, có asOf, canCheckout bằng readyForOrder (US-41 bước 4 nối S06).
 //   TC15: adapter checkout (chỉ trong test, KHÔNG phải US-41) chạy transaction: khóa catalog_state → members (DataGuardsService của EN-02),
 //         rồi đọc cart_states.version và carts trong CÙNG session. Chạy song song với sửa giỏ → luôn thấy dòng khớp version, không lỗi.
 //   Mẹo kiểm "nửa cũ nửa mới": chuỗi PUT luôn đặt quantity = version mới, nên ở mọi ảnh chụp đúng phải có quantity === version.
@@ -30,7 +30,7 @@ const password = 'MậtKhẩuUS-40-race';
 
 type Member = { accountId: string; memberId: ObjectId; token: string };
 type CartLine = { productId: string; quantity: number; unitPrice: string | null; lineTotal: string | null };
-type CartBody = { version: number; items: CartLine[]; subtotal: string | null; asOf: string; canCheckout: boolean };
+type CartBody = { version: number; items: CartLine[]; subtotal: string | null; asOf: string; readyForOrder: boolean; canCheckout: boolean };
 
 describe('US-40 bước 4: giỏ hàng khi chạy đồng thời trên hai app', () => {
   let mongo: MongoMemoryReplSet;
@@ -257,7 +257,7 @@ describe('US-40 bước 4: giỏ hàng khi chạy đồng thời trên hai app',
   }
 
   describe('US-40-TC14: GET song song với sửa giỏ và đổi giá', () => {
-    it('US-40-TC14: mỗi GET là một snapshot – quantity khớp version, lineTotal = giá × số lượng, subtotal = tổng dòng, có asOf, canCheckout false', async () => {
+    it('US-40-TC14: mỗi GET là một snapshot – quantity khớp version, lineTotal = giá × số lượng, subtotal = tổng dòng, có asOf, canCheckout bằng readyForOrder', async () => {
       const me = await member();
       const id = await product('1000');
       const other = await product('500');
@@ -299,7 +299,7 @@ describe('US-40 bước 4: giỏ hàng khi chạy đồng thời trên hai app',
         for (const item of cart.items) expect(BigInt(item.lineTotal!)).toBe(BigInt(item.unitPrice!) * BigInt(item.quantity));
         expect(BigInt(cart.subtotal!)).toBe(cart.items.reduce((sum, item) => sum + BigInt(item.lineTotal!), 0n));
         expect(Number.isNaN(Date.parse(cart.asOf))).toBe(false);
-        expect(cart.canCheckout).toBe(false);
+        expect(cart.canCheckout).toBe(cart.readyForOrder);
       }
     });
 
@@ -376,7 +376,7 @@ describe('US-40 bước 4: giỏ hàng khi chạy đồng thời trên hai app',
             expect(line.reasons).toContain('INSUFFICIENT_STOCK');
           }
         }
-        expect(cart.canCheckout).toBe(false);
+        expect(cart.canCheckout).toBe(cart.readyForOrder);
       }
       // Giỏ không giữ tồn (TC12): inventory đúng bằng lần đặt cuối, reserved vẫn 0.
       const finalStock = await db().collection('inventory').find({ product_id: { $in: stockIds } }).toArray();

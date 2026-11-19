@@ -25,11 +25,16 @@ import { RetailQuoteService } from './retail-quote.service';
 import { RetailOrderFactory } from './retail-order.factory';
 import { RetailSettlementService } from './retail-settlement.service';
 import { PosController } from './pos.controller';
+import { WebsiteOrderController } from './website-order.controller';
+import { CartModule } from '../cart/cart.module';
+import { MembersDataModule } from '../members/members-data.module';
 
-@Module({ imports: [TransactionModule, OperationsModule, NotificationsModule, InventoryModule, RefundsModule,
+// Cấu hình NestJS (US-41, dùng chung US-42–45/53): module đơn hàng – model orders/items/events, báo giá, tạo đơn POS/WEBSITE, thu RETAIL, hủy, bàn giao.
+// US-41 cần CartModule (đọc/xóa giỏ) và MembersDataModule (tìm Member của account đang đăng nhập).
+@Module({ imports: [TransactionModule, OperationsModule, NotificationsModule, InventoryModule, RefundsModule, CartModule, MembersDataModule,
   JwtModule.register({}), MongooseModule.forFeature([...ORDER_MODELS, { name: 'Payment', schema: PaymentSchema },
     { name: 'Transaction', schema: TransactionSchema }, { name: 'Invoice', schema: InvoiceSchema }])],
-  controllers: [OrdersController, OrderCancellationController, MeOrdersController, PosController],
+  controllers: [OrdersController, OrderCancellationController, MeOrdersController, PosController, WebsiteOrderController],
   providers: [OrdersRepository, OrdersService, FulfillOrderService, CancelOrderService, LateReceiptService, OrderExpiryWorker, MeOrdersService, ReceivingAccountPolicy, ServerClock,
     RetailQuoteService, RetailOrderFactory, RetailSettlementService],
   exports: [FulfillOrderService, RetailSettlementService, OrdersRepository] })

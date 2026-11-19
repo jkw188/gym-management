@@ -2,7 +2,8 @@
 // Kiểm tra GET/POST/PUT/DELETE /api/me/cart: đúng chủ, version, replay key, giá/tồn hiện tại, dòng bị chặn, không giữ tồn, rollback (TC01–TC13).
 // Hợp đồng test đặt ra cho Builder (US-40 bước 2, theo mục 1–3 của spec):
 //   GET /api/me/cart → 200, Cache-Control no-store:
-//     { memberLinked, version, items, subtotal, totalsState, readyForOrder, canCheckout: false, asOf } (+ reason khi chưa liên kết).
+//     { memberLinked, version, items, subtotal, totalsState, readyForOrder, canCheckout, asOf } (+ reason khi chưa liên kết).
+//     canCheckout = readyForOrder từ US-41 bước 4 (S06); giỏ trống/bị chặn/chưa liên kết vẫn false.
 //     Dòng: { productId, sku, name, imageUrl?, quantity, unitPrice, lineTotal, availableQuantity, productVersion, lineState, reasons[] }.
 //     lineState: 'OK' (hợp lệ) | 'BLOCKED' (reasons có PRODUCT_UNAVAILABLE / INVENTORY_UNAVAILABLE / INSUFFICIENT_STOCK).
 //     totalsState: 'OK' | 'UNAVAILABLE' | 'OVER_LIMIT'; subtotal là chuỗi VND, null khi không tính được.
@@ -210,7 +211,8 @@ describe('US-40 bước 2: API giỏ hàng của Member', () => {
       expect(Number((await db().collection('cart_states').findOne({ _id: me.memberId }))?.version)).toBe(3);
     });
 
-    it('US-40-TC01: GET trả đủ field, canCheckout false, dòng xếp theo thứ tự thêm', async () => {
+    // US-41 spec 1.0.2 bước 4 nối S06: canCheckout = readyForOrder (không còn cố định false của S05).
+    it('US-40-TC01: GET trả đủ field, canCheckout bằng readyForOrder (giỏ hợp lệ → true), dòng xếp theo thứ tự thêm', async () => {
       const me = await member();
       const a = await product();
       const b = await product();
@@ -218,7 +220,7 @@ describe('US-40 bước 2: API giỏ hàng của Member', () => {
       await add(me.token, { version: 1, productId: a.id, quantity: 1 }).expect(201);
 
       const cart = await cartOf(me.token);
-      expect(cart).toMatchObject({ memberLinked: true, version: 2, totalsState: 'OK', readyForOrder: true, canCheckout: false });
+      expect(cart).toMatchObject({ memberLinked: true, version: 2, totalsState: 'OK', readyForOrder: true, canCheckout: true });
       expect(Number.isNaN(Date.parse(cart.asOf))).toBe(false);
       expect(cart.items.map(item => item.productId)).toEqual([b.id, a.id]);
     });

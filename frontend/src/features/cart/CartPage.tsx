@@ -1,6 +1,7 @@
 // Tầng giao diện – trang (US-40 bước 3): /member/cart – Member xem giỏ, tăng/giảm/nhập số lượng, xóa dòng và xem tạm tính.
-// Mọi số tiền, trạng thái dòng và tổng do server tính; trang chỉ hiển thị. Không có nút thanh toán ở Sprint 5 (US-40-F05).
+// Mọi số tiền, trạng thái dòng và tổng do server tính; trang chỉ hiển thị. Liên kết "Đặt hàng" theo canCheckout (US-41 S06).
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { formatVnd } from '../../utils/money';
@@ -211,7 +212,7 @@ export function CartPage() {
       </ul>}
 
     <p><strong>Tạm tính: {subtotalText(cart)}</strong></p>
-    {/* US-40-F05: canCheckout luôn false ở Sprint 5 → không đặt nút thanh toán giả, chỉ hướng dẫn. */}
-    <p>Chức năng đặt hàng sẽ có ở đợt cập nhật sau. Giá và tồn kho được kiểm lại khi đặt hàng.</p>
+    {/* US-41-TC18: chỉ có liên kết "Đặt hàng" khi server trả canCheckout true; giá và tồn vẫn được kiểm lại khi đặt. */}
+    {cart.canCheckout && <Link to="/member/checkout">Đặt hàng</Link>}
   </section>;
 }

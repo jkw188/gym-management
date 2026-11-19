@@ -50,6 +50,7 @@ import { PosPage } from './features/pos/PosPage';
 import { ShopPage } from './features/shop/ShopPage';
 import { ProductDetailPage } from './features/shop/ProductDetailPage';
 import { CartPage } from './features/cart/CartPage';
+import { CheckoutPage } from './features/checkout/CheckoutPage';
 import { MembershipReportsPage } from './features/reports/MembershipReportsPage';
 import { CashFlowReportsPage } from './features/reports/CashFlowReportsPage';
 import { TrainerPerformancePage } from './features/reports/TrainerPerformancePage';
@@ -113,6 +114,8 @@ export default function App() {
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/orders" element={<MyOrdersPage />} /></Route>
       {/* US-40: giỏ hàng của Member; vai trò khác bị ProtectedRoute chặn, không gọi API giỏ. */}
       <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/cart" element={<CartPage />} /></Route>
+      {/* US-41-TC18: đặt hàng từ giỏ chỉ cho MEMBER; vai trò khác thấy "Không có quyền truy cập", không gọi API đặt đơn. */}
+      <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/checkout" element={<CheckoutPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/stock-receipts" element={<StockReceiptsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /><Route path="/admin/stock-issues" element={<StockIssuesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-adjustments" element={<StockAdjustmentsPage />} /></Route>

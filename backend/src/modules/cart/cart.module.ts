@@ -1,4 +1,4 @@
-// Cấu hình NestJS (US-40 bước 1–2): module giỏ hàng – model carts, cart_states, resolver chủ giỏ và API /api/me/cart.
+// Cấu hình NestJS (US-40 bước 1–2, US-41): module giỏ hàng – model carts, cart_states, resolver chủ giỏ và API /api/me/cart.
 // MembersDataModule: MemberOwnerReader (US-17); OperationsModule: Idempotency-Key (EN-02); TransactionModule: transaction và khóa.
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -24,5 +24,7 @@ import { CartStateSchema } from './schemas/cart-state.schema';
   ],
   controllers: [CartController],
   providers: [CartOwnerResolver, CartRepository, CartService],
+  // US-41: module đơn hàng đọc giỏ và xóa giỏ khi tạo đơn website, qua đúng repository này.
+  exports: [CartRepository],
 })
 export class CartModule {}

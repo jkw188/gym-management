@@ -27,7 +27,8 @@ export interface Cart {
   subtotal: string | null;
   totalsState: 'OK' | 'UNAVAILABLE' | 'OVER_LIMIT';
   readyForOrder: boolean;
-  canCheckout: false;
+  // US-41 (S06): server trả true khi giỏ đặt được; trang chỉ hiện liên kết "Đặt hàng" theo cờ này.
+  canCheckout: boolean;
   asOf: string;
 }
 

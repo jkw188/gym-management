@@ -90,7 +90,8 @@ export class CartService {
       const { subtotal, totalsState } = this.totalOf(lines.map(line => ({ quantity: line.quantity, price: this.checkLine(line.product_id, line.quantity, view).price })));
       // US-40-F05: readyForOrder chỉ là gợi ý – có ít nhất 1 dòng, mọi dòng hợp lệ và tổng trong trần.
       const readyForOrder = items.length > 0 && items.every(item => item.lineState === 'OK') && totalsState === 'OK';
-      return { memberLinked: true, version, items, subtotal, totalsState, readyForOrder, canCheckout: false, asOf };
+      // US-41-TC01: S06 đã có POST /api/me/orders nên canCheckout = readyForOrder; create vẫn tự kiểm lại.
+      return { memberLinked: true, version, items, subtotal, totalsState, readyForOrder, canCheckout: readyForOrder, asOf };
     });
   }
 
