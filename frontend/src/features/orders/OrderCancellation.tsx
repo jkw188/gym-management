@@ -18,6 +18,9 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
   order: Target; own?: boolean; disabled?: boolean; allowed?: boolean; onLockedChange: (locked: boolean) => void; onChanged: () => Promise<void>;
 }) {
   const showCancelForm = allowed ?? (['PENDING', 'CONFIRMED'].includes(order.status) && order.reservationState === 'HELD');
+  // Khóa của lệnh chưa rõ kết quả lưu theo id tài khoản: tài khoản khác không đọc được. Cố ý KHÔNG xóa khi đăng xuất –
+  // spec US-42 "mất response mutation giữ key" để cùng tài khoản tra/gửi lại cùng key; "logout xóa cache" là dữ liệu đơn đã tải
+  // (nằm trong state React, mất khi đăng xuất). sessionStorage tự mất khi đóng tab.
   const storageKey = `order-cancel:${apiClient.getSnapshot().user?.id ?? 'session'}:${order.id}:${own ? 'own' : 'support'}`;
   const [command, setCommand] = useState<OrderCommand | null>(() => recover(storageKey, own));
   const [reason, setReason] = useState(''), [checked, setChecked] = useState(false), [pending, setPending] = useState(false);

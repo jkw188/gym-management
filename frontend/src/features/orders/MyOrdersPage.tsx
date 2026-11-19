@@ -116,6 +116,11 @@ function OwnOrderDetailView({ id, onBack }: { id: string; onBack: () => void }) 
         catch (cause) { setInstructionsError(messageOf(cause)); }
       }
     } catch (cause) {
+      // US-42-TC12: tải lại lỗi thì bỏ dữ liệu cũ (có thể đã lỗi thời), chỉ hiện lỗi và nút Thử lại.
+      // Lệnh hủy đang treo (nếu có) vẫn giữ khóa trong sessionStorage và được khôi phục khi tải lại thành công.
+      setOrder(null);
+      setInstructions(null);
+      setInstructionsError('');
       setError(messageOf(cause));
     } finally {
       setLoading(false);
@@ -161,7 +166,10 @@ function OwnOrderDetailView({ id, onBack }: { id: string; onBack: () => void }) 
         {' '}<button type="button" disabled={locked} onClick={onBack}>Về danh sách</button>
       </p>
     </>}
-    {!order && !loading && <button type="button" onClick={onBack}>Về danh sách</button>}
+    {!order && !loading && <p>
+      {error && <><button type="button" onClick={() => void load()}>Thử lại</button>{' '}</>}
+      <button type="button" onClick={onBack}>Về danh sách</button>
+    </p>}
   </section>;
 }
 
