@@ -1,3 +1,5 @@
+// Tầng giao diện – gọi API (US-45, dùng chung US-42): lệnh hủy đơn (Member/Staff), ghi khoản chuyển muộn và tra kết quả theo Idempotency-Key.
+// Member ĐỌC đơn của mình qua my-orders.api.ts (US-42 bước 3).
 import { apiClient } from '../../api/client';
 
 export interface CancelResult {
@@ -8,12 +10,6 @@ export interface LateReceiptInput { method: 'TRANSFER'; amount: string; evidence
 export interface LateReceiptResult { orderId: string; paymentId: string; refundId: string; refundState: 'PENDING'; transactionStatus: 'CANCELLED'; notificationState: string }
 export type CancelOperation = 'ORDER_CANCEL_OWN' | 'ORDER_CANCEL_SUPPORT' | 'RETAIL_LATE_RECEIPT';
 export type OrderCommand = { key: string; operation: CancelOperation; body: { version: number; reason: string } | LateReceiptInput };
-export interface OwnOrder {
-  id: string; code: string; channel: string; status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'; version: number;
-  reservationState: string; reservationExpiresAt: string; expired: boolean; asOf: string; total: string | null; transactionStatus: 'PENDING' | 'SETTLED' | 'CANCELLED' | null;
-  cancellationReason: string | null; cancelledAt: string | null;
-  items: { id: string; name: string; quantity: number; lineTotal: string }[]; refunds: { id: string; status: string; amount: string }[];
-}
 export const cancellationApi = {
   send(id: string, command: OrderCommand) {
     const own = command.operation === 'ORDER_CANCEL_OWN', suffix = command.operation === 'RETAIL_LATE_RECEIPT' ? 'late-receipts' : 'cancel';
@@ -22,6 +18,4 @@ export const cancellationApi = {
     });
   },
   lookup(command: OrderCommand) { return apiClient.request<{ responseBody: CancelResult | LateReceiptResult }>(`/operations/${command.operation}/${encodeURIComponent(command.key)}`); },
-  ownList(page: number, signal?: AbortSignal) { return apiClient.request<{ items: OwnOrder[]; memberLinked: boolean; totalPages: number; total: number }>(`/me/orders?page=${page}&limit=20`, { signal }); },
-  ownDetail(id: string) { return apiClient.request<OwnOrder>(`/me/orders/${encodeURIComponent(id)}`); },
 };
