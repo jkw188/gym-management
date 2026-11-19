@@ -2,6 +2,8 @@ import type { AuthResponse, AuthSnapshot, AuthUser, LogoutResult } from '../feat
 
 const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
 const LOGOUT_MESSAGE = 'logout';
+// Lý do về trang đăng nhập khi phiên đang dùng hết hiệu lực/bị thu hồi giữa chừng (US-42-TC11).
+export const SESSION_EXPIRED = 'session-expired';
 export interface AuthChannel {
   postMessage(message: unknown): void;
   addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
@@ -173,10 +175,17 @@ export class ApiClient {
       if (generation !== this.sessionGeneration || this.snapshot.status === 'anonymous') throw error;
       if (init.signal?.aborted) throw error;
       // A delayed 401 may refer to the token another request has already refreshed.
-      if (this.accessToken === token) await this.refreshSession();
+      // US-42-TC11: phiên đang dùng bị thu hồi → về trang đăng nhập kèm lý do 'session-expired' để người dùng biết vì sao.
+      if (this.accessToken === token) {
+        try { await this.refreshSession(); }
+        catch (refreshError) {
+          if (refreshError instanceof ApiError && refreshError.status === 401 && generation === this.sessionGeneration) this.anonymous(SESSION_EXPIRED);
+          throw refreshError;
+        }
+      }
       try { return await send(); }
       catch (retryError) {
-        if (retryError instanceof ApiError && retryError.status === 401) this.anonymous();
+        if (retryError instanceof ApiError && retryError.status === 401) this.anonymous(SESSION_EXPIRED);
         throw retryError;
       }
     }
