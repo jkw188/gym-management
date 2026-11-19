@@ -88,7 +88,8 @@ export class ApiClient {
     return result.user;
   }
 
-  refreshSession(): Promise<AuthUser> {
+  // loginReason (không bắt buộc): lý do gắn khi refresh bị 401; restore() lúc mở app không truyền nên trang đăng nhập không báo gì (US-42-TC11).
+  refreshSession(loginReason?: string): Promise<AuthUser> {
     if (this.refreshPromise) return this.refreshPromise;
     if (this.snapshot.status === 'loggingOut') return Promise.reject(new ApiError('Đang đăng xuất.'));
     const generation = this.sessionGeneration;
@@ -103,7 +104,7 @@ export class ApiClient {
         if (this.snapshot.status !== 'loggingOut') this.publish({ status: 'authenticated', user });
         return user;
       } catch (error) {
-        if (generation === this.sessionGeneration && error instanceof ApiError && error.status === 401) this.anonymous();
+        if (generation === this.sessionGeneration && error instanceof ApiError && error.status === 401) this.anonymous(loginReason);
         throw error;
       } finally { this.refreshPromise = null; }
     })();
@@ -176,13 +177,7 @@ export class ApiClient {
       if (init.signal?.aborted) throw error;
       // A delayed 401 may refer to the token another request has already refreshed.
       // US-42-TC11: phiên đang dùng bị thu hồi → về trang đăng nhập kèm lý do 'session-expired' để người dùng biết vì sao.
-      if (this.accessToken === token) {
-        try { await this.refreshSession(); }
-        catch (refreshError) {
-          if (refreshError instanceof ApiError && refreshError.status === 401 && generation === this.sessionGeneration) this.anonymous(SESSION_EXPIRED);
-          throw refreshError;
-        }
-      }
+      if (this.accessToken === token) await this.refreshSession(SESSION_EXPIRED);
       try { return await send(); }
       catch (retryError) {
         if (retryError instanceof ApiError && retryError.status === 401) this.anonymous(SESSION_EXPIRED);
