@@ -48,9 +48,11 @@ export class OrdersRepository {
     const total = result.count[0]?.total ?? 0;
     return { items: result.items, page, limit, total, totalPages: Math.ceil(total / limit) };
   }
+  // Hóa đơn của một giao dịch, chỉ các field công khai (Staff, kiểm toàn vẹn và hóa đơn own US-42 dùng chung).
+  // Field nào được trả ra API do từng service/mapper tự chọn.
   invoice(transactionId: Types.ObjectId, session: ClientSession) {
     return this.connection.db!.collection<Invoice>('invoices').findOne({ transaction_id: transactionId }, { session,
-      projection: { _id: 1, invoice_no: 1, total_amount: 1, issued_at: 1 } });
+      projection: { _id: 1, invoice_no: 1, total_amount: 1, issued_at: 1, buyer_snapshot: 1 } });
   }
   // US-42-F01: đọc một đơn khi đúng chủ – lọc member_id ngay trong câu truy vấn MongoDB, không lọc sau khi đọc.
   ownOrder(memberId: Types.ObjectId, orderId: Types.ObjectId, session: ClientSession) {
@@ -64,11 +66,6 @@ export class OrdersRepository {
   refundsByOrderIds(orderIds: Types.ObjectId[], session: ClientSession) {
     return this.connection.db!.collection<{ _id: Types.ObjectId; order_id: Types.ObjectId; amount: Types.Decimal128; status: string }>('refunds')
       .find({ order_id: { $in: orderIds } }, { session, projection: { _id: 1, order_id: 1, amount: 1, status: 1 } }).toArray();
-  }
-  // US-42 invoice own: chỉ lấy các field công khai của chứng từ (có buyer_snapshot), không lấy dữ liệu nội bộ.
-  ownInvoice(transactionId: Types.ObjectId, session: ClientSession) {
-    return this.connection.db!.collection<Invoice>('invoices').findOne({ transaction_id: transactionId }, { session,
-      projection: { _id: 1, invoice_no: 1, total_amount: 1, issued_at: 1, buyer_snapshot: 1 } });
   }
   // US-42-F03: khoản thu thành công của giao dịch – chỉ cách trả, số tiền, thời điểm; không lấy reference/evidence/bank_reference.
   succeededPayment(transactionId: Types.ObjectId, session: ClientSession) {

@@ -102,7 +102,7 @@ export class MeOrdersService {
     return this.transactions.run(async session => {
       const memberId = await this.ownerOrNotFound(accountId, session);
       const order = await this.ownOrderOrNotFound(memberId, orderId, session);
-      const invoice = await this.repository.ownInvoice(order.transaction_id, session);
+      const invoice = await this.repository.invoice(order.transaction_id, session);
       if (!invoice) throw new ApplicationError(404, 'NOT_FOUND', 'Đơn chưa có hóa đơn');
       const items = await this.repository.lines(order._id, session);
       const payment = await this.repository.succeededPayment(order.transaction_id, session);
