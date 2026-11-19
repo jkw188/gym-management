@@ -306,5 +306,27 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
       await expect(ensureOrdersIntegrity(connection)).rejects.toThrow('ORDER_ITEMS_ORPHAN_RECONCILIATION_REQUIRED');
       expect(await snapshot()).toEqual(before);
     });
+
+    it('US-41-TC01: CSDL đã chạy còn 2 index cũ chiều giảm dần → migration xóa index cũ, có index tăng dần theo spec, dữ liệu không đổi, chạy lại vẫn qua', async () => {
+      const orders = db().collection('orders');
+      await orders.createIndex({ member_id: 1, created_at: -1, _id: -1 }, { name: 'orders_member_created_id' });
+      await orders.createIndex({ channel: 1, status: 1, created_at: -1, _id: -1 }, { name: 'orders_channel_status_created_id' });
+      await persistedOrder({ quantity: 2, reserved: 2 });
+      const before = await snapshot();
+
+      await ensureOrdersIntegrity(connection);
+
+      const names = (await orders.indexes()).map(index => index.name);
+      expect(names).not.toContain('orders_member_created_id');
+      expect(names).not.toContain('orders_channel_status_created_id');
+      const list = await indexesOf('orders');
+      expect(findIndex(list, { member_id: 1, created_at: 1, _id: 1 })).toBeDefined();
+      expect(findIndex(list, { channel: 1, status: 1, created_at: 1, _id: 1 })).toBeDefined();
+      expect(await snapshot()).toEqual(before);
+
+      // Chạy lần hai: index cũ đã không còn, migration vẫn không lỗi và không đổi dữ liệu.
+      await expect(ensureOrdersIntegrity(connection)).resolves.not.toThrow();
+      expect(await snapshot()).toEqual(before);
+    });
   });
 });
