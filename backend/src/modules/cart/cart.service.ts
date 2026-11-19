@@ -69,17 +69,19 @@ export class CartService {
 
   // GET /api/me/cart – chỉ đọc, không tạo state/dòng (US-40-TC03).
   async getCart(accountId: string): Promise<CartResponse> {
-    const asOf = new Date().toISOString();
     const owner = await this.owners.resolve(accountId);
     // US-40-F01, US-40-TC03: chưa liên kết → giỏ rỗng có cờ, không tự tạo hay link hồ sơ.
     if (!owner.memberLinked) {
       return { memberLinked: false, reason: owner.reason, version: 0, items: [], subtotal: '0', totalsState: 'OK',
-        readyForOrder: false, canCheckout: false, asOf };
+        readyForOrder: false, canCheckout: false, asOf: new Date().toISOString() };
     }
     const memberId = new Types.ObjectId(owner.memberId);
 
     // US-40 mục 3: cart/product/category/inventory đọc trong CÙNG một snapshot transaction, không ghép query rời.
     return this.transactions.run(async session => {
+      // US-40-TC14: lấy giờ ngay trước lần đọc đầu tiên của snapshot (và lấy lại nếu transaction chạy lại),
+      // để asOf ứng với đúng dữ liệu trả về.
+      const asOf = new Date().toISOString();
       const version = (await this.repository.findVersion(memberId, session)) ?? 0;
       const lines = await this.repository.findLines(memberId, session);
       const view = await this.loadCatalog(lines.map(line => line.product_id), session);
