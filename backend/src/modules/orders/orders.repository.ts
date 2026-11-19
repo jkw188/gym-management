@@ -52,6 +52,20 @@ export class OrdersRepository {
     return this.connection.db!.collection<Invoice>('invoices').findOne({ transaction_id: transactionId }, { session,
       projection: { _id: 1, invoice_no: 1, total_amount: 1, issued_at: 1 } });
   }
+  // US-42-F01: đọc một đơn khi đúng chủ – lọc member_id ngay trong câu truy vấn MongoDB, không lọc sau khi đọc.
+  ownOrder(memberId: Types.ObjectId, orderId: Types.ObjectId, session: ClientSession) {
+    return this.connection.db!.collection<Order>('orders').findOne({ _id: orderId, member_id: memberId }, { session });
+  }
+  // US-42 invoice own: chỉ lấy các field công khai của chứng từ (có buyer_snapshot), không lấy dữ liệu nội bộ.
+  ownInvoice(transactionId: Types.ObjectId, session: ClientSession) {
+    return this.connection.db!.collection<Invoice>('invoices').findOne({ transaction_id: transactionId }, { session,
+      projection: { _id: 1, invoice_no: 1, total_amount: 1, issued_at: 1, buyer_snapshot: 1 } });
+  }
+  // US-42-F03: khoản thu thành công của giao dịch – chỉ cách trả, số tiền, thời điểm; không lấy reference/evidence/bank_reference.
+  succeededPayment(transactionId: Types.ObjectId, session: ClientSession) {
+    return this.connection.db!.collection<Payment>('payments').findOne({ transaction_id: transactionId, status: 'SUCCEEDED' }, { session,
+      projection: { _id: 1, method: 1, amount: 1, paid_at: 1 } });
+  }
   refunds(orderId: Types.ObjectId, session: ClientSession) {
     return this.connection.db!.collection<{ _id: Types.ObjectId; order_id: Types.ObjectId; amount: Types.Decimal128; status: string }>('refunds')
       .find({ order_id: orderId }, { session, projection: { _id: 1, amount: 1, status: 1 } }).sort({ _id: 1 }).toArray();
