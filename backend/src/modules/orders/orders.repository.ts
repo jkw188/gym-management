@@ -56,6 +56,15 @@ export class OrdersRepository {
   ownOrder(memberId: Types.ObjectId, orderId: Types.ObjectId, session: ClientSession) {
     return this.connection.db!.collection<Order>('orders').findOne({ _id: orderId, member_id: memberId }, { session });
   }
+  // US-42 list: đọc giao dịch của cả trang bằng MỘT truy vấn $in thay vì từng đơn một.
+  transactionsByIds(ids: Types.ObjectId[], session: ClientSession) {
+    return this.connection.db!.collection<Transaction>('transactions').find({ _id: { $in: ids } }, { session }).toArray();
+  }
+  // US-42 list: đọc khoản hoàn của cả trang bằng MỘT truy vấn $in; chỉ lấy field cần để tính refundState.
+  refundsByOrderIds(orderIds: Types.ObjectId[], session: ClientSession) {
+    return this.connection.db!.collection<{ _id: Types.ObjectId; order_id: Types.ObjectId; amount: Types.Decimal128; status: string }>('refunds')
+      .find({ order_id: { $in: orderIds } }, { session, projection: { _id: 1, order_id: 1, amount: 1, status: 1 } }).toArray();
+  }
   // US-42 invoice own: chỉ lấy các field công khai của chứng từ (có buyer_snapshot), không lấy dữ liệu nội bộ.
   ownInvoice(transactionId: Types.ObjectId, session: ClientSession) {
     return this.connection.db!.collection<Invoice>('invoices').findOne({ transaction_id: transactionId }, { session,

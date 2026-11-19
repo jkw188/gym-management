@@ -33,8 +33,9 @@ export class MembersRepository implements OnModuleInit {
     return !!await this.members.exists({ phone, account_id: null }).maxTimeMS(5000).exec();
   }
   // US-17-F01: tìm hồ sơ đã liên kết với account đang đăng nhập; chỉ lấy _id, không tìm theo phone.
-  async findIdByAccountId(accountId: Types.ObjectId): Promise<Types.ObjectId | null> {
-    const member = await this.members.findOne({ account_id: accountId }, { _id: 1 }).maxTimeMS(5000).lean().exec();
+  // session (không bắt buộc): truyền vào khi nơi gọi cần đọc cùng snapshot với các truy vấn khác (US-42).
+  async findIdByAccountId(accountId: Types.ObjectId, session?: ClientSession): Promise<Types.ObjectId | null> {
+    const member = await this.members.findOne({ account_id: accountId }, { _id: 1 }).session(session ?? null).maxTimeMS(5000).lean().exec();
     return member ? member._id : null;
   }
   updateProfile(id: Types.ObjectId, version: number, set: Partial<Pick<Member, 'full_name' | 'phone' | 'birth_date' | 'address'>>,

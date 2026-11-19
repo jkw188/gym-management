@@ -27,23 +27,24 @@ export class MeOrdersService {
 
   // GET /api/me/orders – US-42-TC01, TC03, TC06.
   async list(accountId: string, query: OwnOrderQueryDto) {
-    const asOf = this.clock.now();
     const filter = this.listFilter(query);
-    // US-42-F01, TC03: member lấy từ principal; chưa liên kết → 200 rỗng có cờ, không tự liên kết theo phone.
-    const memberId = await this.owners.findMemberIdOfAccount(accountId);
-    if (!memberId) {
-      return { memberLinked: false, items: [], page: query.page, limit: query.limit, total: 0, totalPages: 0, asOf: asOf.toISOString() };
-    }
-    // US-42-TC01: lọc member_id ở DB (không theo created_by) nên đơn POS do Staff tạo cho mình vẫn hiện.
-    filter.member_id = memberId;
-    // Đếm và lấy trang trong cùng một transaction snapshot.
+    // Spec mục 2: mọi truy vấn của một response (member, đơn, giao dịch, hoàn) nằm trong CÙNG một transaction snapshot.
     return this.transactions.run(async session => {
-      const page = await this.repository.page(filter, undefined, query.page, query.limit, session);
-      const items = [];
-      for (const order of page.items) {
-        const transaction = await this.repository.transaction(order.transaction_id, session);
-        items.push(toOwnListItem(order, transaction, await this.refundSummary(order._id, session)));
+      const asOf = this.clock.now();
+      // US-42-F01, TC03: member lấy từ principal; chưa liên kết → 200 rỗng có cờ, không tự liên kết theo phone.
+      const memberId = await this.owners.findMemberIdOfAccount(accountId, session);
+      if (!memberId) {
+        return { memberLinked: false, items: [], page: query.page, limit: query.limit, total: 0, totalPages: 0, asOf: asOf.toISOString() };
       }
+      // US-42-TC01: lọc member_id ở DB (không theo created_by) nên đơn POS do Staff tạo cho mình vẫn hiện.
+      filter.member_id = memberId;
+      const page = await this.repository.page(filter, undefined, query.page, query.limit, session);
+      // Đọc giao dịch và khoản hoàn của cả trang bằng 2 truy vấn $in, không đọc từng đơn một.
+      const transactions = await this.repository.transactionsByIds(page.items.map(order => order.transaction_id), session);
+      const refunds = await this.repository.refundsByOrderIds(page.items.map(order => order._id), session);
+      const transactionById = new Map(transactions.map(transaction => [String(transaction._id), transaction]));
+      const items = page.items.map(order => toOwnListItem(order, transactionById.get(String(order.transaction_id)) ?? null,
+        this.refundSummary(refunds.filter(refund => refund.order_id.equals(order._id)))));
       return { memberLinked: true, ...page, items, asOf: asOf.toISOString() };
     });
   }
@@ -51,8 +52,8 @@ export class MeOrdersService {
   // GET /api/me/orders/:id – US-42-TC02, TC05, TC06, TC07, TC08.
   async detail(accountId: string, id: string) {
     const orderId = new Types.ObjectId(validateObjectId(id));
-    const memberId = await this.ownerOrNotFound(accountId);
     return this.transactions.run(async session => {
+      const memberId = await this.ownerOrNotFound(accountId, session);
       const order = await this.ownOrderOrNotFound(memberId, orderId, session);
       const asOf = this.clock.now();
       const transaction = await this.repository.transaction(order.transaction_id, session);
@@ -64,7 +65,7 @@ export class MeOrdersService {
         cancelAllowed: this.cancelAllowed(order, transaction),
         paymentAllowed: this.paymentBlockedReason(order, transaction, asOf) === null,
       };
-      return toOwnDetail(order, items, transaction, await this.refundSummary(order._id, session),
+      return toOwnDetail(order, items, transaction, this.refundSummary(await this.repository.refunds(order._id, session)),
         invoice ? String(invoice._id) : null, flags, asOf);
     });
   }
@@ -72,8 +73,8 @@ export class MeOrdersService {
   // GET /api/me/orders/:id/payment-instructions – US-42-F05, TC07.
   async paymentInstructions(accountId: string, id: string) {
     const orderId = new Types.ObjectId(validateObjectId(id));
-    const memberId = await this.ownerOrNotFound(accountId);
     return this.transactions.run(async session => {
+      const memberId = await this.ownerOrNotFound(accountId, session);
       const order = await this.ownOrderOrNotFound(memberId, orderId, session);
       const transaction = await this.repository.transaction(order.transaction_id, session);
       const blocked = this.paymentBlockedReason(order, transaction, this.clock.now());
@@ -98,8 +99,8 @@ export class MeOrdersService {
   // GET /api/me/orders/:id/invoice – US-42-TC06: hóa đơn chỉ mở qua đơn của chính mình; chưa có hóa đơn → 404.
   async invoice(accountId: string, id: string) {
     const orderId = new Types.ObjectId(validateObjectId(id));
-    const memberId = await this.ownerOrNotFound(accountId);
     return this.transactions.run(async session => {
+      const memberId = await this.ownerOrNotFound(accountId, session);
       const order = await this.ownOrderOrNotFound(memberId, orderId, session);
       const invoice = await this.repository.ownInvoice(order.transaction_id, session);
       if (!invoice) throw new ApplicationError(404, 'NOT_FOUND', 'Đơn chưa có hóa đơn');
@@ -127,8 +128,8 @@ export class MeOrdersService {
   }
 
   // US-42-TC03: account chưa liên kết hồ sơ thì mọi route theo id đều 404.
-  private async ownerOrNotFound(accountId: string) {
-    const memberId = await this.owners.findMemberIdOfAccount(accountId);
+  private async ownerOrNotFound(accountId: string, session: ClientSession) {
+    const memberId = await this.owners.findMemberIdOfAccount(accountId, session);
     if (!memberId) throw notFound();
     return memberId;
   }
@@ -159,8 +160,7 @@ export class MeOrdersService {
 
   // US-42-F02, TC05: trạng thái hoàn lấy từ collection refunds thật, cùng quy tắc với kết quả hủy US-45:
   // còn khoản PENDING → PENDING; không có PENDING mà có FAILED → FAILED; tất cả SUCCEEDED → SUCCEEDED; không có → NONE, số tiền "0".
-  private async refundSummary(orderId: Types.ObjectId, session: ClientSession): Promise<RefundSummary> {
-    const refunds = await this.repository.refunds(orderId, session);
+  private refundSummary(refunds: { amount: Types.Decimal128; status: string }[]): RefundSummary {
     let amount = 0n;
     for (const refund of refunds) amount += BigInt(fromVndDecimal(refund.amount));
     let refundState: RefundSummary['refundState'] = 'NONE';
