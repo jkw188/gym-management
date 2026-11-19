@@ -45,5 +45,21 @@ export async function ensureOrdersIntegrity(connection: Connection) {
     expected.delete(String(balance.product_id));
   }
   if (expected.size) throw new Error('ORDERS_INVENTORY_MISSING');
+  await dropOldOrderIndexes(connection);
   for (const { name, schema } of ORDER_MODELS) await (connection.models[name] ?? connection.model(name, schema)).createIndexes();
+}
+
+// US-41-TC01: spec mục 3 cần index (member_id, created_at, _id) và (channel, status, created_at, _id) theo chiều tăng dần.
+// Bản cũ dùng chiều giảm dần với tên dưới đây. MongoDB không cho tạo index cùng tên mà khác khóa, nên index mới mang tên mới;
+// index cũ phủ đúng các field đó nên là thừa, xóa đi để mỗi lần ghi order không phải cập nhật thêm. Xóa index không đụng tới document.
+// Query sort created_at giảm dần vẫn dùng được index mới vì MongoDB đọc index theo chiều ngược được.
+const OLD_ORDER_INDEXES = ['orders_member_created_id', 'orders_channel_status_created_id'];
+
+async function dropOldOrderIndexes(connection: Connection) {
+  const orders = connection.db!.collection('orders');
+  // Collection chưa tồn tại thì listIndexes báo lỗi; coi như không có index nào.
+  const existing = await orders.listIndexes().toArray().catch(() => []);
+  for (const name of OLD_ORDER_INDEXES) {
+    if (existing.some(index => index.name === name)) await orders.dropIndex(name);
+  }
 }
