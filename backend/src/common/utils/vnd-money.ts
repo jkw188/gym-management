@@ -2,7 +2,8 @@ import Decimal from 'decimal.js';
 import { Types } from 'mongoose';
 import { ApplicationError } from '../errors/application-error';
 
-const VND_MAX = '999999999999';
+// Trần mỗi giá trị tiền/tổng (US-40 dùng để kiểm tổng giỏ).
+export const VND_MAX = '999999999999';
 const VndDecimal = Decimal.clone({ precision: 30 });
 
 // Only strings cross the API boundary. Decimal arithmetic never passes through Number.

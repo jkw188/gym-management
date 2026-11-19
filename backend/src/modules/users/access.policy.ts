@@ -89,6 +89,9 @@ export const ACCESS_POLICY = {
   'ptReviews.readOwn': { name: 'Xem đánh giá buổi PT của mình', roles: ['MEMBER'] },
   // US-31-F01: chỉ PT xem đánh giá của các buổi mình đã dạy; Member/Staff/Admin → 403 (US-31-TC03).
   'trainers.reviews.readOwn': { name: 'Xem đánh giá học viên gửi cho mình', roles: ['TRAINER'] },
+  // US-40-F01: chỉ Member dùng giỏ của chính mình; Staff/Admin/PT không làm hộ.
+  'cart.readOwn': { name: 'Xem giỏ hàng của mình', roles: ['MEMBER'] },
+  'cart.writeOwn': { name: 'Thêm, sửa, xóa dòng giỏ hàng của mình', roles: ['MEMBER'] },
   'plans.manage':{ name: 'Quản lý gói dịch vụ', roles: ['ADMIN'] },
   'planPolicies.manage': { name: 'Quản lý chính sách gói', roles: ['ADMIN'] },
 } satisfies Record<string, { name: string; roles: RoleCode[] }>;
