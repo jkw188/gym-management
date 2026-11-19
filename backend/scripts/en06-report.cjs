@@ -15,8 +15,13 @@ function assessEn06(report, jestCode, processes) {
     new Set(round.requests.map(request => request.pid)).size === 2 &&
     Array.isArray(round.batches) && round.batches.every(batch => batch.size >= 1 && batch.size <= 20) &&
     (!FOUNDATION_BATCH20.includes(tc.id) || round.batches.some(batch => batch.size === 20 && batch.hook && new Set(batch.pids).size === 2)));
-  const foundationPassed = valid && cases.every(tc => PARTIAL.includes(tc.id) ? tc.status === 'PARTIAL' && complete(tc) :
-    tc.status === 'BLOCKED' && tc.rounds?.length === 0 && typeof tc.reason === 'string' && tc.reason.length > 0);
+  // US-41 nhóm A: một ca có thể đã lên PASSED (có writer WEBSITE). PASSED/PARTIAL đều phải đủ 10 vòng hợp lệ;
+  // ca foundation (PARTIAL) không được lùi về BLOCKED; ca còn lại BLOCKED phải có lý do và không có vòng nào.
+  const foundationPassed = valid && cases.every(tc => {
+    if (tc.status === 'PASSED') return complete(tc);
+    if (PARTIAL.includes(tc.id)) return tc.status === 'PARTIAL' && complete(tc);
+    return tc.status === 'BLOCKED' && tc.rounds?.length === 0 && typeof tc.reason === 'string' && tc.reason.length > 0;
+  });
   const acceptancePassed = valid && Array.isArray(processes.expiryWorkers) && processes.expiryWorkers.length === 2 &&
     new Set(processes.expiryWorkers).size === 2 && processes.expiryWorkers.every(pid => Number.isInteger(pid) && pid > 0 && pid !== processes.parentPid) &&
     cases.every(tc => tc.status === 'PASSED' && complete(tc));

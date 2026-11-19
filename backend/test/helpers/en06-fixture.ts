@@ -81,6 +81,8 @@ export class En06Fixture {
   private sequence = 0;
   readonly cases: CaseEvidence[] = [];
   admin!: Actor; staff!: Actor; members!: Actor[];
+  // US-41 nhóm A (TC01): 20 Member khác nhau; Member thứ i chỉ đăng nhập app i % 2 (giới hạn 20 lần đăng nhập/IP mỗi app).
+  crowd!: Actor[];
   async start() {
     this.lease = await createTestDatabase({ ...process.env }, 'en06');
     Object.assign(process.env, { MONGODB_URI: process.env.MONGODB_TEST_URI, MONGODB_DB: this.lease.name, EN06_NOW: NOW });
@@ -98,6 +100,14 @@ export class En06Fixture {
       actor.tokens.push((await response.json() as { accessToken: string }).accessToken);
     }
     [this.admin, this.staff] = actors; this.members = actors.slice(2);
+    this.crowd = (await this.apps[0].rpc('memberAccounts', { password, count: 20 }) as Omit<Actor, 'tokens'>[]).map(actor => ({ ...actor, tokens: ['', ''] }));
+    for (const [index, actor] of this.crowd.entries()) {
+      const app = this.apps[index % 2];
+      const response = await fetch(`${app.url}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:5173' },
+        body: JSON.stringify({ phone: actor.phone, password }) });
+      if (response.status !== 200) throw new Error('EN06_REAL_LOGIN_FAILED');
+      actor.tokens[index % 2] = (await response.json() as { accessToken: string }).accessToken;
+    }
     const indexes = [];
     for (const name of COLLECTIONS) {
       const exists = (await this.db.listCollections({ name }, { nameOnly: true }).toArray()).length > 0;
@@ -112,7 +122,7 @@ export class En06Fixture {
     if (this.db.databaseName !== this.lease!.name ||
         String((await this.db.collection('__en04_owner').findOne({ _id: 'owner' as unknown as ObjectId }))?.owner) !== this.owner) throw new Error('TEST_DATABASE_NOT_OWNED');
     await Promise.all(this.apps.map(app => app.rpc('clear'))); await this.clock(NOW);
-    for (const name of [...COLLECTIONS, 'categories', 'members', 'member_events', 'member_link_events', 'plans', 'plan_conversion_policies', 'notification_counters']) {
+    for (const name of [...COLLECTIONS, 'categories', 'members', 'member_events', 'member_link_events', 'plans', 'plan_conversion_policies', 'notification_counters', 'carts']) { // carts: dòng giỏ US-40 (COLLECTIONS còn tên cũ cart_items)
       await this.db.collection(name).deleteMany({});
     }
     this.sequence = 0;
@@ -175,7 +185,11 @@ export class En06Fixture {
     const snapshot = await inspectCommitted(this.db, this.client);
     this.current?.checkpoints.push({ label, snapshot }); return snapshot;
   }
-  async partial(id: string, owner: string, reason: string, work: (round: number) => Promise<void>) {
+  // US-41 nhóm A: ca đã có writer thật cho cả phần WEBSITE → kết quả PASSED (vẫn 10 vòng, hai tiến trình, kiểm bất biến trước/sau).
+  async passed(id: string, owner: string, reason: string, work: (round: number) => Promise<void>) {
+    return this.partial(id, owner, reason, work, 'PASSED');
+  }
+  async partial(id: string, owner: string, reason: string, work: (round: number) => Promise<void>, finalStatus: 'PARTIAL' | 'PASSED' = 'PARTIAL') {
     const tc: CaseEvidence = { id, status: 'RUNNING', owner, reason, rounds: [] }; this.cases.push(tc);
     try {
       for (let round = 0; round < 10; round++) {
@@ -195,7 +209,7 @@ export class En06Fixture {
           throw error;
         } finally { this.current.durationMs = Date.now() - started; this.flush(); }
       }
-      tc.status = 'PARTIAL'; // Existing foundation checks are never retail acceptance.
+      tc.status = finalStatus; // PARTIAL: foundation only, never retail acceptance. PASSED: WEBSITE writer covered too.
     } catch (error) { tc.status = 'FAILED'; throw error; }
     finally { this.current = undefined; this.flush(); }
   }
@@ -245,4 +259,55 @@ export class En06Fixture {
         ...(transferReference ? { receivingAccountCode: 'GYM_MAIN', bankReference: transferReference, receivedAt: NOW } : {}) } };
   }
   async rows(name: string, filter: Document = {}) { return this.db.collection(name).find(filter).sort({ _id: 1 }).toArray(); }
+
+  // ---------- US-41 nhóm A: helper đơn WEBSITE qua HTTP thật ----------
+  // App mà actor đã đăng nhập (crowd chỉ có token ở một app; admin/staff/members có ở cả hai).
+  appOf(actor: Actor, preferred = 0) { return actor.tokens[preferred] ? preferred : 1 - preferred; }
+  // Hồ sơ hội viên mới + liên kết với account MEMBER (US-09/US-17), do Staff thực hiện.
+  async memberProfile(actor: Actor) {
+    const index = ++this.sequence;
+    const profile = await this.create('/members', { fullName: `EN06 website member ${index}`, phone: actor.phone }, this.staff, 'MEMBER_CREATE');
+    const link = await this.send({ app: 0, actor: this.staff, path: `/members/${profile.id}/link`, key: this.key(), operation: 'MEMBER_LINK',
+      body: { accountId: actor.id, version: 0, verificationMethod: 'IN_PERSON_ACCOUNT', verificationNote: 'EN06 FIXTURE test identity checked' } });
+    expect(link.status).toBe(200);
+    return String(profile.id);
+  }
+  // Danh mục + sản phẩm ACTIVE giá price, nhập POSTED stock đơn vị (US-34/US-37).
+  async shop(price = '9000', stock = 1, count = 1) {
+    const category = await this.create('/admin/categories', { name: 'EN06 website category', status: 'ACTIVE' }, this.admin, 'CATEGORY_CREATE');
+    const productIds: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const row = await this.create('/admin/products', { categoryId: category.id, sku: `EN06_WEB_${i}`, name: `EN06 website SKU ${i}`, price, status: 'ACTIVE' },
+        this.admin, 'PRODUCT_CREATE');
+      productIds.push(String(row.id));
+    }
+    const receipt = await this.receipt(productIds, stock);
+    const posted = await this.send(this.postReceipt(String(receipt.id)));
+    expect(posted.status).toBe(200);
+    return { categoryId: String(category.id), productIds };
+  }
+  // Member thêm giỏ (US-40) rồi preview (US-41) trên app đã đăng nhập; trả body tạo đơn hợp lệ.
+  async readyCart(actor: Actor, lines: Array<[string, number]>, recipientName = 'EN06 người nhận') {
+    const app = this.appOf(actor);
+    const cart = await this.send({ app, actor, path: '/me/cart', method: 'GET' });
+    expect(cart.status).toBe(200);
+    let version = cart.body.version as number;
+    for (const [productId, quantity] of lines) {
+      const added = await this.send({ app, actor, path: '/me/cart/items', key: this.key(), operation: 'CART_ADD_ITEM', body: { version, productId, quantity } });
+      expect(added.status).toBe(201);
+      version = added.body.version as number;
+    }
+    const preview = await this.send({ app, actor, path: '/me/orders/preview', body: { cartVersion: version } });
+    expect(preview.status).toBe(200);
+    return { app, version, total: String(preview.body.total),
+      body: { cartVersion: version, quoteToken: String(preview.body.quoteToken), recipientName, recipientPhone: '0901234567', preferredPaymentMethod: 'CASH' } };
+  }
+  websiteCreate(actor: Actor, app: number, body: object, key = this.key()): Call {
+    return { app, actor, path: '/me/orders', body, key, operation: 'ORDER_CREATE_WEBSITE' };
+  }
+  // Staff thu đủ CASH cho giao dịch RETAIL (US-22 mở RETAIL).
+  retailConfirm(transactionId: string, amount: string, app = 0, key = this.key()): Call {
+    return { app, actor: this.staff, path: `/transactions/${transactionId}/confirm-payment`, operation: 'PAYMENT_CONFIRM', key,
+      body: { method: 'CASH', amount, evidenceNote: `EN06 FIXTURE ${process.env.EN04_RUN_ID} simulated receipt; no real money` } };
+  }
 }

@@ -31,6 +31,18 @@ describe('EN06 reporting fails closed; foundation is never acceptance', () => {
     expect(assessEn06(report, 0, processes).acceptancePassed).toBe(false);
     expect(assessEn06(report, 0, { ...processes, expiryWorkers: [101, 102] }).acceptancePassed).toBe(true);
   });
+  // US-41 nhóm A: ca đã lên PASSED vẫn giữ foundation hợp lệ, nhưng phải đủ bằng chứng như PARTIAL; foundation không được lùi về BLOCKED.
+  it('accepts a blocked or partial case promoted to PASSED with complete rounds, still not acceptance', () => {
+    const report = foundation(), example = report.cases.find(tc => tc.rounds.length)!.rounds;
+    for (const id of ['TC01', 'TC04']) Object.assign(report.cases.find(tc => tc.id === id)!, { status: 'PASSED', rounds: structuredClone(example) });
+    expect(assessEn06(report, 0, processes)).toMatchObject({ foundationPassed: true, acceptancePassed: false });
+  });
+  it.each(['passedWithoutRounds', 'partialRegressedToBlocked'])('rejects promoted cases without evidence: %s', problem => {
+    const report = foundation();
+    if (problem === 'passedWithoutRounds') Object.assign(report.cases.find(tc => tc.id === 'TC01')!, { status: 'PASSED', rounds: [] });
+    if (problem === 'partialRegressedToBlocked') Object.assign(report.cases.find(tc => tc.id === 'TC04')!, { status: 'BLOCKED', rounds: [] });
+    expect(assessEn06(report, 0, processes).foundationPassed).toBe(false);
+  });
   it('rejects malformed reports without throwing', () => {
     expect(assessEn06({}, 0, {}).acceptancePassed).toBe(false);
   });
