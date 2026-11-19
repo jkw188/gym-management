@@ -1,3 +1,5 @@
+// Tầng dữ liệu (US-41 bước 1, dùng chung US-42–45/53): cấu trúc collection orders, order_items, order_events và index.
+// Đơn lưu snapshot sản phẩm/giá/người nhận tại lúc tạo, không có field vận chuyển trong S06.
 import { Schema, Types } from 'mongoose';
 
 export const ORDER_STATUSES = ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] as const;
@@ -23,7 +25,12 @@ export interface OrderEvent {
   event_key: string; reason?: string;
 }
 const objectId = { type: Schema.Types.ObjectId, required: true };
-const unsigned = { type: Schema.Types.Int32, required: true, min: 0, max: 2147483647 };
+// Kiểu Int32 của Mongoose bỏ qua tùy chọn min/max, nên phải tự kiểm khoảng bằng validate.
+function intBetween(min: number, max: number) {
+  return { validator: (value: number) => Number.isInteger(value) && value >= min && value <= max, message: `Phải là số nguyên từ ${min} đến ${max}` };
+}
+// US-41-TC01: version không âm.
+const unsigned = { type: Schema.Types.Int32, required: true, validate: intBetween(0, 2147483647) };
 const identity = { ...objectId, immutable: true, default: function (this: { _id: Types.ObjectId }) { return this._id; },
   validate: function (this: { _id: Types.ObjectId }, id: Types.ObjectId) { return id.equals(this._id); } };
 const options = { id: false as const, versionKey: false as const, strict: 'throw' as const };
@@ -45,12 +52,14 @@ export const OrderSchema = new Schema<Order>({
 }, { ...options, collection: 'orders' });
 OrderSchema.index({ code: 1 }, { unique: true, name: 'orders_code_unique' });
 OrderSchema.index({ transaction_id: 1 }, { unique: true, name: 'orders_transaction_unique' });
-OrderSchema.index({ member_id: 1, created_at: -1, _id: -1 }, { name: 'orders_member_created_id' });
-OrderSchema.index({ channel: 1, status: 1, created_at: -1, _id: -1 }, { name: 'orders_channel_status_created_id' });
+// US-41-TC01: index đúng thứ tự spec. MongoDB đọc được index theo chiều ngược, nên vẫn phục vụ sort created_at giảm dần.
+// Đặt tên mới để không đụng index cũ cùng tên nhưng khác chiều trên CSDL đã chạy.
+OrderSchema.index({ member_id: 1, created_at: 1, _id: 1 }, { name: 'orders_member_created_at_id' });
+OrderSchema.index({ channel: 1, status: 1, created_at: 1, _id: 1 }, { name: 'orders_channel_status_created_at_id' });
 OrderSchema.index({ reservation_state: 1, reservation_expires_at: 1 }, { name: 'orders_reservation_expiry' });
 export const OrderItemSchema = new Schema<OrderItem>({
   id: identity, order_id: objectId, product_id: objectId, sku_snapshot: { type: String, required: true }, name_snapshot: { type: String, required: true },
-  product_version_snapshot: unsigned, quantity: { type: Schema.Types.Int32, required: true, min: 1, max: 999 },
+  product_version_snapshot: unsigned, quantity: { type: Schema.Types.Int32, required: true, validate: intBetween(1, 999) }, // US-41-TC04
   unit_price: { type: Schema.Types.Decimal128, required: true }, line_total: { type: Schema.Types.Decimal128, required: true },
 }, { ...options, collection: 'order_items' });
 OrderItemSchema.index({ order_id: 1, product_id: 1 }, { unique: true, name: 'order_items_order_product_unique' });
