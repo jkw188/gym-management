@@ -328,5 +328,25 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
       await expect(ensureOrdersIntegrity(connection)).resolves.not.toThrow();
       expect(await snapshot()).toEqual(before);
     });
+
+    it('US-41-TC01: tạo index mới thất bại → migration báo lỗi và 2 index cũ VẪN CÒN (tạo mới thành công rồi mới xóa cũ)', async () => {
+      const orders = db().collection('orders');
+      // Chiếm tên index mới bằng khóa khác spec để createIndexes chắc chắn lỗi (trùng tên, khác khóa).
+      await orders.dropIndex('orders_member_created_at_id').catch(() => undefined);
+      await orders.createIndex({ member_id: 1 }, { name: 'orders_member_created_at_id' });
+      await orders.createIndex({ member_id: 1, created_at: -1, _id: -1 }, { name: 'orders_member_created_id' });
+      await orders.createIndex({ channel: 1, status: 1, created_at: -1, _id: -1 }, { name: 'orders_channel_status_created_id' });
+      try {
+        await expect(ensureOrdersIntegrity(connection)).rejects.toThrow();
+
+        const names = (await orders.indexes()).map(index => index.name);
+        expect(names).toContain('orders_member_created_id');
+        expect(names).toContain('orders_channel_status_created_id');
+      } finally {
+        // Trả CSDL test về đúng index spec để không ảnh hưởng test khác.
+        await orders.dropIndex('orders_member_created_at_id').catch(() => undefined);
+        await ensureOrdersIntegrity(connection);
+      }
+    });
   });
 });
