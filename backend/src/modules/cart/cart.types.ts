@@ -66,7 +66,7 @@ export interface CartResponse {
   subtotal: string | null;
   totalsState: CartTotalsState;
   readyForOrder: boolean;
-  // US-40-F05: luôn false trong Sprint 5 vì chưa có US-41.
-  canCheckout: false;
+  // US-41 (GET /api/me/cart S06): bằng readyForOrder khi đã có luồng đặt đơn; Sprint 5 luôn false.
+  canCheckout: boolean;
   asOf: string;
 }
