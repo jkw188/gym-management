@@ -45,8 +45,9 @@ export async function ensureOrdersIntegrity(connection: Connection) {
     expected.delete(String(balance.product_id));
   }
   if (expected.size) throw new Error('ORDERS_INVENTORY_MISSING');
-  await dropOldOrderIndexes(connection);
   for (const { name, schema } of ORDER_MODELS) await (connection.models[name] ?? connection.model(name, schema)).createIndexes();
+  // Tạo index mới xong rồi mới xóa index cũ, để không có lúc orders thiếu index cho truy vấn theo member/channel.
+  await dropOldOrderIndexes(connection);
 }
 
 // US-41-TC01: spec mục 3 cần index (member_id, created_at, _id) và (channel, status, created_at, _id) theo chiều tăng dần.
