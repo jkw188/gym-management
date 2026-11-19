@@ -29,6 +29,7 @@ import { ensureFinancialIntegrity } from '../src/infrastructure/transaction/fina
 import { LoginLimiter } from '../src/modules/auth/login-limiter.service';
 import { ensureRetailCatalogIntegrity } from '../src/modules/catalog/retail-catalog.migration';
 import { InventoryWriter } from '../src/modules/inventory/inventory-writer';
+import { NotificationsRepository } from '../src/modules/notifications/notifications.repository';
 import { ensureOrdersIntegrity } from '../src/modules/orders/orders-migration';
 import { UsersRepository } from '../src/modules/users/users.repository';
 import { ACCOUNT_ADMINISTRATION } from '../src/modules/users/schemas/security-state.schema';
@@ -329,6 +330,27 @@ describe('US-41 bước 2: Member preview và tạo đơn website', () => {
     });
   });
 
+  // US-41 bước 4 (spec 1.0.2 mục 5 "GET /api/me/cart S06"): canCheckout = readyForOrder; giỏ trống/bị chặn vẫn false; create vẫn tự kiểm lại.
+  describe('US-41-TC01: GET /api/me/cart nối canCheckout S06', () => {
+    it('US-41-TC01: giỏ hợp lệ → canCheckout true; giỏ trống → false', async () => {
+      const me = await member();
+      const empty = (await http().get('/api/me/cart').set('Authorization', `Bearer ${me.token}`).expect(200)).body;
+      expect(empty).toMatchObject({ readyForOrder: false, canCheckout: false });
+      await addToCart(me, (await product()).id, 1);
+      const ready = (await http().get('/api/me/cart').set('Authorization', `Bearer ${me.token}`).expect(200)).body;
+      expect(ready).toMatchObject({ readyForOrder: true, canCheckout: true });
+    });
+
+    it('US-41-TC01: giỏ có dòng bị chặn (sản phẩm ngừng bán) → canCheckout false', async () => {
+      const me = await member();
+      const item = await product();
+      await addToCart(me, item.id, 1);
+      await patchProduct(item.id, { status: 'INACTIVE' });
+      const cart = (await http().get('/api/me/cart').set('Authorization', `Bearer ${me.token}`).expect(200)).body;
+      expect(cart).toMatchObject({ readyForOrder: false, canCheckout: false });
+    });
+  });
+
   describe('US-41-TC02: Guest, sai vai trò, chưa liên kết, dữ liệu giả', () => {
     it('US-41-TC02: Guest gọi preview/create → 401', async () => {
       expectError(await previewCall(null, { cartVersion: 0 }), 401);
@@ -625,6 +647,33 @@ describe('US-41 bước 2: Member preview và tạo đơn website', () => {
       expect(failed.status).toBeGreaterThanOrEqual(500);
       expect(await snapshot()).toEqual(before);
       expect(await count('operation_requests', { operation: 'ORDER_CREATE_WEBSITE' })).toBe(0);
+    });
+  });
+
+  // US-41 bước 4 – thông báo theo EN-03: notification/recipient/outbox cùng commit với đơn, event key ORDER_CREATED:<id>.
+  describe('US-41-TC05: thông báo tạo đơn cùng commit', () => {
+    it('US-41-TC05: tạo đơn → một notification event_key ORDER_CREATED:<id>, người nhận là account đang liên kết với Member', async () => {
+      const me = await member();
+      const { body } = await readyCart(me, [[await product(), 1]]);
+      const created = (await createCall(me, body).expect(201)).body;
+
+      const notifications = await db().collection('notifications').find({ event_key: `ORDER_CREATED:${created.id}` }).toArray();
+      expect(notifications).toHaveLength(1);
+      expect(await count('notification_recipients', { account_id: new ObjectId(me.accountId) })).toBe(1);
+      expect(await count('notification_recipients', { account_id: new ObjectId(staff.accountId) })).toBe(0);
+      expect(JSON.stringify(notifications[0])).not.toContain(body.quoteToken);
+    });
+
+    it('US-41-TC05: ghi outbox thông báo thất bại → rollback cả đơn, tồn, giỏ và key', async () => {
+      const me = await member();
+      const { body } = await readyCart(me, [[await product(), 1]]);
+      jest.spyOn(app.get(NotificationsRepository), 'insertOutbox').mockRejectedValue(new ApplicationError(503, 'TEST_FAILURE', 'Lỗi giả khi ghi outbox'));
+      const before = await snapshot();
+
+      const failed = await createCall(me, body);
+
+      expect(failed.status).toBeGreaterThanOrEqual(500);
+      expect(await snapshot()).toEqual(before);
     });
   });
 

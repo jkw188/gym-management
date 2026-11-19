@@ -284,6 +284,22 @@ describe('US-41 bước 3: thu RETAIL cho đơn website và đơn 0 đồng', ()
     });
   });
 
+  // US-41 bước 4 – thông báo EN-03: thu RETAIL tạo notification ORDER_PAYMENT_SETTLED:<orderId> cùng commit, gửi account đang liên kết; không lộ bankReference.
+  describe('US-41-TC09: thông báo đã thanh toán đơn', () => {
+    it('US-41-TC09: Staff thu TRANSFER → một notification ORDER_PAYMENT_SETTLED:<orderId> cho account của Member, không chứa bankReference', async () => {
+      const { me, order } = await paidOrder();
+      const bankReference = `US41-NOTIFY-${randomUUID()}`;
+
+      await confirm(order.transactionId, transfer('25000', bankReference)).expect(200);
+
+      const rows = await db().collection('notifications').find({ event_key: `ORDER_PAYMENT_SETTLED:${order.id}` }).toArray();
+      expect(rows).toHaveLength(1);
+      expect(JSON.stringify(rows[0])).not.toContain(bankReference);
+      const recipients = await db().collection('notification_recipients').find({ notification_id: rows[0]._id }).toArray();
+      expect(recipients.map(row => String(row.account_id))).toEqual([me.accountId]);
+    });
+  });
+
   describe('US-41-TC10: Member tự xác nhận, tiền thiếu/thừa, reference trùng', () => {
     it.each(['MEMBER', 'TRAINER'] as Role[])('US-41-TC10: %s gọi payment-preview/confirm-payment → 403, giao dịch vẫn PENDING', async role => {
       const { me, order } = await paidOrder();
