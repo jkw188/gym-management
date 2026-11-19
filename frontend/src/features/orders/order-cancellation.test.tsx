@@ -3,8 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event';
 import { ApiError } from '../../api/client';
 import { OrderCancellation } from './OrderCancellation';
-import { cancellationApi, type CancelResult, type OwnOrder } from './order-cancellation.api';
+import { cancellationApi, type CancelResult } from './order-cancellation.api';
 import { MyOrdersPage } from './MyOrdersPage';
+import { myOrdersApi, type OwnOrderDetail, type OwnOrderListItem } from './my-orders.api';
 import { RefundsPage } from '../refunds/RefundsPage';
 import { refundsApi } from '../refunds/refunds.api';
 import { resolveReturnTo } from '../auth/auth.routes';
@@ -69,16 +70,27 @@ describe('US-45 TC16: deliberate cancel, immutable recovery keys and financial w
     expect(send.mock.calls[0][1]).toMatchObject({ operation: 'RETAIL_LATE_RECEIPT', body: { method: 'TRANSFER', amount: '50000', receivedAt: '2035-11-14T17:00:00.000Z' } });
     expect(screen.getByText(/không chứng minh chưa nhận tiền/)).toBeDefined();
   });
+  // Cập nhật 20/11/2026 theo API US-42 1.0.1: trang Member đọc qua myOrdersApi, khoản hoàn là refundState/refundAmount (không còn refunds[]).
+  // Ý của ca giữ nguyên: đơn đã thu hết hạn khi worker chưa chạy → hiện "Đã hết hạn giữ hàng"; tải lại sau khi hệ thống hủy → "Chờ hoàn", không lộ tham chiếu ngân hàng.
   it('member sees own expired held state and pending amount, with no bank reference', async () => {
-    const row: OwnOrder = { ...target, status: 'CANCELLED', transactionStatus: 'CANCELLED', reservationState: 'RELEASED', code: result.code, channel: 'POS', reservationExpiresAt: result.cancelledAt,
-      asOf: result.cancelledAt, expired: true, cancellationReason: 'Hết hạn giữ hàng', cancelledAt: result.cancelledAt, items: [], refunds: [{ id: result.refundId!, status: 'PENDING', amount: '50000' }] };
-    vi.spyOn(cancellationApi, 'ownList').mockResolvedValue({ items: [row], total: 1, totalPages: 1, memberLinked: true });
-    vi.spyOn(cancellationApi, 'ownDetail').mockResolvedValueOnce({ ...row, status: 'PENDING', transactionStatus: 'PENDING', reservationState: 'HELD', cancelledAt: null, cancellationReason: null, refunds: [] }).mockResolvedValue(row);
-    render(<MyOrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Xem ${row.code}` }));
-    await screen.findByText(/Đã hết hạn.*Chưa xác nhận kho đã được giải phóng/);
+    const item: OwnOrderListItem = { id: target.id, code: result.code, channel: 'POS', status: 'PENDING', transactionStatus: 'SETTLED', total: '50000',
+      reservationExpiresAt: result.cancelledAt, refundState: 'NONE', createdAt: '2035-11-13T17:00:00Z' };
+    const expired: OwnOrderDetail = { id: target.id, code: result.code, channel: 'POS', status: 'PENDING', version: 2, createdAt: item.createdAt, confirmedAt: null,
+      fulfilledAt: null, cancelledAt: null, cancellationReason: null, reservationState: 'HELD', reservationExpiresAt: result.cancelledAt, expired: true,
+      cancelAllowed: true, paymentAllowed: false, preferredPaymentMethod: 'CASH', recipientName: 'Người nhận snapshot', recipientPhone: null, pickupLocation: 'Quầy lễ tân',
+      items: [], total: '50000', transactionStatus: 'SETTLED', refundState: 'NONE', refundAmount: '0', invoiceId: 'c'.repeat(24), asOf: result.cancelledAt };
+    const cancelled: OwnOrderDetail = { ...expired, status: 'CANCELLED', version: 3, reservationState: 'RELEASED', cancelledAt: result.cancelledAt,
+      cancellationReason: 'Hết hạn giữ hàng 24 giờ', cancelAllowed: false, refundState: 'PENDING', refundAmount: '50000' };
+    vi.spyOn(myOrdersApi, 'list').mockResolvedValue({ memberLinked: true, items: [item], page: 1, limit: 20, total: 1, totalPages: 1, asOf: result.cancelledAt });
+    vi.spyOn(myOrdersApi, 'detail').mockResolvedValueOnce(expired).mockResolvedValue(cancelled);
+    const instructions = vi.spyOn(myOrdersApi, 'paymentInstructions');
+    render(<MyOrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Xem ${item.code}` }));
+    await screen.findByText(/Đã hết hạn giữ hàng/);
     await userEvent.click(screen.getByRole('button', { name: 'Tải lại đơn' }));
-    await screen.findByText(/Khoản hoàn:.*Chờ hoàn/); expect(screen.queryByLabelText('Tham chiếu ngân hàng')).toBeNull();
-    expect(screen.queryByText(/Chưa xác nhận kho đã được giải phóng/)).toBeNull();
+    await screen.findByText(/Chờ hoàn/); expect(screen.queryByLabelText('Tham chiếu ngân hàng')).toBeNull();
+    expect(screen.queryByText(/Đã hết hạn giữ hàng/)).toBeNull();
+    expect(screen.queryByText(/Đã hoàn/)).toBeNull();
+    expect(instructions).not.toHaveBeenCalled();
   });
   it('refund queue supports empty/loading/detail and requires explicit US46 payout confirmation', async () => {
     const item = { id: result.refundId!, orderId: target.id, paymentId: 'c'.repeat(24), returnId: null, source: 'CANCELLATION', reference: `RF:${result.refundId}`, amount: '50000', status: 'PENDING', createdAt: result.cancelledAt, refundedAt: null };
