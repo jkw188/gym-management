@@ -79,8 +79,9 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
   const findIndex = (list: IndexInfo[], key: Record<string, unknown>) => list.find(index => JSON.stringify(index.key) === JSON.stringify(key));
 
   // Một đơn WEBSITE hợp lệ theo bảng "orders gốc" + "orders bổ sung" của spec.
+  // code luôn là ORD-<_id> của chính đơn (kể cả khi test truyền _id riêng), vì preflight kiểm code khớp _id.
   function websiteOrder(overrides: Record<string, unknown> = {}) {
-    const id = new ObjectId(), created = new Date('2035-11-15T03:00:00.000Z');
+    const id = (overrides._id as ObjectId | undefined) ?? new ObjectId(), created = new Date('2035-11-15T03:00:00.000Z');
     return {
       _id: id, transaction_id: new ObjectId(), member_id: new ObjectId(), code: `ORD-${id.toHexString()}`, channel: 'WEBSITE', status: 'PENDING',
       reservation_state: 'HELD', reservation_expires_at: new Date(created.getTime() + 24 * 3600 * 1000), preferred_payment_method: 'CASH',
@@ -303,6 +304,28 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
       await db().collection('inventory').updateOne({ product_id: row.productId }, { $set: { reserved: new Int32(0) } });
       const before = await snapshot();
       await expect(ensureOrdersIntegrity(connection)).rejects.toThrow('ORDER_ITEMS_ORPHAN_RECONCILIATION_REQUIRED');
+      expect(await snapshot()).toEqual(before);
+    });
+
+    it('US-41-TC01: CSDL đã chạy còn 2 index cũ chiều giảm dần → migration xóa index cũ, có index tăng dần theo spec, dữ liệu không đổi, chạy lại vẫn qua', async () => {
+      const orders = db().collection('orders');
+      await orders.createIndex({ member_id: 1, created_at: -1, _id: -1 }, { name: 'orders_member_created_id' });
+      await orders.createIndex({ channel: 1, status: 1, created_at: -1, _id: -1 }, { name: 'orders_channel_status_created_id' });
+      await persistedOrder({ quantity: 2, reserved: 2 });
+      const before = await snapshot();
+
+      await ensureOrdersIntegrity(connection);
+
+      const names = (await orders.indexes()).map(index => index.name);
+      expect(names).not.toContain('orders_member_created_id');
+      expect(names).not.toContain('orders_channel_status_created_id');
+      const list = await indexesOf('orders');
+      expect(findIndex(list, { member_id: 1, created_at: 1, _id: 1 })).toBeDefined();
+      expect(findIndex(list, { channel: 1, status: 1, created_at: 1, _id: 1 })).toBeDefined();
+      expect(await snapshot()).toEqual(before);
+
+      // Chạy lần hai: index cũ đã không còn, migration vẫn không lỗi và không đổi dữ liệu.
+      await expect(ensureOrdersIntegrity(connection)).resolves.not.toThrow();
       expect(await snapshot()).toEqual(before);
     });
   });
