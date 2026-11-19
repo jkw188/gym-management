@@ -73,6 +73,8 @@ export function CheckoutPage() {
         setPreview(null);
         return;
       }
+      // US-41-TC18: không lấy được giá mới thì bỏ giá và quote cũ, chỉ hiện lỗi + "Thử lại"; không cho xác nhận theo giá cũ.
+      setPreview(null);
       setLoadError(failure instanceof ApiError ? failure.message : 'Không tải được giá đơn hàng.');
     }
   }, []);
@@ -170,7 +172,6 @@ export function CheckoutPage() {
     {alert && <div className="form-error" role="alert"><p>{alert}</p>
       {failedCommand && <button type="button" disabled={busy} onClick={() => void send(failedCommand)}>
         <Icon name="retry" label="Thử lại" /></button>}</div>}
-    {loadError && <p className="form-error">Chưa tải lại được giá: {loadError}</p>}
 
     <ul aria-label="Dòng đơn hàng" className="cart-lines">
       {preview.items.map(item => <li key={item.productId}>
