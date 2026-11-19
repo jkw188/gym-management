@@ -6,7 +6,8 @@
 //   - Model Mongoose gắn với collection orders, order_items, order_events (tìm theo tên collection, không phụ thuộc tên export).
 //   - OPERATIONS có ORDER_CREATE_WEBSITE; ACCESS_POLICY có orders.createOwn chỉ cho MEMBER.
 //   - ensureOrdersIntegrity(connection) (orders-migration.ts) tạo/kiểm index rồi đối chiếu: orphan và inventory.reserved ≠ tổng HELD
-//     thì báo lỗi (throw), KHÔNG reset reserved, KHÔNG xóa chứng từ.
+//     thì throw đúng mã (spec 1.0.1 mục 3): ORDERS_ORPHAN_RECONCILIATION_REQUIRED, ORDER_ITEMS_ORPHAN_RECONCILIATION_REQUIRED,
+//     ORDERS_RESERVED_RECONCILIATION_REQUIRED; KHÔNG reset reserved, KHÔNG xóa chứng từ.
 //   Để bước sau: preview/create, quote ký HS256, khóa S06-O01, InventoryWriter, xóa giỏ (bước 2); thu RETAIL/0 đồng (bước 3); UI (bước 4).
 import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
@@ -273,14 +274,14 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
     it('US-41-TC07: inventory.reserved lớn hơn tổng HELD → báo lỗi, KHÔNG reset reserved', async () => {
       await persistedOrder({ quantity: 1, reserved: 3 });
       const before = await snapshot();
-      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow();
+      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow('ORDERS_RESERVED_RECONCILIATION_REQUIRED');
       expect(await snapshot()).toEqual(before);
     });
 
     it('US-41-TC07: inventory.reserved nhỏ hơn tổng HELD (nguy cơ oversell) → báo lỗi, không tự sửa', async () => {
       await persistedOrder({ quantity: 2, reserved: 1 });
       const before = await snapshot();
-      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow();
+      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow('ORDERS_RESERVED_RECONCILIATION_REQUIRED');
       expect(await snapshot()).toEqual(before);
     });
 
@@ -292,7 +293,7 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
     it('US-41-TC05: order trỏ tới transaction không tồn tại (orphan) → báo lỗi, không xóa order/items', async () => {
       await persistedOrder({ withTransaction: false });
       const before = await snapshot();
-      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow();
+      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow('ORDERS_ORPHAN_RECONCILIATION_REQUIRED');
       expect(await snapshot()).toEqual(before);
     });
 
@@ -301,7 +302,7 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
       await db().collection('orders').deleteOne({ _id: row.orderId });
       await db().collection('inventory').updateOne({ product_id: row.productId }, { $set: { reserved: new Int32(0) } });
       const before = await snapshot();
-      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow();
+      await expect(ensureOrdersIntegrity(connection)).rejects.toThrow('ORDER_ITEMS_ORPHAN_RECONCILIATION_REQUIRED');
       expect(await snapshot()).toEqual(before);
     });
   });
