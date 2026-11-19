@@ -1,3 +1,5 @@
+// Tầng dữ liệu – migration (US-41 bước 1): kiểm TTL, đối chiếu orders/items/transaction và inventory.reserved với tổng HELD, rồi tạo index.
+// Chỉ báo lỗi bằng mã riêng; không tự sửa số dư, không xóa chứng từ.
 import { Connection } from 'mongoose';
 import { Long, ObjectId } from 'mongodb';
 import { Order, OrderItem, ORDER_MODELS } from './order.schema';
@@ -16,6 +18,8 @@ export async function ensureOrdersIntegrity(connection: Connection) {
     const revision: unknown = order.guard_revision;
     if (!Long.isLong(revision) || revision.isNegative() || revision.gte(Long.MAX_VALUE)) throw new Error('ORDERS_REVISION_RECONCILIATION_REQUIRED');
     const transaction = await db.collection<Transaction>('transactions').findOne({ _id: order.transaction_id });
+    // US-41-TC05 (spec 1.0.1 mục 3): order trỏ tới transaction không tồn tại → mã riêng, không xóa order/items.
+    if (!transaction) throw new Error('ORDERS_ORPHAN_RECONCILIATION_REQUIRED');
     const items = await db.collection<OrderItem>('order_items').find({ order_id: order._id }).toArray();
     assertOrderIntegrity(order, transaction, items);
     await orderModel.hydrate(order).validate();
@@ -42,4 +46,21 @@ export async function ensureOrdersIntegrity(connection: Connection) {
   }
   if (expected.size) throw new Error('ORDERS_INVENTORY_MISSING');
   for (const { name, schema } of ORDER_MODELS) await (connection.models[name] ?? connection.model(name, schema)).createIndexes();
+  // Tạo index mới xong rồi mới xóa index cũ, để không có lúc orders thiếu index cho truy vấn theo member/channel.
+  await dropOldOrderIndexes(connection);
+}
+
+// US-41-TC01: spec mục 3 cần index (member_id, created_at, _id) và (channel, status, created_at, _id) theo chiều tăng dần.
+// Bản cũ dùng chiều giảm dần với tên dưới đây. MongoDB không cho tạo index cùng tên mà khác khóa, nên index mới mang tên mới;
+// index cũ phủ đúng các field đó nên là thừa, xóa đi để mỗi lần ghi order không phải cập nhật thêm. Xóa index không đụng tới document.
+// Query sort created_at giảm dần vẫn dùng được index mới vì MongoDB đọc index theo chiều ngược được.
+const OLD_ORDER_INDEXES = ['orders_member_created_id', 'orders_channel_status_created_id'];
+
+async function dropOldOrderIndexes(connection: Connection) {
+  const orders = connection.db!.collection('orders');
+  // Collection chưa tồn tại thì listIndexes báo lỗi; coi như không có index nào.
+  const existing = await orders.listIndexes().toArray().catch(() => []);
+  for (const name of OLD_ORDER_INDEXES) {
+    if (existing.some(index => index.name === name)) await orders.dropIndex(name);
+  }
 }

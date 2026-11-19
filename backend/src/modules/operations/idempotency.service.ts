@@ -90,6 +90,8 @@ const OPERATION_ROLES: Record<Operation, RoleCode[]> = {
   CART_ADD_ITEM: ACCESS_POLICY['cart.writeOwn'].roles,
   CART_SET_ITEM: ACCESS_POLICY['cart.writeOwn'].roles,
   CART_REMOVE_ITEM: ACCESS_POLICY['cart.writeOwn'].roles,
+  // US-41: key tạo đơn website chỉ MEMBER tra cứu được, theo quyền orders.createOwn.
+  ORDER_CREATE_WEBSITE: ACCESS_POLICY['orders.createOwn'].roles,
 };
 
 // Số lần thử lại khi hai request cùng key chạy đua và request này thua ở unique index.

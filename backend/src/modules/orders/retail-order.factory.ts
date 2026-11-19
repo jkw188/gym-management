@@ -1,7 +1,10 @@
+// Tầng nghiệp vụ (US-41/US-53): tạo đơn bán lẻ WEBSITE và POS trong một transaction (giữ tồn, snapshot, transaction RETAIL).
+// createPos đã có (US-53); createWebsite là khung của US-41, logic khóa/giữ tồn/xóa giỏ làm ở bước 2.
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { createHash } from 'node:crypto';
 import { Model, Types } from 'mongoose';
+import { ApplicationError } from '../../common/errors/application-error';
 import { DataGuardsService } from '../../infrastructure/transaction/data-guards.service';
 import { ServerClock } from '../../common/utils/business-date';
 import { toVndDecimal } from '../../common/utils/vnd-money';
@@ -22,6 +25,13 @@ export class RetailOrderFactory {
     private readonly inventory: InventoryWriter, private readonly quotes: RetailQuoteService, private readonly settlement: RetailSettlementService,
     private readonly idempotency: IdempotencyService, private readonly notifications: NotificationsService, private readonly clock: ServerClock,
     @InjectModel('Transaction') private readonly transactions: Model<Transaction>, @InjectModel('OrderItem') private readonly items: Model<OrderItem>) {}
+
+  // US-41-TC01: chỗ đặt luồng tạo đơn WEBSITE. Bước 1 chưa có route gọi tới; bước 2 cài khóa S06-O01, giữ tồn và xóa giỏ.
+  // Tạm báo 503 rõ ràng thay vì tạo đơn thiếu bước, để không ai dùng nhầm khi chưa xong.
+  createWebsite(_actorId: string, _input: unknown, _key: string): Promise<never> {
+    return Promise.reject(new ApplicationError(503, 'RETAIL_NOT_READY', 'Chức năng tạo đơn website chưa sẵn sàng'));
+  }
+
   createPos(actorId: string, input: PosCreateDto, key: string) {
     const intent = normalizePos(input);
     return this.idempotency.execute({ actorId, operation: 'ORDER_CREATE_POS', clientKey: key,
