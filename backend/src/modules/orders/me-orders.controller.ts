@@ -1,5 +1,5 @@
 // Tầng API (US-42): route /api/me/orders của Member – xem danh sách/chi tiết đơn, hướng dẫn thanh toán, hóa đơn qua đơn và hủy.
-// Actor luôn lấy từ principal (guard US-02); route hủy gọi Cancel Order Service của US-45.
+// Actor luôn lấy từ principal (guard US-02); controller chỉ gọi MeOrdersService, không gọi thẳng nghiệp vụ US-45.
 import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiHeader, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
@@ -7,7 +7,6 @@ import { IdempotencyKey } from '../../common/decorators/idempotency-key.decorato
 import { CurrentUser } from '../auth/auth.decorators';
 import { AuthPrincipal } from '../auth/auth.types';
 import { FixedPermission } from '../users/access.policy';
-import { CancelOrderService } from './cancel-order.service';
 import { OwnInvoiceResponseDto, OwnOrderDetailResponseDto, OwnOrderPageResponseDto, OwnOrderQueryDto, OwnPaymentInstructionsResponseDto } from './me-orders.dto';
 import { MeOrdersService } from './me-orders.service';
 import { CancelOrderDto, CancelOrderResponseDto } from './order-cancellation.dto';
@@ -15,7 +14,7 @@ import { EmptyOrderQueryDto } from './orders.dto';
 
 @ApiTags('My orders') @ApiBearerAuth() @Controller('me/orders')
 export class MeOrdersController {
-  constructor(private readonly cancellation: CancelOrderService, private readonly orders: MeOrdersService) {}
+  constructor(private readonly orders: MeOrdersService) {}
 
   // US-42-TC01, TC03, TC06: danh sách đơn của mình.
   @Get() @FixedPermission('orders.readOwn') @ApiOkResponse({ type: OwnOrderPageResponseDto })
@@ -41,10 +40,10 @@ export class MeOrdersController {
     return this.orders.invoice(actor.id, id);
   }
 
-  // US-45 (US-42 bước 2 sẽ hoàn thiện): Member hủy đơn của mình qua nghiệp vụ hủy dùng chung.
+  // US-42-TC09–TC11 (bước 2): Member hủy đơn của mình; Idempotency-Key bắt buộc; HTTP status lấy từ kết quả (200 hoặc body gốc khi replay).
   @Post(':id/cancel') @FixedPermission('orders.cancelOwn') @ApiOkResponse({ type: CancelOrderResponseDto }) @ApiHeader({ name: 'Idempotency-Key', required: true })
   async cancel(@CurrentUser() actor: AuthPrincipal, @Param('id') id: string, @Body() input: CancelOrderDto,
     @IdempotencyKey() key: string, @Query() _query: EmptyOrderQueryDto, @Res({ passthrough: true }) response: Response) {
-    const result = await this.cancellation.cancel(actor.id, id, input, key, true); response.status(result.status); return result.body;
+    const result = await this.orders.cancel(actor.id, id, input, key); response.status(result.status); return result.body;
   }
 }

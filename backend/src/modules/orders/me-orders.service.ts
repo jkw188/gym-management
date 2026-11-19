@@ -1,5 +1,6 @@
-// Tầng nghiệp vụ (US-42 bước 1): Own Order Query Service – Member xem danh sách/chi tiết đơn của mình,
-// hướng dẫn thanh toán và hóa đơn qua đơn. Chỉ ĐỌC: không đổi trạng thái, không giải phóng kho, không đánh dấu thông báo đã đọc (US-42-F03).
+// Tầng nghiệp vụ (US-42): Own Order Service – Member xem danh sách/chi tiết đơn của mình, hướng dẫn thanh toán, hóa đơn qua đơn (bước 1)
+// và tự hủy đơn qua Cancel Order Service dùng chung của US-45 (bước 2). Các hàm đọc không đổi trạng thái, không giải phóng kho,
+// không đánh dấu thông báo đã đọc (US-42-F03).
 import { Injectable } from '@nestjs/common';
 import { ClientSession, Filter } from 'mongodb';
 import { Types } from 'mongoose';
@@ -11,7 +12,9 @@ import { fromVndDecimal } from '../../common/utils/vnd-money';
 import { TransactionRunner } from '../../infrastructure/transaction/transaction-runner';
 import { MemberOwnerReader } from '../members/member-owner.reader';
 import { Transaction } from '../payments/schemas/transaction.schema';
+import { CancelOrderService } from './cancel-order.service';
 import { OwnOrderQueryDto } from './me-orders.dto';
+import { CancelOrderDto } from './order-cancellation.dto';
 import { RefundSummary, toOwnDetail, toOwnInvoice, toOwnListItem } from './me-orders.mapper';
 import { Order } from './order.schema';
 import { OrdersRepository } from './orders.repository';
@@ -23,7 +26,18 @@ const notFound = () => new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấ
 @Injectable()
 export class MeOrdersService {
   constructor(private readonly repository: OrdersRepository, private readonly owners: MemberOwnerReader,
-    private readonly accounts: ReceivingAccountPolicy, private readonly transactions: TransactionRunner, private readonly clock: ServerClock) {}
+    private readonly accounts: ReceivingAccountPolicy, private readonly transactions: TransactionRunner, private readonly clock: ServerClock,
+    private readonly cancellation: CancelOrderService) {}
+
+  // POST /api/me/orders/:id/cancel – US-42-F04, bước 2: adapter mỏng, KHÔNG chép luật tồn/hoàn/trạng thái.
+  // Toàn bộ luật nằm trong Cancel Order Service của US-45:
+  //   - kiểm chủ đơn trước cả replay (TC02, TC11), rồi kiểm lại dưới khóa hội viên;
+  //   - Idempotency-Key với operation ORDER_CANCEL_OWN: cùng key cùng payload trả body gốc, khác payload 409 (TC11);
+  //   - COMPLETED 409, version cũ 409 VERSION_CONFLICT, giải phóng hàng giữ, hủy giao dịch PENDING hoặc ghi khoản hoàn PENDING khi đã thu (TC09, TC10).
+  // own = true để US-45 chạy nhánh "Member tự hủy" thay cho nhánh Staff hỗ trợ.
+  cancel(accountId: string, id: string, input: CancelOrderDto, key: string) {
+    return this.cancellation.cancel(accountId, id, input, key, true);
+  }
 
   // GET /api/me/orders – US-42-TC01, TC03, TC06.
   async list(accountId: string, query: OwnOrderQueryDto) {
