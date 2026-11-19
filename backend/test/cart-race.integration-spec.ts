@@ -302,6 +302,89 @@ describe('US-40 bước 4: giỏ hàng khi chạy đồng thời trên hai app',
         expect(cart.canCheckout).toBe(false);
       }
     });
+
+    // Bổ sung G2 (review bước 4): spec TC14 ghi "giá/tồn cập nhật" → đổi cả TỒN trong lúc GET.
+    // Mẹo: tồn của hai sản phẩm A, B luôn được đổi CÙNG LÚC trong một transaction về cùng giá trị.
+    // Nếu GET ghép query rời (đọc A trước, B sau) thì có lúc thấy A và B khác tồn → test đỏ.
+    it('US-40-TC14: GET song song với sửa giỏ và đổi tồn → tồn A/B luôn bằng nhau, lineState khớp tồn trong cùng ảnh chụp, giỏ không đổi inventory', async () => {
+      const me = await member();
+      const main = await product('1000');
+      const productA = await product('300', 10);
+      const productB = await product('400', 10);
+      await add(app, me, { version: 0, productId: main, quantity: 1 }).expect(201);
+      await add(second, me, { version: 1, productId: productA, quantity: 3 }).expect(201);
+      await add(app, me, { version: 2, productId: productB, quantity: 3 }).expect(201);
+      await setQty(second, me, main, { version: 3, quantity: 4 }).expect(200);
+      // Lúc này version 4, dòng main quantity 4: bất biến quantity === version bắt đầu đúng.
+
+      const stockIds = [new ObjectId(productA), new ObjectId(productB)];
+      // Đổi on_hand của A và B trong MỘT transaction (giả lập Staff nhập/xuất kho cùng lúc hai mặt hàng).
+      async function setStockTogether(onHand: number) {
+        const session = connection.getClient().startSession();
+        try {
+          await session.withTransaction(async () => {
+            await db().collection('inventory').updateMany(
+              { product_id: { $in: stockIds } }, { $set: { on_hand: new Int32(onHand), reserved: new Int32(0) } }, { session });
+          });
+        } finally {
+          await session.endSession();
+        }
+      }
+
+      let done = false;
+      const snapshots: CartBody[] = [];
+      const reader = (async () => {
+        let index = 0;
+        while (!done) {
+          snapshots.push(await cartOf(instanceAt(index), me));
+          index += 1;
+        }
+      })();
+      // Tồn lên xuống quanh quantity 3: lúc đủ (OK), lúc thiếu (BLOCKED INSUFFICIENT_STOCK).
+      const stockValues = [2, 5, 1, 4, 0, 6, 3, 2, 7, 1];
+      const stock = (async () => {
+        for (const onHand of stockValues) await setStockTogether(onHand);
+      })();
+
+      let version = 4;
+      for (let step = 0; step < 12; step += 1) {
+        const response = await setQty(instanceAt(step), me, main, { version, quantity: version + 1 });
+        expect(response.status).toBe(200);
+        version = response.body.version as number;
+      }
+      await stock;
+      done = true;
+      await reader;
+
+      expect(snapshots.length).toBeGreaterThan(0);
+      type StockLine = CartLine & { availableQuantity?: number; lineState: string; reasons: string[] };
+      for (const cart of snapshots) {
+        const lines = cart.items as StockLine[];
+        const mainLine = lines.find(item => item.productId === main)!;
+        const lineA = lines.find(item => item.productId === productA)!;
+        const lineB = lines.find(item => item.productId === productB)!;
+        expect(mainLine.quantity).toBe(cart.version);
+        // Cùng một ảnh chụp → tồn A và B phải bằng nhau.
+        expect(lineA.availableQuantity).toBe(lineB.availableQuantity);
+        // Trạng thái dòng khớp tồn TRONG CÙNG ảnh chụp; giỏ không tự giảm/xóa dòng (TC05).
+        for (const line of [lineA, lineB]) {
+          expect(line.quantity).toBe(3);
+          if (line.availableQuantity! >= line.quantity) {
+            expect(line.lineState).toBe('OK');
+          } else {
+            expect(line.lineState).toBe('BLOCKED');
+            expect(line.reasons).toContain('INSUFFICIENT_STOCK');
+          }
+        }
+        expect(cart.canCheckout).toBe(false);
+      }
+      // Giỏ không giữ tồn (TC12): inventory đúng bằng lần đặt cuối, reserved vẫn 0.
+      const finalStock = await db().collection('inventory').find({ product_id: { $in: stockIds } }).toArray();
+      for (const row of finalStock) {
+        expect(Number(row.on_hand)).toBe(stockValues[stockValues.length - 1]);
+        expect(Number(row.reserved)).toBe(0);
+      }
+    });
   });
 
   // =====================================================================
