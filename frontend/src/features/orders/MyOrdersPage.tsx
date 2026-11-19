@@ -12,8 +12,8 @@ const ORDER_LABEL: Record<string, string> = { PENDING: 'Chờ xác nhận', CONF
 const TRANSACTION_LABEL: Record<string, string> = { PENDING: 'Chưa thanh toán', SETTLED: 'Đã thanh toán', CANCELLED: 'Không thu' };
 // NONE không có nhãn; "Đã hoàn" chỉ khi server báo SUCCEEDED (đã thực chi).
 const REFUND_LABEL: Record<string, string> = { PENDING: 'Chờ hoàn', FAILED: 'Hoàn thất bại', SUCCEEDED: 'Đã hoàn' };
-// Tên lựa chọn trong bộ lọc (giá trị gửi lên vẫn là mã trạng thái của spec).
-const STATUS_OPTIONS = [['PENDING', 'Chờ xác nhận'], ['CONFIRMED', 'Đã chuẩn bị'], ['COMPLETED', 'Đã bàn giao'], ['CANCELLED', 'Đã hủy']];
+// Lựa chọn của bộ lọc dùng chung ORDER_LABEL để một trạng thái chỉ có một tên trên cả trang; giá trị gửi lên là mã trạng thái của spec.
+const STATUS_OPTIONS = Object.entries(ORDER_LABEL);
 
 const messageOf = (cause: unknown) => cause instanceof Error ? cause.message : 'Không tải được đơn hàng';
 const moneyOrUnknown = (value: string | null) => value === null ? 'Cần đối chiếu' : formatVnd(value);
