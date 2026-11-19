@@ -184,12 +184,15 @@ describe('US-42 bước 3: trang /member/orders – danh sách và bộ lọc', 
     const server = fakeServer({ lists: [listOf([itemOf({ status: 'CANCELLED', transactionStatus: 'SETTLED', refundState: 'PENDING' })])] });
     await renderApp(server.fetcher);
     await screen.findByRole('button', { name: `Xem ${CODE}` });
-    expect(text()).toContain(CODE);
-    expect(text()).toContain('Đã hủy');
-    expect(text()).toContain('Đã thanh toán');
-    expect(text()).toContain('Chờ hoàn');
-    expect(text()).toMatch(/50\.000\s?₫/);
-    expect(text()).not.toMatch(/Đã hoàn|Đã nhận hàng/);
+    // Chỉ xét chữ trong dòng đơn: ô lọc "Trạng thái đơn" có sẵn các lựa chọn như "Đã hủy"/"Đã nhận hàng",
+    // xét cả trang sẽ đỏ oan (lựa chọn lọc) hoặc xanh oan (dòng đơn thiếu nhãn nhưng ô lọc có).
+    const row = (screen.getByRole('listitem').textContent ?? '');
+    expect(row).toContain(CODE);
+    expect(row).toContain('Đã hủy');
+    expect(row).toContain('Đã thanh toán');
+    expect(row).toContain('Chờ hoàn');
+    expect(row).toMatch(/50\.000\s?₫/);
+    expect(row).not.toMatch(/Đã hoàn|Đã nhận hàng/);
   });
 
   it('US-42-TC06: lọc theo trạng thái và mã đơn gửi đúng query; ô mã đơn trống thì không gửi q', async () => {
