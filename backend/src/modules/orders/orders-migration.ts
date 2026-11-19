@@ -1,3 +1,5 @@
+// Tầng dữ liệu – migration (US-41 bước 1): kiểm TTL, đối chiếu orders/items/transaction và inventory.reserved với tổng HELD, rồi tạo index.
+// Chỉ báo lỗi bằng mã riêng; không tự sửa số dư, không xóa chứng từ.
 import { Connection } from 'mongoose';
 import { Long, ObjectId } from 'mongodb';
 import { Order, OrderItem, ORDER_MODELS } from './order.schema';
@@ -16,6 +18,8 @@ export async function ensureOrdersIntegrity(connection: Connection) {
     const revision: unknown = order.guard_revision;
     if (!Long.isLong(revision) || revision.isNegative() || revision.gte(Long.MAX_VALUE)) throw new Error('ORDERS_REVISION_RECONCILIATION_REQUIRED');
     const transaction = await db.collection<Transaction>('transactions').findOne({ _id: order.transaction_id });
+    // US-41-TC05 (spec 1.0.1 mục 3): order trỏ tới transaction không tồn tại → mã riêng, không xóa order/items.
+    if (!transaction) throw new Error('ORDERS_ORPHAN_RECONCILIATION_REQUIRED');
     const items = await db.collection<OrderItem>('order_items').find({ order_id: order._id }).toArray();
     assertOrderIntegrity(order, transaction, items);
     await orderModel.hydrate(order).validate();
