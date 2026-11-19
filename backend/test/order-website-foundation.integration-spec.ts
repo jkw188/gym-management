@@ -79,8 +79,9 @@ describe('US-41 bước 1: Order Module, schema đơn WEBSITE và migration', ()
   const findIndex = (list: IndexInfo[], key: Record<string, unknown>) => list.find(index => JSON.stringify(index.key) === JSON.stringify(key));
 
   // Một đơn WEBSITE hợp lệ theo bảng "orders gốc" + "orders bổ sung" của spec.
+  // code luôn là ORD-<_id> của chính đơn (kể cả khi test truyền _id riêng), vì preflight kiểm code khớp _id.
   function websiteOrder(overrides: Record<string, unknown> = {}) {
-    const id = new ObjectId(), created = new Date('2035-11-15T03:00:00.000Z');
+    const id = (overrides._id as ObjectId | undefined) ?? new ObjectId(), created = new Date('2035-11-15T03:00:00.000Z');
     return {
       _id: id, transaction_id: new ObjectId(), member_id: new ObjectId(), code: `ORD-${id.toHexString()}`, channel: 'WEBSITE', status: 'PENDING',
       reservation_state: 'HELD', reservation_expires_at: new Date(created.getTime() + 24 * 3600 * 1000), preferred_payment_method: 'CASH',
