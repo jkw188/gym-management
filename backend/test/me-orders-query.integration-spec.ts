@@ -1,14 +1,18 @@
 // Tầng kiểm thử backend (Jest + Supertest + MongoDB replica set thật): US-42 bước 1 – Own Order Query Service.
 // Member xem danh sách/chi tiết đơn của mình, hướng dẫn thanh toán và hóa đơn qua đơn; kiểm quyền sở hữu, dữ liệu an toàn, 3 lớp trạng thái (TC01–TC08).
-// Hợp đồng test đặt ra cho Builder (theo mục 1 và 2 của spec US-42 1.0):
-//   GET /api/me/orders?status&channel&fromDate&toDate&page&limit → 200 {memberLinked, items, page, limit, total, totalPages, asOf};
-//     item: {id, code, channel, status, transactionStatus, total, reservationExpiresAt, refundState, ...}; sắp createdAt DESC rồi id DESC;
-//     page 1, limit 20 (tối đa 100), ngày YYYY-MM-DD giờ Việt Nam, bao gồm 2 đầu, tối đa 366 ngày, mặc định 30 ngày gần nhất; query lạ → 400.
-//   GET /api/me/orders/:id → 200 {id, code, channel, status, version, reservationState, reservationExpiresAt, expired, cancelAllowed,
-//     paymentAllowed, transactionStatus, refundState, refundAmount, invoiceId?, items snapshot, recipient, quầy ...}.
+// Hợp đồng test đặt ra cho Builder (theo mục 1 và 2 của spec US-42 1.0.1):
+//   GET /api/me/orders?q&status&channel&fromDate&toDate&page&limit → 200 {memberLinked, items, page, limit, total, totalPages, asOf};
+//     item: {id, code, channel, status, transactionStatus, total, reservationExpiresAt, refundState, createdAt}; sắp createdAt DESC rồi id DESC;
+//     page 1, limit 20 (tối đa 100), ngày YYYY-MM-DD giờ Việt Nam, bao gồm 2 đầu, tối đa 366 ngày, mặc định 30 ngày gần nhất; query lạ → 400;
+//     q trim 1–120 ký tự, khớp một phần mã đơn, không phân biệt hoa thường, ký tự đặc biệt coi là chữ (không regex).
+//   GET /api/me/orders/:id → 200 {id, code, channel, status, version, createdAt, confirmedAt, fulfilledAt, cancelledAt, cancellationReason,
+//     reservationState, reservationExpiresAt, expired, cancelAllowed, paymentAllowed, preferredPaymentMethod, recipientName, recipientPhone,
+//     pickupLocation, items:[{id, sku, name, unitPrice, quantity, lineTotal}], total, transactionStatus, refundState, refundAmount, invoiceId, asOf}.
 //   GET /api/me/orders/:id/payment-instructions → 200 {transactionCode, amountDue, preferredPaymentMethod, pickupLocation, cashInstructions, transferOptions?}
-//     chỉ khi đơn HELD chưa hết hạn và transaction PENDING, amountDue > 0; ngược lại không trả hướng dẫn (test chờ 409).
-//   GET /api/me/orders/:id/invoice → 200 {invoiceNo, retailLines, thông tin thanh toán method/amount/paidAt}; chưa có invoice → 404.
+//     chỉ khi đơn HELD chưa hết hạn và transaction PENDING, amountDue > 0. Bị chặn → 409: CANCELLED/COMPLETED, transaction khác PENDING
+//     hoặc amountDue 0 → PAYMENT_NOT_ALLOWED; còn lại mà đã đến hạn → RESERVATION_EXPIRED.
+//   GET /api/me/orders/:id/invoice → 200 {invoiceNo, issuedAt, buyerSnapshot, total, retailLines:[{sku, name, unitPrice, quantity, lineTotal}],
+//     payment:{method, amount, paidAt}}; chưa có invoice → 404.
 //   Đơn của Member khác/không có → 404; sai role → 403; không token → 401; ID sai → 400. Tiền là chuỗi số nguyên VND.
 // Dữ liệu đơn/giao dịch/thanh toán/hoàn được ghi thẳng vào DB làm fixture (US-41/45 đã có writer thật và test riêng);
 // catalog dùng API admin thật. Bước 2 (hủy own: TC09–TC11) và bước 3 (giao diện: TC12) chưa có trong file này.
@@ -259,7 +263,8 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
     expect(response.body).toMatchObject({ memberLinked: true, page: 1, limit: 20, total: 2, totalPages: 1 });
     expect(typeof response.body.asOf).toBe('string');
     expect(ids(response.body)).toEqual([pos.id, website.id]);
-    expect(response.body.items[0]).toMatchObject({ id: pos.id, code: `ORD-${pos.id}`, channel: 'POS', status: 'CONFIRMED', transactionStatus: 'SETTLED', total: '50000' });
+    expect(response.body.items[0]).toMatchObject({ id: pos.id, code: `ORD-${pos.id}`, channel: 'POS', status: 'CONFIRMED', transactionStatus: 'SETTLED',
+      total: '50000', refundState: 'NONE', createdAt: new Date(Date.parse(NOW) - MINUTE).toISOString(), reservationExpiresAt: new Date(Date.parse(NOW) - MINUTE + DAY).toISOString() });
     expect((await detail(me, pos.id).expect(200)).body).toMatchObject({ id: pos.id, channel: 'POS' });
   });
 
@@ -378,7 +383,7 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
     const none = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, transactionStatus: 'SETTLED' });
     const failed = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, status: 'CANCELLED', transactionStatus: 'SETTLED', refund: 'FAILED' });
     const done = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, status: 'CANCELLED', transactionStatus: 'SETTLED', refund: 'SUCCEEDED' });
-    expect((await detail(me, none.id).expect(200)).body).toMatchObject({ status: 'CONFIRMED', transactionStatus: 'SETTLED', refundState: 'NONE' });
+    expect((await detail(me, none.id).expect(200)).body).toMatchObject({ status: 'CONFIRMED', transactionStatus: 'SETTLED', refundState: 'NONE', refundAmount: '0' });
     expect((await detail(me, failed.id).expect(200)).body).toMatchObject({ status: 'CANCELLED', refundState: 'FAILED', refundAmount: '50000' });
     expect((await detail(me, done.id).expect(200)).body).toMatchObject({ status: 'CANCELLED', refundState: 'SUCCEEDED', refundAmount: '50000' });
   });
@@ -390,22 +395,17 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
     await db().collection('products').updateOne({ _id: productId }, { $set: { name: 'Tên mới sau khi đặt', price: Decimal128.fromString('99000') } });
     await db().collection('members').updateOne({ _id: me.memberId }, { $set: { full_name: 'Tên hồ sơ mới', phone: '+84999999999' } });
     const body = (await detail(me, order.id).expect(200)).body;
+    const line = { sku: 'US42_SNAPSHOT', name: 'Tên snapshot', unitPrice: '25000', quantity: 2, lineTotal: '50000' };
+    expect(body).toMatchObject({ recipientName: 'Người nhận snapshot', recipientPhone: '+84901234567', pickupLocation: PICKUP,
+      preferredPaymentMethod: 'CASH', total: '50000', items: [line], createdAt: NOW, confirmedAt: NOW, fulfilledAt: null, cancelledAt: null });
     const text = JSON.stringify(body);
-    expect(text).toContain('Tên snapshot');
-    expect(text).toContain('25000');
-    expect(text).toContain('Người nhận snapshot');
-    expect(text).toContain(PICKUP);
     expect(text).not.toContain('Tên mới sau khi đặt');
     expect(text).not.toContain('99000');
     expect(text).not.toContain('Tên hồ sơ mới');
     const bill = (await invoice(me, order.id).expect(200)).body;
-    expect(bill).toMatchObject({ invoiceNo: `INV-${order.id}` });
-    expect(Array.isArray(bill.retailLines)).toBe(true);
-    expect(JSON.stringify(bill.retailLines)).toContain('Tên snapshot');
+    expect(bill).toMatchObject({ invoiceNo: `INV-${order.id}`, issuedAt: NOW, buyerSnapshot: 'Người nhận snapshot', total: '50000',
+      retailLines: [line], payment: { method: 'CASH', amount: '50000', paidAt: NOW } });
     expect(JSON.stringify(bill)).not.toContain('Tên mới sau khi đặt');
-    // Thông tin thanh toán: method/amount/paidAt.
-    expect(JSON.stringify(bill)).toContain('"method":"CASH"');
-    expect(JSON.stringify(bill)).toContain('paidAt');
   });
 
   it('US-42-TC06: chưa có invoice → 404 ở route invoice', async () => {
@@ -451,6 +451,17 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
     expect(empty).toMatchObject({ items: [], total: 0, totalPages: 0 });
   });
 
+  it('US-42-TC06: tìm q theo một phần mã đơn, không phân biệt hoa thường, ký tự đặc biệt không chạy như regex, q > 120 ký tự → 400', async () => {
+    const me = await linkedMember();
+    const target = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, orderId: new ObjectId('0000000000000000000abc01') });
+    await seedOrder({ memberId: me.memberId, createdBy: me.accountId, orderId: new ObjectId('0000000000000000000def02') });
+    expect(ids((await list(me, 'q=ABC01').expect(200)).body)).toEqual([target.id]);
+    expect(ids((await list(me, `q=${encodeURIComponent('  abc01  ')}`).expect(200)).body)).toEqual([target.id]);
+    // ".*" nếu chạy như regex sẽ khớp mọi đơn; coi là chữ thì không đơn nào khớp.
+    expect((await list(me, `q=${encodeURIComponent('.*')}`).expect(200)).body).toMatchObject({ items: [], total: 0 });
+    await list(me, `q=${'a'.repeat(121)}`).expect(400);
+  });
+
   it('US-42-TC06: lọc theo status và channel', async () => {
     const me = await linkedMember();
     const pos = await seedOrder({ memberId: me.memberId, channel: 'POS', createdBy: staff.accountId, status: 'COMPLETED', transactionStatus: 'SETTLED' });
@@ -473,7 +484,7 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
   it('US-42-TC07: đã SETTLED → không còn hướng dẫn thanh toán, detail paymentAllowed=false nhưng vẫn có quầy nhận', async () => {
     const me = await linkedMember();
     const order = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, transactionStatus: 'SETTLED' });
-    await instructions(me, order.id).expect(409);
+    expect((await instructions(me, order.id).expect(409)).body.error.code).toBe('PAYMENT_NOT_ALLOWED');
     const body = (await detail(me, order.id).expect(200)).body;
     expect(body).toMatchObject({ transactionStatus: 'SETTLED', paymentAllowed: false });
     expect(JSON.stringify(body)).toContain(PICKUP);
@@ -482,7 +493,7 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
   it('US-42-TC07: đơn tổng 0 đồng → không hướng dẫn thu 0 đồng', async () => {
     const me = await linkedMember();
     const order = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, status: 'PENDING', free: true });
-    await instructions(me, order.id).expect(409);
+    expect((await instructions(me, order.id).expect(409)).body.error.code).toBe('PAYMENT_NOT_ALLOWED');
     expect((await detail(me, order.id).expect(200)).body).toMatchObject({ paymentAllowed: false });
   });
 
@@ -490,8 +501,11 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
     const me = await linkedMember();
     const expired = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, status: 'PENDING', createdAt: new Date(Date.parse(NOW) - DAY - MINUTE) });
     const cancelled = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, status: 'CANCELLED', transactionStatus: 'CANCELLED' });
-    await instructions(me, expired.id).expect(409);
-    await instructions(me, cancelled.id).expect(409);
+    expect((await instructions(me, expired.id).expect(409)).body.error.code).toBe('RESERVATION_EXPIRED');
+    expect((await instructions(me, cancelled.id).expect(409)).body.error.code).toBe('PAYMENT_NOT_ALLOWED');
+    // Thứ tự kiểm theo spec 1.0.1: đã thu mà cũng quá hạn vẫn là PAYMENT_NOT_ALLOWED.
+    const paidExpired = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, transactionStatus: 'SETTLED', createdAt: new Date(Date.parse(NOW) - DAY - MINUTE) });
+    expect((await instructions(me, paidExpired.id).expect(409)).body.error.code).toBe('PAYMENT_NOT_ALLOWED');
     expect((await detail(me, cancelled.id).expect(200)).body).toMatchObject({ status: 'CANCELLED', transactionStatus: 'CANCELLED', paymentAllowed: false, refundState: 'NONE' });
   });
 
@@ -524,7 +538,7 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
     const body = (await detail(me, order.id).expect(200)).body;
     expect(body).toMatchObject({ id: order.id, status: 'PENDING', reservationState: 'HELD', expired: true, paymentAllowed: false });
     expect((await list(me).expect(200)).body.items[0]).toMatchObject({ id: order.id, status: 'PENDING' });
-    await instructions(me, order.id).expect(409);
+    expect((await instructions(me, order.id).expect(409)).body.error.code).toBe('RESERVATION_EXPIRED');
     expect(await snapshot()).toEqual(before);
     expect(await db().collection('inventory').findOne({ product_id: productId })).toMatchObject({ on_hand: 5, reserved: 2 });
   });
