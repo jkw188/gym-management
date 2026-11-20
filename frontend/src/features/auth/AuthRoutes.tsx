@@ -5,6 +5,7 @@ import { roleNames, rolePaths } from './auth.routes';
 import type { RoleCode } from './auth.types';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { Icon } from '../../components/Icon';
+import { HomePage } from '../home/HomePage';
 
 export function AuthChecking() {
   const auth = useAuth();
@@ -57,77 +58,18 @@ export function HomeRedirect() {
   const auth = useAuth();
   if (auth.status === 'checking') return <AuthChecking />;
   if (auth.status === 'loggingOut') return <LogoutPending />;
-  if (auth.user) return <Navigate to={rolePaths[auth.user.roleCode]} replace />;
-  // Guest chưa đăng nhập vẫn xem được trang chủ (báo cáo: đăng xuất "chuyển về trang chủ (chế độ Guest)").
-  return <GuestHome />;
-}
-
-// Trang chủ cho Guest: chỉ có liên kết tới các trang công khai; chức năng của user mới cần đăng nhập.
-function GuestHome() {
-  return <section className="auth-card role-home"><h2>Chào mừng đến Gym Management</h2>
-    <p>Bạn có thể xem lịch lớp, gói dịch vụ và cửa hàng mà không cần đăng nhập.</p>
-    <div className="quick-links">
-      <Link to="/classes">Lịch lớp</Link>
-      <Link to="/services">Gói dịch vụ</Link>
-      <Link to="/shop">Cửa hàng</Link>
-      <Link to="/login">Đăng nhập</Link>
-      <Link to="/register">Đăng ký</Link>
-    </div></section>;
+  // Trang chủ công khai: Guest và người đã đăng nhập đều xem được (báo cáo: đăng xuất "chuyển về trang chủ (chế độ Guest)").
+  // Đã đăng nhập thì các chức năng của vai trò nằm ở menu bên trái (AppLayout).
+  return <HomePage />;
 }
 
 export function RoleShell({ role }: { role: RoleCode }) {
   const { user } = useAuth();
-  return <section className="auth-card role-home"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
-    <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
-    {/* Trang chính chỉ có lời chào và các chức năng; thông tin tài khoản nằm ở trang riêng (thẻ "Thông tin tài khoản"). */}
-    <div className="quick-links">
-    {role === 'ADMIN' && <Link to="/admin/notifications">Thông báo nhóm</Link>}
-    {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
-    {role === 'ADMIN' && <Link to="/admin/reports/memberships">Báo cáo hội viên và membership</Link>}
-    {role === 'ADMIN' && <Link to="/admin/reports/cash-flow">Báo cáo khoản thu và hoàn tiền</Link>}
-    {role === 'ADMIN' && <Link to="/admin/reports/trainers">Báo cáo hiệu suất huấn luyện viên</Link>}
-    {role === 'ADMIN' && <Link to="/admin/trainers">Quản lý huấn luyện viên</Link>}
-    {role === 'ADMIN' && <Link to="/admin/trainers/activity">Đối chiếu chấm công và buổi PT</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/trainer-attendance`}>Chấm công huấn luyện viên</Link>}
-    {role === 'ADMIN' && <Link to="/admin/trainer-reviews">Tổng hợp đánh giá PT</Link>}
-    {role === 'ADMIN' && <Link to="/admin/classes">Quản lý lớp miễn phí</Link>}
-    {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
-    {role === 'ADMIN' && <Link to="/admin/categories">Danh mục bán lẻ</Link>}
-    {role === 'ADMIN' && <Link to="/admin/products">Sản phẩm bán lẻ</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/transactions`}>Đối chiếu thanh toán</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/pos`}>Bán sản phẩm tại quầy</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/orders`}>Chuẩn bị đơn website</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/refunds`}>Nghĩa vụ hoàn tiền</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/returns`}>Tiếp nhận hàng trả</Link>}
-    {role === 'MEMBER' && <Link to="/member/cart">Giỏ hàng của tôi</Link>}
-    {role === 'MEMBER' && <Link to="/member/orders">Đơn hàng của tôi</Link>}
-    {role === 'ADMIN' && <Link to='/admin/stock-issues'>Phiếu xuất ngoài bán</Link>}
-    {role === 'ADMIN' && <Link to='/admin/stock-adjustments'>Kiểm kê và điều chỉnh kho</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/stock-receipts`}>Phiếu nhập kho</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/inventory`}>Tra cứu tồn kho</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}
-    {/* US-29: tra cứu và hủy hỗ trợ lịch PT. */}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/pt-bookings`}>Tra cứu lịch PT</Link>}
-    {role === 'TRAINER' && <Link to="/trainer/shifts">Ca làm việc</Link>}
-    {/* US-64: PT xem buổi dạy của mình và xác nhận buổi đã dạy. */}
-    {role === 'TRAINER' && <Link to="/trainer/bookings">Buổi dạy của tôi</Link>}
-    {/* US-30: PT tra cứu học viên có buổi với mình. */}
-    {role === 'TRAINER' && <Link to="/trainer/trainees">Học viên của tôi</Link>}
-    {/* US-31: PT xem đánh giá học viên gửi cho các buổi mình dạy. */}
-    {role === 'TRAINER' && <Link to="/trainer/reviews">Đánh giá của học viên</Link>}
-    {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
-    {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
-    {/* US-18: member tự đăng ký mua gói. */}
-    {role === 'MEMBER' && <Link to="/member/service-registrations">Đăng ký gói tập</Link>}
-    {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
-    {role === 'MEMBER' && <Link to="/member/pt-bookings">Lịch PT của tôi</Link>}
-    {/* Admin/Staff xem thông tin ở trang /account (chỉ đọc); Member/PT dùng trang /profile có sẵn (sửa được). */}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/account`}>Thông tin tài khoản</Link>}
-    {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
-    {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
-    </div>
-  </section>;
+  // Đăng nhập xong vào thẳng trang chủ; phía trên chỉ có một dòng chào. Các chức năng nằm ở menu bên trái (AppLayout).
+  return <div className="role-home">
+    <div className="welcome-bar"><p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p></div>
+    <HomePage />
+  </div>;
 }
 
 // Trang riêng hiện thông tin tài khoản đang đăng nhập (Admin/Staff), lấy từ phiên đăng nhập nên không gọi API.
@@ -136,8 +78,31 @@ export function AccountInfoPage({ role }: { role: RoleCode }) {
   return <section className="auth-card"><h2>Thông tin tài khoản</h2>
     <dl className="info-grid"><dt>Họ tên</dt><dd>{user?.fullName}</dd><dt>Số điện thoại</dt><dd>{user?.phone}</dd>
       <dt>Vai trò</dt><dd>{roleNames[role]}</dd>{user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
-    <Link to={rolePaths[role]}>← Về trang chính</Link>
   </section>;
+}
+
+// Khối bên phải thanh header: Guest thấy "Đăng nhập" + "Đăng ký"; đã đăng nhập thấy chuông (member),
+// ô tên tài khoản (bấm vào mở trang thông tin tài khoản) và nút đăng xuất.
+export function HeaderAccount() {
+  const auth = useAuth();
+  if (auth.status === 'checking') return null;
+  if (!auth.user) return <div className="header-account">
+    <Link to="/login" className="header-link">Đăng nhập</Link>
+    <Link to="/register" className="button-link">Đăng ký</Link>
+  </div>;
+  const role = auth.user.roleCode;
+  // Admin/Staff xem thông tin ở /account (chỉ đọc); Member/PT dùng /profile (sửa được, có đổi mật khẩu).
+  const accountPath = role === 'ADMIN' || role === 'STAFF' ? `${rolePaths[role]}/account` : `${rolePaths[role]}/profile`;
+  // Chữ cái đầu của tên cuối (vd. "Lê Minh An" → "A") làm ảnh đại diện.
+  const initial = auth.user.fullName.trim().split(/\s+/).pop()?.charAt(0).toUpperCase() ?? '?';
+  return <div className="header-account">
+    <MemberNotificationBell />
+    <Link to={accountPath} className="account-chip" aria-label="Thông tin tài khoản" title="Thông tin tài khoản">
+      <span className="account-avatar" aria-hidden="true">{initial}</span>
+      <span className="account-role" aria-hidden="true">{roleNames[role]}</span>
+    </Link>
+    <LogoutButton />
+  </div>;
 }
 
 // US-47: chuông thông báo nằm trên thanh điều hướng chung nên mọi trang của member đều thấy; role khác không hiện.

@@ -263,6 +263,10 @@ export function ShiftsPage() {
   }
 
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+  // Ngày hôm nay (giờ Việt Nam) để tô đậm cột của hôm nay trên lịch tuần.
+  const today = vietnamDate(new Date());
+  // Thẻ thống kê đầu trang: đếm ca trong tuần đang xem theo trạng thái (chỉ đếm, không đổi dữ liệu).
+  const countByStatus = (status: ShiftStatus) => data?.items.filter(shift => shift.status === status).length ?? 0;
   const bookedCount = cancelState?.detail?.bookedCount ?? 0;
   const preview = form && form.date && form.from && form.to ? previewSlots(form.from, form.to) : null;
 
@@ -288,6 +292,12 @@ export function ShiftsPage() {
       {data.total > data.items.length && <p className="form-error">
         Tuần này có {data.total} ca nhưng lịch chỉ hiển thị {data.items.length} ca đầu tiên. Một số ca cuối tuần chưa được hiện.
       </p>}
+      <dl className="stat-cards" aria-label="Thống kê ca trong tuần">
+        <div><dt>Tổng ca trong tuần</dt><dd>{data.items.length}</dd></div>
+        <div><dt>Ca công bố</dt><dd>{countByStatus('CONFIRMED')}</dd></div>
+        <div><dt>Ca nháp chờ công bố</dt><dd>{countByStatus('SCHEDULED')}</dd></div>
+        <div><dt>Ca đã hủy</dt><dd>{countByStatus('CANCELLED')}</dd></div>
+      </dl>
       {!form && <button type="button" onClick={openCreate}>Thêm ca nháp</button>}
 
       {/* US-25-TC03, TC10: lỗi công bố ca; không tự tải lại hay tự gửi lại. */}
@@ -384,7 +394,7 @@ export function ShiftsPage() {
       <div className="shift-week">
         {days.map((day, index) => {
           const items = data.items.filter(shift => vietnamDate(new Date(shift.startAt)) === day);
-          return <section key={day} aria-label={dayLabel(day, index)} className="shift-day">
+          return <section key={day} aria-label={dayLabel(day, index)} className={day === today ? 'shift-day shift-today' : 'shift-day'}>
             <h3>{dayLabel(day, index)}</h3>
             {items.length === 0 ? <p className="shift-empty">Không có ca.</p> : <ul>
               {items.map(shift => <li key={shift.id} className={`shift-item shift-${shift.status.toLowerCase()}`}>

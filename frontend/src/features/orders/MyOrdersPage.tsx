@@ -57,7 +57,7 @@ export function MyOrdersPage() {
 
   if (selectedId) return <OwnOrderDetailView id={selectedId} onBack={() => setSelectedId(null)} />;
 
-  return <section>
+  return <section className="auth-card orders-page">
     <h1>Đơn hàng của tôi</h1>
     {/* US-42-TC06: lọc theo trạng thái và một phần mã đơn. */}
     <form onSubmit={applyFilter}>
@@ -75,7 +75,7 @@ export function MyOrdersPage() {
     {/* US-42-TC03: tài khoản chưa liên kết hồ sơ – không tự liên kết, chỉ hướng dẫn. */}
     {!loading && data?.memberLinked === false && <p>Tài khoản chưa được liên kết hồ sơ hội viên. Hãy liên hệ quầy để liên kết.</p>}
     {!loading && data?.memberLinked && data.items.length === 0 && <p>Chưa có đơn hàng</p>}
-    {data && data.items.length > 0 && <ul>
+    {data && data.items.length > 0 && <ul className="order-list">
       {data.items.map(item => <li key={item.id}>
         <strong>{item.code}</strong> · {orderDate(item.createdAt)} · {moneyOrUnknown(item.total)}
         {' · '}Đơn: {ORDER_LABEL[item.status]} · Tiền: {transactionLabel(item.transactionStatus)}

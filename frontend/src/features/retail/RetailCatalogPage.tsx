@@ -36,7 +36,7 @@ export function RetailCatalogPage({ kind }: { kind: CatalogKind }) {
     catch (failure) { if (current === generation.current) setError(failure instanceof Error ? failure.message : 'Không tải được chi tiết.'); }
     finally { opening.current = false; setDetailLoading(false); }
   }
-  return <section className="auth-card"><Link to="/admin">← Về trang chính</Link><h2>{product ? 'Quản lý sản phẩm bán lẻ' : 'Quản lý danh mục bán lẻ'}</h2>
+  return <section className="auth-card"><h2>{product ? 'Quản lý sản phẩm bán lẻ' : 'Quản lý danh mục bán lẻ'}</h2>
     <p><Link to={product ? '/admin/categories' : '/admin/products'}>{product ? 'Quản lý danh mục' : 'Quản lý sản phẩm'}</Link></p>
     {notice && <p role="status">{notice}</p>}
     <button type="button" disabled={Boolean(form) || detailLoading} onClick={() => { setNotice(''); setForm({}); }}>Tạo {product ? 'sản phẩm' : 'danh mục'}</button>

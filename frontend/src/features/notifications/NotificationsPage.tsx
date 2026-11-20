@@ -1,11 +1,13 @@
 // Tầng giao diện – trang (US-47 bước 3): trang /member/notifications xem thông báo của mình, lọc, phân trang, mở chi tiết.
 // Mở chi tiết thành công rồi MỚI gửi mark-read; số chưa đọc luôn lấy lại từ server, không tự trừ (US-47-F02, TC07, TC12).
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { inboxApi, type InboxDetail, type InboxPage, type ReadState } from './inbox.api';
 import { announceInboxChanged, useAccountId, useReloadSignals } from './inbox-signals';
 import { Icon } from '../../components/Icon';
 import { NotificationSourceLink } from './NotificationSourceLink';
+import { formatNotificationTime } from './notification-time';
 
 const PAGE_SIZE = 20;
 
@@ -19,6 +21,8 @@ const errorMessage = (error: unknown, fallback: string) => (error instanceof Api
 
 export function NotificationsPage() {
   const accountId = useAccountId();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [readState, setReadState] = useState<ReadState>('ALL');
   const [pageNumber, setPageNumber] = useState(1);
   const [data, setData] = useState<InboxPage | null>(null);
@@ -101,6 +105,24 @@ export function NotificationsPage() {
     announceInboxChanged();
   }
 
+  // Bấm một thông báo trong dropdown của chuông: chuông chuyển sang đây kèm state.openId, trang mở luôn cửa sổ chi tiết.
+  // Mở xong thì xóa state (replace) để tải lại trang hay bấm "Trở về" không mở lại lần nữa.
+  const openIdFromBell = (location.state as { openId?: string } | null)?.openId;
+  useEffect(() => {
+    if (!openIdFromBell || !accountId) return;
+    navigate(location.pathname, { replace: true, state: null });
+    void openNotification(openIdFromBell);
+  // Chỉ chạy khi có openId mới từ chuông (hoặc đổi account); openNotification không cần nằm trong danh sách này.
+  }, [openIdFromBell, accountId]);
+
+  // Cửa sổ chi tiết đang mở thì bấm phím Esc để đóng.
+  useEffect(() => {
+    if (!selected) return;
+    function onKeyDown(event: KeyboardEvent) { if (event.key === 'Escape') setSelected(null); }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [selected]);
+
   return <section className="auth-card notification-inbox">
     <h2>Thông báo</h2>
     {unreadCount !== null && <p>Chưa đọc: {unreadCount}</p>}
@@ -116,10 +138,14 @@ export function NotificationsPage() {
 
     {data && data.items.length === 0 && !listError && <p>Chưa có thông báo nào.</p>}
     {data && data.items.length > 0 && <ul>
-      {/* React hiện title/bodyPreview dạng chữ, không dịch HTML (US-47-TC11). key theo id nên mỗi thông báo một dòng. */}
+      {/* Mỗi dòng hiện tiêu đề và thời gian; bấm vào thì mở cửa sổ chi tiết. Chưa đọc: chữ đậm, chấm xanh.
+          React hiện title dạng chữ, không dịch HTML (US-47-TC11). key theo id nên mỗi thông báo một dòng. */}
       {data.items.map(item => <li key={item.id}>
-        <button type="button" onClick={() => void openNotification(item.id)}>
-          {item.readAt ? '' : '(mới) '}<strong>{item.title}</strong> – {item.bodyPreview}
+        <button type="button" className={item.readAt ? 'notification-item' : 'notification-item notification-unread'}
+          onClick={() => void openNotification(item.id)}>
+          {!item.readAt && <span className="sr-only">Mới: </span>}
+          <span className="notification-text">{item.title}</span>
+          <time dateTime={item.createdAt}>{formatNotificationTime(item.createdAt)}</time>
         </button>
       </li>)}
     </ul>}
@@ -130,13 +156,20 @@ export function NotificationsPage() {
       <button type="button" disabled={pageNumber >= data.totalPages} onClick={() => setPageNumber(pageNumber + 1)}><Icon name="next" label="Trang sau" /></button>
     </nav>}
 
-    {selected && <article aria-label="Chi tiết thông báo">
-      <h3>{selected.title}</h3>
+    {/* Cửa sổ chi tiết nổi giữa màn hình; bấm nền tối, nút "Đóng" hoặc phím Esc để đóng. */}
+    {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}>
+    <article className="modal-card" role="dialog" aria-modal="true" aria-labelledby="notification-detail-title"
+      onClick={event => event.stopPropagation()}>
+      <div className="modal-head">
+        <h3 id="notification-detail-title">{selected.title}</h3>
+        <button type="button" className="secondary" onClick={() => setSelected(null)}>Đóng</button>
+      </div>
+      <p><small>{formatNotificationTime(selected.createdAt)}</small></p>
       {/* US-47-F05, TC11: body hiện như chữ thuần; URL trong body không thành link, không tự chuyển trang. */}
       <p className="notification-body">{selected.body}</p>
       <NotificationSourceLink source={selected.source} role="MEMBER" />
       {selected.source && <p>Thông báo lưu tại thời điểm nhắc. Xem trang gói/lịch để biết trạng thái hiện tại.</p>}
-      <p><small>{new Date(selected.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</small></p>
-    </article>}
+    </article>
+    </div>}
   </section>;
 }

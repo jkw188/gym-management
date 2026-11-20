@@ -36,6 +36,8 @@ export interface PublicSessionQuery {
   toDate: string;
   subjectCode?: string;
   page?: number;
+  // Chế độ lịch tháng xin tối đa 100 lớp một lần (giới hạn của API); chế độ tuần không gửi, dùng mặc định 20.
+  limit?: number;
 }
 
 export const classesApi = {
@@ -46,6 +48,7 @@ export const classesApi = {
     const params = new URLSearchParams({ fromDate: query.fromDate, toDate: query.toDate });
     if (query.subjectCode) params.set('subjectCode', query.subjectCode);
     if (query.page && query.page > 1) params.set('page', String(query.page));
+    if (query.limit) params.set('limit', String(query.limit));
     return apiGet<PublicSessionPage>(`/public-sessions?${params.toString()}`);
   },
   detail(id: string) {
