@@ -28,7 +28,7 @@ export function HomePage() {
   }, []);
 
   return <div className="home-page">
-    {/* Khối mở đầu: giới thiệu bên trái, khung xanh liệt kê việc Guest làm được bên phải. */}
+    {/* Khối mở đầu: giới thiệu bên trái, ảnh phòng tập bên phải (ảnh lấy từ bản thiết kế Stitch, lưu ở public/images). */}
     <section className="home-hero">
       <div className="home-hero-text">
         <p className="eyebrow">Câu lạc bộ thể hình</p>
@@ -44,14 +44,10 @@ export function HomePage() {
           <div><dt>Lớp nhóm</dt><dd>Miễn phí</dd></div>
         </dl>
       </div>
-      <div className="home-hero-panel">
-        <p className="eyebrow">Không cần đăng nhập</p>
-        <ul>
-          <li>Xem lịch lớp miễn phí hằng tuần</li>
-          <li>So sánh giá các gói Gym và PT</li>
-          <li>Xem sản phẩm và tình trạng hàng</li>
-        </ul>
-      </div>
+      <figure className="home-hero-media">
+        <img src="/images/gym-hero.jpg" alt="Giá tạ đơn trong khu tập tự do của phòng gym" width="1408" height="768" />
+        <figcaption>Khu tạ tự do</figcaption>
+      </figure>
     </section>
 
     {plans.length > 0 && <section className="home-section" aria-labelledby="home-plans-title">
