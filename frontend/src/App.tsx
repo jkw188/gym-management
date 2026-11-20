@@ -7,7 +7,9 @@ import { StockAdjustmentsPage } from './features/stock/StockAdjustmentsPage';
 import { FoundationStatus } from './features/foundation/FoundationStatus';
 import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
-import { AccountInfoPage, HomeRedirect, LogoutButton, MemberNotificationBell, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
+import { AccountInfoPage, HeaderAccount, HomeRedirect, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
+import { AccountLayout } from './features/auth/AccountLayout';
+import { BackButton } from './components/BackButton';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
@@ -57,17 +59,16 @@ import { TrainerPerformancePage } from './features/reports/TrainerPerformancePag
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
-    {/* Thanh trên cùng: logo bên trái, menu bên phải. NavLink tự thêm class "active" cho trang đang mở. */}
+    {/* Thanh trên cùng: logo | menu trang công khai | khối tài khoản (đăng nhập/đăng ký hoặc chuông, tài khoản, đăng xuất).
+        NavLink tự thêm class "active" cho trang đang mở. Banner lớn chỉ còn ở trang chủ (HomePage). */}
     <header className="site-header"><div className="site-header-inner">
       <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">GM</span>Gym Management</Link>
-      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink><NavLink to="/shop">Cửa hàng</NavLink>
-        <NavLink to="/health">Kiểm tra nền tảng</NavLink><MemberNotificationBell /><LogoutButton /></nav>
+      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink><NavLink to="/shop">Cửa hàng</NavLink></nav>
+      <HeaderAccount />
     </div></header>
-    {/* Dải banner tối dưới thanh menu: tiêu đề lớn và khẩu hiệu. */}
-    <section className="hero"><div className="hero-inner"><h1>Gym Management</h1>
-      <p>Nền tảng quản lý phòng Gym, hội viên và dịch vụ thể hình trực tuyến.</p></div></section>
     <NotificationToast />
     <main>
+    <BackButton />
     <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
       <Route path="/admin/notifications" element={<BroadcastsPage />} />
       <Route path="/admin/notifications/new" element={<BroadcastsPage />} />
@@ -111,11 +112,6 @@ export default function App() {
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/returns" element={<ReturnsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/refunds" element={<RefundsPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/refunds" element={<RefundsPage />} /></Route>
-      <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/orders" element={<MyOrdersPage />} /></Route>
-      {/* US-40: giỏ hàng của Member; vai trò khác bị ProtectedRoute chặn, không gọi API giỏ. */}
-      <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/cart" element={<CartPage />} /></Route>
-      {/* US-41-TC18: đặt hàng từ giỏ chỉ cho MEMBER; vai trò khác thấy "Không có quyền truy cập", không gọi API đặt đơn. */}
-      <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/checkout" element={<CheckoutPage />} /></Route>
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/stock-receipts" element={<StockReceiptsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-receipts" element={<StockReceiptsPage />} /><Route path="/admin/stock-issues" element={<StockIssuesPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/stock-adjustments" element={<StockAdjustmentsPage />} /></Route>
@@ -130,7 +126,10 @@ export default function App() {
       {/* US-29: Staff/Admin tra cứu và hủy hỗ trợ lịch PT (server kiểm quyền ptBookings.readSupport/cancelSupport). */}
       <Route element={<ProtectedRoute role="STAFF" />}><Route path="/staff/pt-bookings" element={<SupportPtBookingsPage />} /></Route>
       <Route element={<ProtectedRoute role="ADMIN" />}><Route path="/admin/pt-bookings" element={<SupportPtBookingsPage />} /></Route>
-      <Route element={<ProtectedRoute role="MEMBER" />}><Route path="/member/profile" element={<ProfilePage role="MEMBER" />} />
+      {/* Trang tài khoản của Member: mọi trang con nằm trong khung AccountLayout (menu bên trái). */}
+      <Route element={<ProtectedRoute role="MEMBER" />}><Route element={<AccountLayout role="MEMBER" />}>
+        {/* Thông tin tài khoản và đổi mật khẩu (US-67) chung một trang; /member/security vẫn giữ cho link cũ. */}
+        <Route path="/member/profile" element={<div className="account-stack"><ProfilePage role="MEMBER" /><ChangePasswordPage embedded /></div>} />
         <Route path="/member/security" element={<ChangePasswordPage />} />
         {/* US-47: inbox thông báo của member. */}
         <Route path="/member/notifications" element={<NotificationsPage />} />
@@ -141,8 +140,15 @@ export default function App() {
         {/* US-18: member tự đăng ký gói, xem hướng dẫn chờ thu và tự hủy yêu cầu đang chờ. */}
         <Route path="/member/service-registrations" element={<ServiceRegistrationPage />} />
         {/* US-27: lịch PT riêng và xem giờ trống của PT. */}
-        <Route path="/member/pt-bookings" element={<PtBookingsPage />} /></Route>
-      <Route element={<ProtectedRoute role="TRAINER" />}><Route path="/trainer/profile" element={<ProfilePage role="TRAINER" />} />
+        <Route path="/member/pt-bookings" element={<PtBookingsPage />} />
+        <Route path="/member/orders" element={<MyOrdersPage />} />
+        {/* US-40: giỏ hàng của Member; vai trò khác bị ProtectedRoute chặn, không gọi API giỏ. */}
+        <Route path="/member/cart" element={<CartPage />} />
+        {/* US-41-TC18: đặt hàng từ giỏ chỉ cho MEMBER; vai trò khác thấy "Không có quyền truy cập", không gọi API đặt đơn. */}
+        <Route path="/member/checkout" element={<CheckoutPage />} /></Route></Route>
+      {/* Trang của PT: cùng khung AccountLayout với menu riêng của PT. */}
+      <Route element={<ProtectedRoute role="TRAINER" />}><Route element={<AccountLayout role="TRAINER" />}>
+        <Route path="/trainer/profile" element={<div className="account-stack"><ProfilePage role="TRAINER" /><ChangePasswordPage embedded /></div>} />
         <Route path="/trainer/security" element={<ChangePasswordPage />} />
         {/* US-24: lịch tuần và ca nháp của PT. */}
         <Route path="/trainer/shifts" element={<ShiftsPage />} />
@@ -151,12 +157,12 @@ export default function App() {
         {/* US-30 bước 3: PT tra cứu học viên có buổi với mình; chỉ TRAINER. */}
         <Route path="/trainer/trainees" element={<TraineesPage />} />
         {/* US-31 bước 3: PT xem điểm và nhận xét học viên gửi cho mình; chỉ TRAINER. */}
-        <Route path="/trainer/reviews" element={<TrainerReviewsPage />} /></Route>
+        <Route path="/trainer/reviews" element={<TrainerReviewsPage />} /></Route></Route>
       {(Object.entries(rolePaths) as [RoleCode, string][]).map(([role, path]) => <Route key={role} element={<ProtectedRoute role={role} />}>
         <Route path={path} element={<RoleShell role={role} />} /></Route>)}
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
     </Routes>
     </main>
-    <footer className="site-footer">© 2026 Gym Management – Nhóm 02</footer>
+    <footer className="site-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
   </AuthProvider></BrowserRouter>;
 }

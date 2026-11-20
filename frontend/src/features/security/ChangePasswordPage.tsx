@@ -13,7 +13,8 @@ const FIELDS: { name: FieldName; label: string; autoComplete: string }[] = [
   { name: 'confirmPassword', label: 'Xác nhận mật khẩu mới', autoComplete: 'new-password' },
 ];
 
-export function ChangePasswordPage() {
+// embedded = true: nằm ngay trong trang Thông tin tài khoản nên không cần link "Quay lại" riêng.
+export function ChangePasswordPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const [values, setValues] = useState<Record<FieldName, string>>({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [visible, setVisible] = useState<Partial<Record<FieldName, boolean>>>({});
@@ -126,6 +127,6 @@ export function ChangePasswordPage() {
       {formError && <div className="form-error" role="alert"><p>{formError}</p></div>}
       <button type="submit" disabled={pending}>Đổi mật khẩu</button>
     </form>
-    <Link to="..">Quay lại</Link>
+    {!embedded && <Link to="..">Quay lại</Link>}
   </section>;
 }
