@@ -111,7 +111,6 @@ export function ProfilePage({ role }: { role: RoleCode }) {
   if (!profile || !draft) return <section className="auth-card" aria-busy="true"><p role="status">Đang tải thông tin tài khoản…</p></section>;
 
   return <section className="auth-card" aria-labelledby="profile-title">
-    <Link to={rolePaths[role]}>Quay lại</Link>
     <h2 id="profile-title">Thông tin tài khoản</h2>
     <p>Thông tin đăng nhập và liên hệ của tài khoản. Hồ sơ hội viên/PT được quản lý riêng. Đổi số điện thoại hoặc email sẽ phải đăng nhập lại.</p>
     {notice && <p role="status" className="user-notice">{notice}</p>}

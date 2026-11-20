@@ -5,6 +5,7 @@ import { roleNames, rolePaths } from './auth.routes';
 import type { RoleCode } from './auth.types';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { Icon } from '../../components/Icon';
+import { HomePage } from '../home/HomePage';
 
 export function AuthChecking() {
   const auth = useAuth();
@@ -59,20 +60,7 @@ export function HomeRedirect() {
   if (auth.status === 'loggingOut') return <LogoutPending />;
   if (auth.user) return <Navigate to={rolePaths[auth.user.roleCode]} replace />;
   // Guest chưa đăng nhập vẫn xem được trang chủ (báo cáo: đăng xuất "chuyển về trang chủ (chế độ Guest)").
-  return <GuestHome />;
-}
-
-// Trang chủ cho Guest: chỉ có liên kết tới các trang công khai; chức năng của user mới cần đăng nhập.
-function GuestHome() {
-  return <section className="auth-card role-home"><h2>Chào mừng đến Gym Management</h2>
-    <p>Bạn có thể xem lịch lớp, gói dịch vụ và cửa hàng mà không cần đăng nhập.</p>
-    <div className="quick-links">
-      <Link to="/classes">Lịch lớp</Link>
-      <Link to="/services">Gói dịch vụ</Link>
-      <Link to="/shop">Cửa hàng</Link>
-      <Link to="/login">Đăng nhập</Link>
-      <Link to="/register">Đăng ký</Link>
-    </div></section>;
+  return <HomePage />;
 }
 
 export function RoleShell({ role }: { role: RoleCode }) {
@@ -125,7 +113,6 @@ export function RoleShell({ role }: { role: RoleCode }) {
     {/* Admin/Staff xem thông tin ở trang /account (chỉ đọc); Member/PT dùng trang /profile có sẵn (sửa được). */}
     {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/account`}>Thông tin tài khoản</Link>}
     {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
-    {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/security`}>Đổi mật khẩu</Link>}
     </div>
   </section>;
 }
@@ -136,8 +123,31 @@ export function AccountInfoPage({ role }: { role: RoleCode }) {
   return <section className="auth-card"><h2>Thông tin tài khoản</h2>
     <dl className="info-grid"><dt>Họ tên</dt><dd>{user?.fullName}</dd><dt>Số điện thoại</dt><dd>{user?.phone}</dd>
       <dt>Vai trò</dt><dd>{roleNames[role]}</dd>{user?.email && <><dt>Email</dt><dd>{user.email}</dd></>}</dl>
-    <Link to={rolePaths[role]}>← Về trang chính</Link>
   </section>;
+}
+
+// Khối bên phải thanh header: Guest thấy "Đăng nhập" + "Đăng ký"; đã đăng nhập thấy chuông (member),
+// ô tên tài khoản (bấm vào mở trang thông tin tài khoản) và nút đăng xuất.
+export function HeaderAccount() {
+  const auth = useAuth();
+  if (auth.status === 'checking') return null;
+  if (!auth.user) return <div className="header-account">
+    <Link to="/login" className="header-link">Đăng nhập</Link>
+    <Link to="/register" className="button-link">Đăng ký</Link>
+  </div>;
+  const role = auth.user.roleCode;
+  // Admin/Staff xem thông tin ở /account (chỉ đọc); Member/PT dùng /profile (sửa được, có đổi mật khẩu).
+  const accountPath = role === 'ADMIN' || role === 'STAFF' ? `${rolePaths[role]}/account` : `${rolePaths[role]}/profile`;
+  // Chữ cái đầu của tên cuối (vd. "Lê Minh An" → "A") làm ảnh đại diện.
+  const initial = auth.user.fullName.trim().split(/\s+/).pop()?.charAt(0).toUpperCase() ?? '?';
+  return <div className="header-account">
+    <MemberNotificationBell />
+    <Link to={accountPath} className="account-chip" aria-label="Thông tin tài khoản" title="Thông tin tài khoản">
+      <span className="account-avatar" aria-hidden="true">{initial}</span>
+      <span className="account-role" aria-hidden="true">{roleNames[role]}</span>
+    </Link>
+    <LogoutButton />
+  </div>;
 }
 
 // US-47: chuông thông báo nằm trên thanh điều hướng chung nên mọi trang của member đều thấy; role khác không hiện.

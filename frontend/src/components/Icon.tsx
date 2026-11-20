@@ -1,7 +1,7 @@
 // Tầng giao diện – thành phần dùng chung: icon SVG vẽ tay cho nút (tìm kiếm, tải lại, hiện/ẩn mật khẩu, chuyển trang…).
 // Chữ của nút vẫn nằm trong thẻ ẩn "sr-only" để trình đọc màn hình và test vẫn tìm được nút theo tên.
 
-export type IconName = 'search' | 'filter' | 'retry' | 'eye' | 'eyeOff' | 'prev' | 'next' | 'close' | 'logout';
+export type IconName = 'search' | 'filter' | 'retry' | 'eye' | 'eyeOff' | 'prev' | 'next' | 'close' | 'logout' | 'bell' | 'back';
 
 // Mỗi icon là vài nét vẽ (thuộc tính d của <path>) trên khung 24x24, nét dày 2px.
 const iconPaths: Record<IconName, string[]> = {
@@ -14,6 +14,8 @@ const iconPaths: Record<IconName, string[]> = {
   next: ['M9 18l6-6-6-6'],                                                         // mũi tên phải
   close: ['M18 6L6 18', 'M6 6l12 12'],                                             // dấu X
   logout: ['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'M16 17l5-5-5-5', 'M21 12H9'], // cửa và mũi tên ra
+  bell: ['M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9', 'M13.7 21a2 2 0 0 1-3.4 0'],   // cái chuông
+  back: ['M19 12H5', 'M12 19l-7-7 7-7'],                                           // mũi tên quay lại
 };
 
 // showLabel = false: chỉ hiện icon, chữ bị ẩn nhưng rê chuột vào sẽ thấy chú thích (title).
