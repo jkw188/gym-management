@@ -1,16 +1,18 @@
-/* Tầng giao diện – CSS chung theo thiết kế "Monochrome Minimalist" (docs/stitch_monochrome_login_page/…/DESIGN.md). */
-/* Chỉ đen – trắng – xám, viền mảnh 1px, bo góc 4px, không đổ bóng; font Geist (Google Fonts, có tiếng Việt) nạp trong index.html. */
+/* Tầng giao diện – CSS chung theo bố cục "Monochrome Minimalist" (docs/stitch_monochrome_login_page/…/DESIGN.md), tông xanh dương. */
+/* Nền trắng – xám nhạt, màu nhấn xanh dương, viền mảnh 1px, bo góc 4px, không đổ bóng; font Geist (Google Fonts, có tiếng Việt). */
 
 /* ===== 1. Biến màu: đổi màu cả web chỉ cần sửa ở đây ===== */
 :root {
-  --ink: #000000;           /* chữ tiêu đề, nút chính, trạng thái đang chọn */
-  --ink-2: #111111;         /* nút chính khi rê chuột, viền khi rê chuột */
-  --bg: #f9f9f9;            /* nền trang */
+  --ink: #1d4ed8;           /* màu nhấn xanh dương: nút chính, trạng thái đang chọn, vạch nhấn */
+  --ink-2: #1e40af;         /* xanh đậm hơn khi rê chuột */
+  --ink-soft: #eff6ff;      /* nền xanh rất nhạt: mục menu đang chọn, nhãn trạng thái */
+  --heading: #0f172a;       /* chữ tiêu đề (xanh đen) */
+  --bg: #f8fafc;            /* nền trang */
   --surface: #ffffff;       /* nền thẻ, bảng, form, ô nhập */
-  --surface-2: #f5f5f5;     /* nền phụ: tiêu đề bảng, khối ghi chú, ô chỉ đọc */
-  --border: #e5e5e5;        /* đường viền mảnh */
-  --text: #1a1c1c;          /* chữ thường */
-  --muted: #737373;         /* nhãn, chữ phụ, link phụ */
+  --surface-2: #f1f5f9;     /* nền phụ: tiêu đề bảng, khối ghi chú, ô chỉ đọc */
+  --border: #e2e8f0;        /* đường viền mảnh */
+  --text: #1e293b;          /* chữ thường */
+  --muted: #64748b;         /* nhãn, chữ phụ, link phụ */
   --content-width: 1200px;  /* bề rộng chung để menu, banner và nội dung thẳng hàng */
   --danger: #ba1a1a;        /* màu duy nhất ngoài thang xám: báo lỗi */
   --danger-bg: #ffdad6;
@@ -24,7 +26,7 @@
 body { margin: 0; font-family: var(--font-body); font-size: 14px; line-height: 1.5; letter-spacing: -0.005em; color: var(--text); background: var(--bg); }
 #root { display: flex; flex-direction: column; min-height: 100vh; }
 /* Tiêu đề: in hoa, đậm vừa, khoảng chữ âm cho gọn như bản thiết kế. */
-h1, h2, h3, h4 { color: var(--ink); font-weight: 600; line-height: 1.2; letter-spacing: -0.025em; }
+h1, h2, h3, h4 { color: var(--heading); font-weight: 600; line-height: 1.2; letter-spacing: -0.025em; }
 h2 { font-size: 1.75rem; text-transform: uppercase; }
 h3 { font-size: 1.15rem; font-weight: 500; letter-spacing: -0.015em; }
 /* Vài trang (cửa hàng, gói dịch vụ) dùng h1 làm tiêu đề trang: cùng cỡ với h2. */
@@ -36,7 +38,7 @@ small, .hint { color: var(--muted); }
 /* ===== 3. Khung trang: thanh menu, banner, nội dung, chân trang ===== */
 .site-header { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border); }
 .site-header-inner { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; max-width: var(--content-width); min-height: 72px; margin: 0 auto; padding: 12px 32px; }
-.brand { display: flex; gap: 10px; align-items: center; color: var(--ink); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.03em; text-transform: uppercase; }
+.brand { display: flex; gap: 10px; align-items: center; color: var(--heading); font-size: 1.25rem; font-weight: 600; letter-spacing: -0.03em; text-transform: uppercase; }
 .brand:hover { text-decoration: none; }
 /* Logo: ô vuông đen nhỏ chữ trắng. */
 .brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 2px; background: var(--ink); color: #fff; font-size: .75rem; letter-spacing: 0; }
@@ -46,16 +48,9 @@ nav { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .site-header nav a:hover { color: var(--ink); text-decoration: none; }
 .site-header nav a.active { color: var(--ink); font-weight: 500; box-shadow: inset 0 -2px 0 var(--ink); }
 
-/* Banner: dải trắng, chữ đen in hoa to căn trái kiểu tạp chí, viền mảnh phía dưới. */
-.hero { color: var(--text); background: var(--surface); border-bottom: 1px solid var(--border); }
-.hero-inner { max-width: var(--content-width); margin: 0 auto; padding: 40px 32px 32px; }
-.hero h1 { margin: 0; font-size: clamp(2rem, 4.5vw, 3rem); font-weight: 600; letter-spacing: -0.04em; text-transform: uppercase; }
-/* Nhãn nhỏ phía trên tiêu đề như "■ CÂU LẠC BỘ THỂ HÌNH" trong bản thiết kế. */
-.hero h1::before { content: ''; display: inline-block; width: 10px; height: 10px; margin: 0 12px 6px 0; background: var(--ink); vertical-align: middle; }
-.hero p { max-width: 640px; margin: 12px 0 0; color: var(--muted); font-size: 1rem; }
 
-main { flex: 1; width: 100%; max-width: var(--content-width); margin: 40px auto; padding: 0 32px; }
-.site-footer { padding: 28px 32px; background: var(--bg); border-top: 1px solid var(--border); color: var(--ink); font-size: .8rem; letter-spacing: .02em; text-transform: uppercase; text-align: center; }
+main { flex: 1; width: 100%; max-width: var(--content-width); margin: 32px auto 48px; padding: 0 32px; }
+.site-footer { padding: 28px 32px; background: var(--bg); border-top: 1px solid var(--border); color: var(--muted); font-size: .8rem; letter-spacing: .02em; text-transform: uppercase; text-align: center; }
 
 /* ===== 4. Thẻ nội dung ===== */
 .auth-card, .status-card { padding: 32px; margin: 0 0 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
@@ -71,11 +66,11 @@ main { flex: 1; width: 100%; max-width: var(--content-width); margin: 40px auto;
 /* Trang chính theo vai trò: thông tin dạng lưới, các chức năng là thẻ bấm được. */
 .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
 .info-grid dt { margin: 0; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
-.info-grid dd { margin: 0 0 8px; color: var(--ink); font-weight: 500; }
+.info-grid dd { margin: 0 0 8px; color: var(--heading); font-weight: 500; }
 .quick-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 24px; }
-.quick-links a { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-weight: 500; transition: border-color .15s, background .15s; }
+.quick-links a { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--heading); font-weight: 500; transition: border-color .15s, background .15s; }
 .quick-links a::after { content: '→'; color: var(--ink); }
-.quick-links a:hover { border-color: var(--ink); background: var(--surface-2); text-decoration: none; }
+.quick-links a:hover { border-color: var(--ink); background: var(--ink-soft); text-decoration: none; }
 
 /* ===== 5. Nút ===== */
 /* Nút chính: nền đen chữ trắng, cao 40px, rê chuột sang #111, bấm thì thu nhỏ 2%. */
@@ -86,8 +81,8 @@ button:hover:not(:disabled) { background: var(--ink-2); border-color: var(--ink-
 button:active:not(:disabled) { transform: scale(.98); }
 button:disabled { opacity: .4; cursor: not-allowed; }
 /* Nút phụ: nền trắng viền xám, rê chuột thì viền đen nền xám nhạt. */
-.secondary { color: var(--ink); background: var(--surface); border: 1px solid var(--border); }
-.secondary:hover:not(:disabled) { background: var(--surface-2); border-color: var(--ink-2); color: var(--ink); }
+.secondary { color: var(--heading); background: var(--surface); border: 1px solid var(--border); }
+.secondary:hover:not(:disabled) { background: var(--ink-soft); border-color: var(--ink); color: var(--ink); }
 /* Trong khung có sẵn khoảng cách (gap) thì bỏ margin để khỏi cách đôi. */
 .site-header nav button, .password-field button, .user-actions button, .shift-item-actions button, .quick-links button { margin: 0; }
 /* Viền tập trung bàn phím: nét đen sắc, không quầng mờ. */
@@ -100,8 +95,8 @@ form { max-width: none; }
 .auth-card[aria-labelledby="reset-title"], .auth-card[aria-labelledby="security-title"] { max-width: 480px; margin-left: auto; margin-right: auto; padding: 40px; }
 form > button { margin-top: 24px; }
 /* Nhãn: chữ đen nhỏ, đậm vừa, nằm trên ô nhập. */
-label { display: block; margin: 16px 0 6px; color: var(--ink); font-size: .8125rem; font-weight: 500; letter-spacing: .01em; }
-input, select, textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px 14px; font-family: inherit; font-size: .875rem; color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); transition: border-color .15s; }
+label { display: block; margin: 16px 0 6px; color: var(--heading); font-size: .8125rem; font-weight: 500; letter-spacing: .01em; }
+input, select, textarea { width: 100%; min-width: 0; min-height: 44px; padding: 10px 14px; font-family: inherit; font-size: .875rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); transition: border-color .15s; }
 input::placeholder, textarea::placeholder { color: var(--muted); }
 input:hover, select:hover, textarea:hover { border-color: var(--muted); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
@@ -110,7 +105,7 @@ input[type="radio"], input[type="checkbox"] { width: auto; min-height: 0; accent
 textarea { min-height: 100px; resize: vertical; }
 input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
 fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
-legend { color: var(--ink); font-weight: 500; }
+legend { color: var(--heading); font-weight: 500; }
 .password-field { display: flex; gap: 8px; align-items: stretch; }
 .password-field input { flex: 1; }
 .password-field button { min-height: 44px; }
@@ -119,7 +114,7 @@ legend { color: var(--ink); font-weight: 500; }
 .form-error { margin-top: 20px; padding: 14px 16px; border: 1px solid var(--danger); border-radius: var(--radius); background: var(--surface); }
 .form-error p { margin: 0 0 4px; }
 dt { font-weight: 500; margin-top: 12px; color: var(--muted); }
-dd { margin: 4px 0; color: var(--ink); overflow-wrap: anywhere; }
+dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
 
 /* ===== 7. Bảng, bộ lọc, thông báo ===== */
 .user-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 20px 0; }
@@ -207,7 +202,7 @@ dd { margin: 4px 0; color: var(--ink); overflow-wrap: anywhere; }
 
 /* ===== 10. Màn hình nhỏ (điện thoại) ===== */
 @media (max-width: 767px) {
-  .site-header-inner, .hero-inner { padding-left: 20px; padding-right: 20px; }
+  .site-header-inner { padding-left: 20px; padding-right: 20px; }
   main { margin: 24px auto; padding: 0 20px; }
   .auth-card { padding: 20px; }
   .site-header nav a { padding: 6px 8px; }
@@ -272,3 +267,108 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 .role-home p[role="status"] { display: inline-block; padding: 3px 8px; border-radius: 2px; background: var(--ink); color: #fff; font-size: .7rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
 .role-home .quick-links { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 20px; }
 .role-home .quick-links a { min-height: 56px; padding: 14px 16px; font-size: .875rem; }
+
+/* ===== 16. Header: khối tài khoản bên phải (đăng nhập/đăng ký hoặc chuông, tài khoản, đăng xuất) ===== */
+.site-header-inner { flex-wrap: nowrap; }
+.site-header nav { flex: 1; justify-content: center; }
+.header-account { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.header-link { padding: 8px 12px; color: var(--heading); font-size: .875rem; font-weight: 500; }
+/* Chuông: icon xám, chấm số chưa đọc màu xanh ở góc trên phải. */
+.header-bell { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--heading); }
+.header-bell:hover { border-color: var(--ink); color: var(--ink); text-decoration: none; }
+.header-bell-count { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--ink); color: #fff; font-size: .65rem; font-weight: 600; line-height: 18px; text-align: center; }
+/* Ô tài khoản: chữ cái đầu trong ô vuông xanh + tên vai trò. */
+.account-chip { display: flex; gap: 8px; align-items: center; padding: 4px 10px 4px 4px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--heading); font-size: .8rem; }
+.account-chip:hover { border-color: var(--ink); text-decoration: none; }
+.account-avatar { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 2px; background: var(--ink); color: #fff; font-weight: 600; }
+.header-account button { margin: 0; }
+
+/* Nút "Trở về" ở đầu vùng nội dung: nhỏ, viền mảnh, rê chuột thành xanh. */
+.back-button { min-height: 32px; margin: 0 0 16px; padding: 0 10px 0 6px; border: 1px solid var(--border); background: var(--surface); color: var(--heading); }
+.back-button:hover:not(:disabled) { border-color: var(--ink); background: var(--ink-soft); color: var(--ink); }
+
+/* ===== 17. Khung trang tài khoản (Member, PT): menu trái 240px, nội dung phải ===== */
+.account-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: start; }
+.account-sidebar { position: sticky; top: 96px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.account-sidebar-head { display: flex; gap: 12px; align-items: center; padding-bottom: 16px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.account-sidebar-head .account-avatar { width: 44px; height: 44px; font-size: 1.1rem; }
+.account-sidebar-role { color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+.account-sidebar nav { flex-direction: column; align-items: stretch; gap: 2px; }
+.account-sidebar nav a { padding: 10px 12px; border-radius: var(--radius); color: var(--text); font-size: .875rem; }
+.account-sidebar nav a:hover { background: var(--surface-2); text-decoration: none; }
+/* Mục của trang đang mở: nền xanh nhạt, chữ xanh, vạch xanh bên trái. */
+.account-sidebar nav a.active { background: var(--ink-soft); color: var(--ink); font-weight: 500; box-shadow: inset 3px 0 0 var(--ink); }
+/* Trang thông tin tài khoản: thẻ đổi mật khẩu nằm ngay dưới, trải hết bề ngang, chữ căn trái. */
+.account-stack .auth-card[aria-labelledby="security-title"] { max-width: none; padding: 32px; text-align: left; }
+.account-stack .auth-card[aria-labelledby="security-title"] h2 { font-size: 1.25rem; font-weight: 600; text-transform: uppercase; }
+.account-stack .auth-card[aria-labelledby="security-title"] form > button[type="submit"] { width: auto; }
+
+/* Lịch PT của Member: mỗi buổi là một thẻ, trạng thái là nhãn xanh nhạt. */
+.pt-bookings article { margin: 12px 0; padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.pt-bookings article p { margin: 4px 0; }
+.pt-bookings article p:first-child span { display: inline-block; padding: 1px 8px; border-radius: 2px; background: var(--ink-soft); color: var(--ink); font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+/* Đơn hàng của Member: mỗi đơn một thẻ, bộ lọc nằm trên một hàng. */
+.order-list { list-style: none; padding: 0; }
+.order-list > li { margin: 10px 0; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.orders-page form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); }
+.orders-page form label { flex: 1 1 200px; margin: 0; }
+.orders-page form label > * { margin-top: 6px; }
+
+/* ===== 18. Trang ca làm việc của PT: thẻ thống kê và cột hôm nay ===== */
+.stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0; margin: 20px 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.stat-cards > div { padding: 16px 20px; border-right: 1px solid var(--border); }
+.stat-cards > div:last-child { border-right: 0; }
+.stat-cards dt { margin: 0; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+.stat-cards dd { margin: 6px 0 0; color: var(--heading); font-size: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+/* Cột hôm nay: nền xanh nhạt, tiêu đề nền xanh chữ trắng như bản thiết kế WorkShiftUI. */
+.shift-today { background: var(--ink-soft); }
+.shift-today h3 { margin: -12px -8px 10px; padding: 8px; background: var(--ink); color: #fff; }
+
+/* ===== 19. Trang chủ Guest ===== */
+.eyebrow { margin: 0 0 6px; color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+.home-hero { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.home-hero-text { padding: 48px; }
+.home-hero h1 { margin: 0 0 16px; font-size: clamp(2rem, 4.5vw, 3.25rem); letter-spacing: -0.04em; line-height: 1.05; }
+.home-hero-text > p { max-width: 520px; color: var(--muted); font-size: 1rem; }
+.home-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+/* Link phụ trông như nút phụ (nền trắng viền xám). */
+.button-link.secondary-link { border: 1px solid var(--border); background: var(--surface); color: var(--heading); }
+.button-link.secondary-link:hover { border-color: var(--ink); background: var(--ink-soft); color: var(--ink); }
+.home-stats { display: flex; flex-wrap: wrap; gap: 40px; margin: 0; }
+.home-stats dt { margin: 0; color: var(--muted); font-size: .75rem; font-weight: 400; }
+.home-stats dd { margin: 2px 0 0; color: var(--heading); font-size: 1.15rem; font-weight: 600; }
+/* Khung xanh bên phải: nền xanh đậm, chữ trắng. */
+.home-hero-panel { display: flex; flex-direction: column; justify-content: flex-end; padding: 40px; background: var(--ink); color: #fff; }
+.home-hero-panel .eyebrow { color: #bfdbfe; }
+.home-hero-panel ul { margin: 0; padding: 0; list-style: none; }
+.home-hero-panel li { padding: 12px 0; border-top: 1px solid rgb(255 255 255 / 25%); font-size: 1rem; }
+.home-section { margin-top: 48px; }
+.home-section-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+.home-section-head h2, .home-cta h2 { margin: 0; }
+.home-grid { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.home-grid-3 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.home-grid-4 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.home-card .shop-image-placeholder { width: 100%; }
+.home-card { display: flex; flex-direction: column; gap: 6px; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); transition: border-color .15s; }
+.home-card:hover { border-color: var(--ink); }
+.home-card h3 { margin: 4px 0 0; }
+.home-card h3 a { color: var(--heading); }
+.home-card img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius); }
+.home-price { margin: 4px 0 0; color: var(--heading); font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; }
+.tag { align-self: flex-start; padding: 2px 8px; border-radius: 2px; background: var(--ink-soft); color: var(--ink); font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.home-cta { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between; margin-top: 48px; padding: 32px 40px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+
+/* ===== 20. Màn hình hẹp: header xuống dòng, menu tài khoản lên trên, trang chủ một cột ===== */
+@media (max-width: 900px) {
+  .site-header-inner { flex-wrap: wrap; }
+  .site-header nav { order: 3; flex-basis: 100%; justify-content: flex-start; }
+  .account-layout, .home-hero { grid-template-columns: 1fr; }
+  .account-sidebar { position: static; }
+  .account-sidebar nav { flex-direction: row; flex-wrap: wrap; }
+  .home-hero-text, .home-hero-panel { padding: 28px; }
+}
+
+/* Hộp thông báo realtime (NotificationToast) cho Admin/Staff/PT: nổi ở góc dưới phải, không đẩy nội dung xuống. */
+.site-header + aside[role="status"] { position: fixed; right: 24px; bottom: 24px; z-index: 20; width: min(380px, calc(100% - 48px)); margin: 0; padding: 20px; border-left: 3px solid var(--ink); box-shadow: 0 8px 24px rgb(15 23 42 / 12%); }
+/* Lịch tuần trong khung tài khoản hẹp hơn: cột tối thiểu 110px để vừa 7 ngày không phải cuộn ngang. */
+.account-content .shift-week { grid-template-columns: repeat(7, minmax(110px, 1fr)); }
