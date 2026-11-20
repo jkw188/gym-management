@@ -19,6 +19,8 @@ export class ApiError extends Error {
 export class ApiClient {
   private accessToken: string | null = null;
   private refreshPromise: Promise<AuthUser> | null = null;
+  // Lý do gắn vào trang đăng nhập nếu lần refresh đang chạy bị 401 (US-42-TC11).
+  private refreshLoginReason: string | undefined = undefined;
   private logoutPromise: Promise<LogoutResult> | null = null;
   private sessionGeneration = 0;
   private snapshot: AuthSnapshot = { status: 'checking', user: null };
@@ -89,9 +91,12 @@ export class ApiClient {
   }
 
   // loginReason (không bắt buộc): lý do gắn khi refresh bị 401; restore() lúc mở app không truyền nên trang đăng nhập không báo gì (US-42-TC11).
+  // Nhiều request cùng gặp 401 dùng chung một lần refresh: ai vào sau mà có lý do thì vẫn ghi lại lý do đó.
   refreshSession(loginReason?: string): Promise<AuthUser> {
+    if (loginReason && this.refreshPromise) this.refreshLoginReason = loginReason;
     if (this.refreshPromise) return this.refreshPromise;
     if (this.snapshot.status === 'loggingOut') return Promise.reject(new ApiError('Đang đăng xuất.'));
+    this.refreshLoginReason = loginReason;
     const generation = this.sessionGeneration;
     this.refreshPromise = (async () => {
       try {
@@ -104,9 +109,9 @@ export class ApiClient {
         if (this.snapshot.status !== 'loggingOut') this.publish({ status: 'authenticated', user });
         return user;
       } catch (error) {
-        if (generation === this.sessionGeneration && error instanceof ApiError && error.status === 401) this.anonymous(loginReason);
+        if (generation === this.sessionGeneration && error instanceof ApiError && error.status === 401) this.anonymous(this.refreshLoginReason);
         throw error;
-      } finally { this.refreshPromise = null; }
+      } finally { this.refreshPromise = null; this.refreshLoginReason = undefined; }
     })();
     return this.refreshPromise;
   }
