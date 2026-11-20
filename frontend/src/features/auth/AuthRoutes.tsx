@@ -1,4 +1,5 @@
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { SESSION_EXPIRED } from '../../api/client';
 import { useAuth } from './AuthProvider';
 import { roleNames, rolePaths } from './auth.routes';
 import type { RoleCode } from './auth.types';
@@ -42,8 +43,11 @@ export function ProtectedRoute({ role }: { role: RoleCode }) {
   const location = useLocation();
   if (auth.status === 'checking') return <AuthChecking />;
   if (auth.status === 'loggingOut') return <LogoutPending />;
+  const returnTo = encodeURIComponent(location.pathname + location.search + location.hash);
+  // US-42-TC11: phiên hết hiệu lực giữa chừng → báo lý do và vẫn quay lại đúng trang sau khi đăng nhập.
+  if (!auth.user && auth.loginReason === SESSION_EXPIRED) return <Navigate to={`/login?reason=${SESSION_EXPIRED}&returnTo=${returnTo}`} replace />;
   if (!auth.user && auth.loginReason) return <Navigate to={`/login?reason=${auth.loginReason}`} replace />;
-  if (!auth.user) return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname + location.search + location.hash)}`} replace />;
+  if (!auth.user) return <Navigate to={`/login?returnTo=${returnTo}`} replace />;
   if (auth.user.roleCode !== role) return <section className="auth-card"><h2>Không có quyền truy cập</h2>
     <p role="alert">Tài khoản của bạn không có quyền truy cập trang này.</p></section>;
   return <Outlet />;

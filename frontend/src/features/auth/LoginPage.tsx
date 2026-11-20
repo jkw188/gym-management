@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { ApiError } from '../../api/client';
+import { ApiError, SESSION_EXPIRED } from '../../api/client';
 import { AuthChecking } from './AuthRoutes';
 import { useAuth } from './AuthProvider';
 import { resolveReturnTo } from './auth.routes';
@@ -43,6 +43,8 @@ export function LoginPage() {
 
   return <section className="auth-card" aria-labelledby="login-title">
     <h2 id="login-title">Đăng nhập</h2><p>Dùng số điện thoại và mật khẩu của tài khoản phòng Gym.</p>
+    {/* US-42-TC11: phiên bị thu hồi/hết hiệu lực khi đang thao tác. */}
+    {params.get('reason') === SESSION_EXPIRED && <p role="status">Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.</p>}
     {params.get('reason') === 'registered' && <p role="status">Đã tạo tài khoản. Vui lòng đăng nhập bằng số điện thoại và mật khẩu vừa đăng ký.</p>}
     {params.get('reason') === 'identity-changed' && <p role="status">Đã lưu thông tin tài khoản. Vui lòng đăng nhập lại bằng thông tin mới.</p>}
     {params.get('reason') === 'password-changed' && <p role="status">Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.</p>}

@@ -2,7 +2,6 @@ import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsISO8601, IsString, Length, Matches } from 'class-validator';
 import { PrepareOrderDto } from './orders.dto';
-import { OrderRefundResponseDto } from './orders.dto';
 
 export class CancelOrderDto extends PrepareOrderDto {
   @ApiProperty({ minLength: 10, maxLength: 500 }) @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim() : value)
@@ -36,35 +35,4 @@ export class LateReceiptResponseDto {
   @ApiProperty({ enum: ['PENDING'] }) refundState!: 'PENDING';
   @ApiProperty({ enum: ['CANCELLED'] }) transactionStatus!: 'CANCELLED';
   @ApiProperty() notificationState!: string;
-}
-export class OwnOrderItemResponseDto {
-  @ApiProperty() id!: string;
-  @ApiProperty() name!: string;
-  @ApiProperty() quantity!: number;
-  @ApiProperty() lineTotal!: string;
-}
-export class OwnOrderResponseDto {
-  @ApiProperty() id!: string;
-  @ApiProperty() code!: string;
-  @ApiProperty({ enum: ['WEBSITE', 'POS'] }) channel!: string;
-  @ApiProperty({ enum: ['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] }) status!: string;
-  @ApiProperty() version!: number;
-  @ApiProperty() reservationState!: string;
-  @ApiProperty() reservationExpiresAt!: string;
-  @ApiProperty() expired!: boolean;
-  @ApiProperty() asOf!: string;
-  @ApiProperty({ nullable: true, type: String }) total!: string | null;
-  @ApiProperty({ nullable: true, type: String }) transactionStatus!: string | null;
-  @ApiProperty({ nullable: true, type: String }) cancelledAt!: string | null;
-  @ApiProperty({ nullable: true, type: String }) cancellationReason!: string | null;
-  @ApiProperty({ type: [OwnOrderItemResponseDto] }) items!: OwnOrderItemResponseDto[];
-  @ApiProperty({ type: [OrderRefundResponseDto] }) refunds!: OrderRefundResponseDto[];
-}
-export class OwnOrderPageResponseDto {
-  @ApiProperty({ type: [OwnOrderResponseDto] }) items!: OwnOrderResponseDto[];
-  @ApiProperty() memberLinked!: boolean;
-  @ApiProperty() page!: number;
-  @ApiProperty() limit!: number;
-  @ApiProperty() total!: number;
-  @ApiProperty() totalPages!: number;
 }
