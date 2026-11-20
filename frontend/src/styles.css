@@ -161,6 +161,14 @@ dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
 .notification-inbox { overflow-wrap: anywhere; }
 .notification-inbox ul { list-style: none; padding: 0; }
 .notification-inbox li button { width: 100%; height: auto; margin-bottom: 8px; padding: 12px 16px; text-align: left; }
+/* Dòng thông báo: nền trắng, chữ thường (không dùng nút gradient); nội dung bên trái, thời gian xám bên phải. */
+.notification-inbox li button.notification-item { display: flex; gap: 16px; align-items: baseline; justify-content: space-between; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 400; box-shadow: none; transform: none; }
+.notification-inbox li button.notification-item:hover:not(:disabled) { border-color: var(--ink); background: var(--ink-soft); box-shadow: none; transform: none; }
+.notification-item time { flex: 0 0 auto; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+/* Chưa đọc: chữ đậm và chấm xanh phía trước nội dung. */
+.notification-unread .notification-text { color: var(--heading); font-weight: 600; }
+.notification-unread .notification-text::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 999px; background: var(--ink); vertical-align: middle; }
+.notification-inbox article time, [role="status"] time { display: block; color: var(--muted); font-size: .8rem; }
 /* Giữ xuống dòng của body như người gửi viết. */
 .notification-body { white-space: pre-wrap; }
 
@@ -380,8 +388,8 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 
 /* Nút chính: gradient xanh, bo 10px; rê chuột thì nổi lên và có bóng xanh. Nút phụ giữ nền trắng. */
 button, .button-link { border-radius: var(--radius-sm); }
-button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not([aria-pressed]) { border-color: transparent; background: var(--gradient); }
-button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not([aria-pressed]):hover:not(:disabled) { border-color: transparent; background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); transform: translateY(-1px); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.notification-item):not([aria-pressed]) { border-color: transparent; background: var(--gradient); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.notification-item):not([aria-pressed]):hover:not(:disabled) { border-color: transparent; background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); transform: translateY(-1px); }
 .button-link:not(.secondary-link) { background: var(--gradient); }
 .button-link:not(.secondary-link):hover { background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); }
 

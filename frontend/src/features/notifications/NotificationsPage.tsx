@@ -15,6 +15,9 @@ const FILTERS: { value: ReadState; label: string }[] = [
   { value: 'READ', label: 'Đã đọc' },
 ];
 
+// Thời gian thông báo theo giờ Việt Nam, dạng "14:30 20/11/2026".
+const formatTime = (iso: string) => new Date(iso).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' });
+
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError && error.message ? error.message : fallback);
 
 export function NotificationsPage() {
@@ -116,10 +119,13 @@ export function NotificationsPage() {
 
     {data && data.items.length === 0 && !listError && <p>Chưa có thông báo nào.</p>}
     {data && data.items.length > 0 && <ul>
-      {/* React hiện title/bodyPreview dạng chữ, không dịch HTML (US-47-TC11). key theo id nên mỗi thông báo một dòng. */}
+      {/* Mỗi dòng chỉ hiện nội dung xem trước và thời gian; title vẫn nằm trong aria-label để trình đọc màn hình đọc được.
+          React hiện chữ thuần, không dịch HTML (US-47-TC11). Thông báo chưa đọc có chấm xanh (class notification-unread). */}
       {data.items.map(item => <li key={item.id}>
-        <button type="button" onClick={() => void openNotification(item.id)}>
-          {item.readAt ? '' : '(mới) '}<strong>{item.title}</strong> – {item.bodyPreview}
+        <button type="button" className={item.readAt ? 'notification-item' : 'notification-item notification-unread'}
+          aria-label={`${item.readAt ? '' : 'Chưa đọc: '}${item.title} – ${item.bodyPreview}`} onClick={() => void openNotification(item.id)}>
+          <span className="notification-text">{item.bodyPreview}</span>
+          <time dateTime={item.createdAt}>{formatTime(item.createdAt)}</time>
         </button>
       </li>)}
     </ul>}
@@ -131,12 +137,10 @@ export function NotificationsPage() {
     </nav>}
 
     {selected && <article aria-label="Chi tiết thông báo">
-      <h3>{selected.title}</h3>
-      {/* US-47-F05, TC11: body hiện như chữ thuần; URL trong body không thành link, không tự chuyển trang. */}
+      {/* Chi tiết chỉ hiện nội dung và thời gian. US-47-F05, TC11: body hiện như chữ thuần; URL trong body không thành link. */}
       <p className="notification-body">{selected.body}</p>
+      <time dateTime={selected.createdAt}>{formatTime(selected.createdAt)}</time>
       <NotificationSourceLink source={selected.source} role="MEMBER" />
-      {selected.source && <p>Thông báo lưu tại thời điểm nhắc. Xem trang gói/lịch để biết trạng thái hiện tại.</p>}
-      <p><small>{new Date(selected.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}</small></p>
     </article>}
   </section>;
 }
