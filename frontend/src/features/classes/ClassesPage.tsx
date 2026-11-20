@@ -1,4 +1,5 @@
 // Tầng giao diện – trang (US-26 bước 3): /classes – Guest/Member xem lịch lớp miễn phí đã công bố theo tuần, lọc bộ môn.
+// Mặc định xem theo tuần (đúng spec); có thêm chế độ "Tháng" dạng cuốn lịch (ClassesMonthView).
 // Chỉ xem: không có nút đăng ký/đặt chỗ, không gửi request ghi nào (US-26-F04, TC10).
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
@@ -6,6 +7,7 @@ import { addDays, mondayOf, vietnamDate, vietnamTime } from '../shifts/shift-tim
 import { classesApi, type PublicSession, type PublicSessionPage, type Subject } from './classes.api';
 import { Icon } from '../../components/Icon';
 import { subscribeClassChanges } from './class-signals';
+import { ClassesMonthView } from './ClassesMonthView';
 
 // "2026-11-05" → "05/11".
 const shortDate = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
@@ -31,6 +33,8 @@ function SessionInfo({ session }: { session: PublicSession }) {
 
 export function ClassesPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  // Chế độ xem: 'week' (mặc định theo US-26) hoặc 'month' (cuốn lịch cả tháng).
+  const [view, setView] = useState<'week' | 'month'>('week');
   // Bộ lọc: thứ Hai của tuần đang xem, bộ môn (rỗng = tất cả) và trang.
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [subjectCode, setSubjectCode] = useState('');
@@ -56,6 +60,8 @@ export function ClassesPage() {
 
   // Tải danh sách mỗi khi bộ lọc đổi hoặc bấm tải lại.
   useEffect(() => {
+    // Chế độ tháng tự tải dữ liệu trong ClassesMonthView nên không gọi danh sách tuần.
+    if (view === 'month') return;
     // ignore = true khi bộ lọc đã đổi tiếp: bỏ kết quả cũ về muộn.
     let ignore = false;
     setLoading(true);
@@ -68,7 +74,7 @@ export function ClassesPage() {
       .catch(error => { if (!ignore) setListError(errorText(error, 'Không tải được lịch lớp.')); })
       .finally(() => { if (!ignore) setLoading(false); });
     return () => { ignore = true; };
-  }, [weekStart, subjectCode, page, reloadCount]);
+  }, [view, weekStart, subjectCode, page, reloadCount]);
 
   // US-26-TC12: mọi lần đổi bộ lọc đều đóng hộp chi tiết, xóa thông báo cũ và tăng số lượt bộ lọc.
   function startNewFilterRound() {
@@ -88,6 +94,11 @@ export function ClassesPage() {
     startNewFilterRound();
     setPage(1);
     setSubjectCode(code);
+  }
+
+  function changeView(next: 'week' | 'month') {
+    startNewFilterRound();
+    setView(next);
   }
 
   function changePage(nextPage: number) {
@@ -120,13 +131,17 @@ export function ClassesPage() {
     <h2>Lịch lớp miễn phí</h2>
     <p>Lịch tham khảo công khai, không cần đăng ký chỗ.</p>
 
-    {/* Chọn tuần và bộ môn nằm chung một hàng. */}
+    {/* Chọn chế độ xem, tuần (hoặc tháng ở dưới) và bộ môn nằm chung một hàng. */}
     <div className="toolbar">
-      <div className="user-actions week-picker" role="group" aria-label="Chọn tuần">
+      <div className="view-switch" role="group" aria-label="Chế độ xem">
+        <button type="button" aria-pressed={view === 'week'} onClick={() => changeView('week')}>Xem theo tuần</button>
+        <button type="button" aria-pressed={view === 'month'} onClick={() => changeView('month')}>Xem theo tháng</button>
+      </div>
+      {view === 'week' && <div className="user-actions week-picker" role="group" aria-label="Chọn tuần">
         <button type="button" className="secondary" onClick={() => changeWeek(-7)}><Icon name="prev" label="Tuần trước" /></button>
         <span>{shortDate(weekStart)} – {shortDate(addDays(weekStart, 6))}</span>
         <button type="button" className="secondary" onClick={() => changeWeek(7)}><Icon name="next" label="Tuần sau" /></button>
-      </div>
+      </div>}
       <div className="toolbar-select">
         <label htmlFor="class-subject">Bộ môn</label>
         <select id="class-subject" value={subjectCode} onChange={event => changeSubject(event.target.value)}>
@@ -138,6 +153,9 @@ export function ClassesPage() {
 
     {notice && <p className="form-error" role="alert">{notice}</p>}
 
+    {view === 'month' && <ClassesMonthView subjectCode={subjectCode} reloadCount={reloadCount} onOpen={id => void openDetail(id)} />}
+
+    {view === 'week' && <>
     {loading && <p>Đang tải lịch lớp...</p>}
 
     {/* US-26-TC12: lỗi DB/mạng có nút thử lại, giữ nguyên bộ lọc. */}
@@ -162,6 +180,7 @@ export function ClassesPage() {
       <span>Trang {data.page}/{data.totalPages}</span>
       {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => changePage(page + 1)}><Icon name="next" label="Trang sau" /></button>}
     </div>}
+    </>}
 
     {selected && <div role="dialog" aria-modal="true" aria-labelledby="class-detail-title" className="auth-card">
       <h3 id="class-detail-title">Chi tiết lớp</h3>
