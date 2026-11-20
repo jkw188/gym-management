@@ -19,9 +19,7 @@ function AccountToast({ role }: { role: string }) {
       if (incoming.length) setItem(incoming[incoming.length - 1]);
     });
   }, []);
-  // Toast chỉ hiện nội dung và thời gian nhận (giờ Việt Nam).
-  return item ? <aside role="status" className="auth-card"><p>{item.body}</p>
-    <time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</time>
+  return item ? <aside role="status" className="auth-card"><strong>{item.title}</strong><p>{item.body}</p>
     <NotificationSourceLink source={item.source} role={role} />
     <button onClick={() => setItem(undefined)}>Đóng thông báo</button></aside> : null;
 }
