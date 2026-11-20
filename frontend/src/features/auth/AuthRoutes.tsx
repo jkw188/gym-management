@@ -59,17 +59,17 @@ export function HomeRedirect() {
   if (auth.status === 'checking') return <AuthChecking />;
   if (auth.status === 'loggingOut') return <LogoutPending />;
   // Trang chủ công khai: Guest và người đã đăng nhập đều xem được (báo cáo: đăng xuất "chuyển về trang chủ (chế độ Guest)").
-  // Các chức năng của vai trò nằm trên thanh menu tab (RoleTaskbar) dưới header.
+  // Đã đăng nhập thì các chức năng của vai trò nằm ở menu bên trái (AppLayout).
   return <HomePage />;
 }
 
 export function RoleShell({ role }: { role: RoleCode }) {
   const { user } = useAuth();
-  return <section className="auth-card role-home"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
-    <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
-    {/* Các chức năng của vai trò nằm trên thanh menu tab (RoleTaskbar) dưới header; trang này chỉ có lời chào. */}
-    <p className="hint">Chọn chức năng trên thanh menu phía trên.</p>
-  </section>;
+  // Đăng nhập xong vào thẳng trang chủ; phía trên chỉ có một dòng chào. Các chức năng nằm ở menu bên trái (AppLayout).
+  return <div className="role-home">
+    <div className="welcome-bar"><p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p></div>
+    <HomePage />
+  </div>;
 }
 
 // Trang riêng hiện thông tin tài khoản đang đăng nhập (Admin/Staff), lấy từ phiên đăng nhập nên không gọi API.

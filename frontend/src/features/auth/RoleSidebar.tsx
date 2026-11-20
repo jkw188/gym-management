@@ -1,7 +1,9 @@
-// Tầng giao diện – thành phần: thanh menu tab (taskbar) nằm ngay dưới header, chứa các chức năng của vai trò đang đăng nhập.
-// Chỉ là điều hướng; quyền vào từng trang vẫn do ProtectedRoute và API quyết định. Guest không thấy thanh này.
+// Tầng giao diện – thành phần: khung trang khi đã đăng nhập = menu chức năng dọc bên trái (theo vai trò) + nội dung bên phải.
+// Chỉ là điều hướng; quyền vào từng trang vẫn do ProtectedRoute và API quyết định. Guest không có menu này.
+import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
+import { roleNames } from './auth.routes';
 import type { RoleCode } from './auth.types';
 
 interface TaskbarItem { to: string; label: string }
@@ -60,13 +62,23 @@ const MENUS: Record<RoleCode, TaskbarItem[]> = {
   ],
 };
 
-export function RoleTaskbar() {
+// Guest: chỉ có <main>. Đã đăng nhập: menu trái (tên, vai trò, các chức năng xếp từ trên xuống) + <main> bên phải.
+export function AppLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  if (!user) return null;
-  // Thanh cuộn ngang khi nhiều mục; NavLink "end" để /staff/members không sáng khi đang ở /staff/members/new.
-  return <nav className="role-taskbar" aria-label="Menu chức năng">
-    <div className="role-taskbar-inner">
-      {MENUS[user.roleCode].map(item => <NavLink key={item.to} to={item.to} end>{item.label}</NavLink>)}
-    </div>
-  </nav>;
+  if (!user) return <main>{children}</main>;
+  // Chữ cái đầu của tên (từ cuối cùng trong họ tên) để làm ảnh đại diện.
+  const initial = user.fullName.trim().split(/\s+/).pop()?.charAt(0).toUpperCase() ?? '?';
+  return <div className="app-with-sidebar">
+    <aside className="role-sidebar">
+      <div className="role-sidebar-head">
+        <span className="account-avatar" aria-hidden="true">{initial}</span>
+        <span><strong>{user.fullName}</strong><small>{roleNames[user.roleCode]}</small></span>
+      </div>
+      {/* NavLink "end" để /staff/members không sáng khi đang ở /staff/members/new. */}
+      <nav aria-label="Menu chức năng">
+        {MENUS[user.roleCode].map(item => <NavLink key={item.to} to={item.to} end>{item.label}</NavLink>)}
+      </nav>
+    </aside>
+    <main>{children}</main>
+  </div>;
 }

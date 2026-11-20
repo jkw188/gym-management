@@ -8,7 +8,7 @@ import { FoundationStatus } from './features/foundation/FoundationStatus';
 import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
 import { AccountInfoPage, HeaderAccount, HomeRedirect, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
-import { RoleTaskbar } from './features/auth/RoleTaskbar';
+import { AppLayout } from './features/auth/RoleSidebar';
 import { AccountLayout } from './features/auth/AccountLayout';
 import { PageFrame } from './components/BackButton';
 import { LoginPage } from './features/auth/LoginPage';
@@ -66,11 +66,10 @@ export default function App() {
       <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">GM</span>Gym Management</Link>
       <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink><NavLink to="/shop">Cửa hàng</NavLink></nav>
       <HeaderAccount />
-    </div>
-    {/* Thanh menu tab: chức năng của vai trò đang đăng nhập (Guest không thấy). */}
-    <RoleTaskbar /></header>
+    </div></header>
     <NotificationToast />
-    <main>
+    {/* Đã đăng nhập: menu chức năng dọc bên trái, nội dung bên phải (AppLayout). */}
+    <AppLayout>
     <PageFrame scope="main">
     <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
       <Route path="/admin/notifications" element={<BroadcastsPage />} />
@@ -166,7 +165,7 @@ export default function App() {
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
     </Routes>
     </PageFrame>
-    </main>
+    </AppLayout>
     <footer className="site-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
   </AuthProvider></BrowserRouter>;
 }

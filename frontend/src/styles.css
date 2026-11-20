@@ -260,12 +260,6 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 .button-link { display: inline-flex; align-items: center; min-height: 40px; padding: 0 18px; border-radius: var(--radius); background: var(--ink); color: #fff; font-size: .8125rem; font-weight: 500; }
 .button-link:hover { background: var(--ink-2); color: #fff; text-decoration: none; }
 
-/* ===== 15. Trang chính theo vai trò và trang chủ Guest ===== */
-.role-home h2 { font-size: 1.5rem; }
-.role-home p { margin: 6px 0; color: var(--muted); }
-.role-home p strong { color: var(--ink); font-weight: 500; }
-/* "Đăng nhập thành công." thành nhãn nhỏ nền đen chữ trắng in hoa. */
-.role-home p[role="status"] { display: inline-block; padding: 3px 8px; border-radius: 2px; background: var(--ink); color: #fff; font-size: .7rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
 
 /* ===== 16. Header: khối tài khoản bên phải (đăng nhập/đăng ký hoặc chuông, tài khoản, đăng xuất) ===== */
 .site-header-inner { flex-wrap: nowrap; }
@@ -379,8 +373,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 .shift-item, .header-bell, .account-chip, .back-button { border-radius: var(--radius-sm); }
 
 /* Nhãn trạng thái, tag: dạng viên thuốc bo tròn. */
-.tag, .session-ended, .role-home p[role="status"], .pt-bookings article p:first-child span { border-radius: 999px; padding-left: 10px; padding-right: 10px; }
-.role-home p[role="status"] { background: var(--gradient); }
+.tag, .session-ended, .pt-bookings article p:first-child span { border-radius: 999px; padding-left: 10px; padding-right: 10px; }
 
 /* Trang chủ: khối mở đầu bo 20px, ảnh phòng tập phủ kín nửa phải, chú thích dạng viên thuốc trên ảnh. */
 .home-hero { border-radius: var(--radius-lg); box-shadow: var(--shadow); }
@@ -445,14 +438,32 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
   .page-frame { padding: 20px 16px; }
 }
 
-/* ===== 24. Thanh menu tab (taskbar) của vai trò đang đăng nhập: hàng thứ hai của header ===== */
-/* Một hàng ngang, nhiều mục thì cuộn ngang; tab đang mở chữ xanh có gạch chân xanh. */
-.site-header .role-taskbar { display: block; border-top: 1px solid var(--border); }
-.role-taskbar-inner { display: flex; gap: 4px; max-width: var(--content-width); margin: 0 auto; padding: 0 32px; overflow-x: auto; scrollbar-width: thin; }
-.site-header .role-taskbar a { flex: 0 0 auto; padding: 12px 14px; color: var(--muted); font-size: .85rem; white-space: nowrap; }
-.site-header .role-taskbar a:hover { color: var(--ink); }
-.site-header .role-taskbar a.active { color: var(--ink); font-weight: 500; box-shadow: inset 0 -2px 0 var(--ink); }
-@media (max-width: 767px) { .role-taskbar-inner { padding: 0 12px; } }
+/* ===== 24. Khi đã đăng nhập: menu chức năng dọc bên trái (từ trên xuống), nội dung bên phải ===== */
+.app-with-sidebar { display: grid; flex: 1; grid-template-columns: 248px minmax(0, 1fr); gap: 24px; align-items: start; width: 100%; max-width: calc(var(--content-width) + 272px); margin: 32px auto 48px; padding: 0 32px; }
+.app-with-sidebar > main { max-width: none; margin: 0; padding: 0; }
+/* Menu dính khi cuộn trang; nhiều mục (Admin) thì menu tự cuộn bên trong. */
+.role-sidebar { position: sticky; top: 96px; max-height: calc(100vh - 120px); overflow-y: auto; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.role-sidebar-head { display: flex; gap: 12px; align-items: center; padding: 4px 4px 16px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
+.role-sidebar-head .account-avatar { flex: 0 0 auto; width: 40px; height: 40px; font-size: 1rem; }
+.role-sidebar-head strong { display: block; color: var(--heading); font-size: .875rem; line-height: 1.3; }
+.role-sidebar-head small { color: var(--muted); font-size: .7rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+.role-sidebar nav { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 2px; }
+.role-sidebar nav a { padding: 10px 12px; border-radius: var(--radius-sm); color: var(--text); font-size: .875rem; }
+.role-sidebar nav a:hover { background: var(--surface-2); text-decoration: none; }
+/* Mục đang mở: nền xanh nhạt, chữ xanh, vạch xanh bên trái. */
+.role-sidebar nav a.active { background: var(--ink-soft); color: var(--ink); font-weight: 500; box-shadow: inset 3px 0 0 var(--ink); }
+/* Dòng chào phía trên trang chủ sau khi đăng nhập. */
+.welcome-bar { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-bottom: 16px; color: var(--muted); font-size: .875rem; }
+.welcome-bar p { margin: 0; }
+.welcome-bar p[role="status"] { padding: 2px 10px; border-radius: 999px; background: var(--ink-soft); color: var(--ink); font-weight: 500; }
+/* Máy tính bảng, điện thoại: menu lên trên thành một hàng cuộn ngang. */
+@media (max-width: 1023px) {
+  .app-with-sidebar { grid-template-columns: minmax(0, 1fr); margin: 24px auto; padding: 0 20px; }
+  .role-sidebar { position: static; max-height: none; padding: 8px; }
+  .role-sidebar-head { display: none; }
+  .role-sidebar nav { flex-direction: row; overflow-x: auto; }
+  .role-sidebar nav a { flex: 0 0 auto; white-space: nowrap; }
+}
 
 /* ===== 25. Chuông: dropdown 5 thông báo mới nhất, nằm ngay dưới chuông và căn mép phải ===== */
 .bell-menu { position: relative; }
