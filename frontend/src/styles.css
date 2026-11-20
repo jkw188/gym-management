@@ -1,11 +1,16 @@
-/* Tầng giao diện – CSS chung theo bố cục "Monochrome Minimalist" (docs/stitch_monochrome_login_page/…/DESIGN.md), tông xanh dương. */
-/* Nền trắng – xám nhạt, màu nhấn xanh dương, viền mảnh 1px, bo góc 4px, không đổ bóng; font Geist (Google Fonts, có tiếng Việt). */
+/* Tầng giao diện – CSS chung theo bố cục "Monochrome Minimalist" (docs/stitch_monochrome_login_page/…/DESIGN.md), tông xanh dương hiện đại. */
+/* Nền trắng – xám nhạt, màu nhấn xanh dương (gradient), bo góc mềm 10–16px, bóng đổ nhẹ; font Geist (Google Fonts, có tiếng Việt). */
 
 /* ===== 1. Biến màu: đổi màu cả web chỉ cần sửa ở đây ===== */
 :root {
-  --ink: #1d4ed8;           /* màu nhấn xanh dương: nút chính, trạng thái đang chọn, vạch nhấn */
-  --ink-2: #1e40af;         /* xanh đậm hơn khi rê chuột */
+  --ink: #2563eb;           /* màu nhấn xanh dương: nút chính, trạng thái đang chọn, vạch nhấn */
+  --ink-2: #1d4ed8;         /* xanh đậm hơn khi rê chuột */
   --ink-soft: #eff6ff;      /* nền xanh rất nhạt: mục menu đang chọn, nhãn trạng thái */
+  --gradient: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%); /* xanh dương → chàm: nút chính, logo, ảnh đại diện */
+  --radius-sm: 10px;        /* bo góc nút, ô nhập */
+  --radius-lg: 20px;        /* bo góc khối lớn (trang chủ) */
+  --shadow: 0 1px 2px rgb(15 23 42 / 4%), 0 4px 16px rgb(15 23 42 / 6%);        /* bóng nhẹ của thẻ */
+  --shadow-hover: 0 2px 4px rgb(15 23 42 / 6%), 0 12px 28px rgb(37 99 235 / 14%); /* bóng khi rê chuột */
   --heading: #0f172a;       /* chữ tiêu đề (xanh đen) */
   --bg: #f8fafc;            /* nền trang */
   --surface: #ffffff;       /* nền thẻ, bảng, form, ô nhập */
@@ -16,7 +21,7 @@
   --content-width: 1200px;  /* bề rộng chung để menu, banner và nội dung thẳng hàng */
   --danger: #ba1a1a;        /* màu duy nhất ngoài thang xám: báo lỗi */
   --danger-bg: #ffdad6;
-  --radius: 4px;
+  --radius: 14px;           /* bo góc thẻ, bảng, khung */
   --font-body: 'Geist', system-ui, sans-serif;
   --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
@@ -337,11 +342,6 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 .home-stats { display: flex; flex-wrap: wrap; gap: 40px; margin: 0; }
 .home-stats dt { margin: 0; color: var(--muted); font-size: .75rem; font-weight: 400; }
 .home-stats dd { margin: 2px 0 0; color: var(--heading); font-size: 1.15rem; font-weight: 600; }
-/* Khung xanh bên phải: nền xanh đậm, chữ trắng. */
-.home-hero-panel { display: flex; flex-direction: column; justify-content: flex-end; padding: 40px; background: var(--ink); color: #fff; }
-.home-hero-panel .eyebrow { color: #bfdbfe; }
-.home-hero-panel ul { margin: 0; padding: 0; list-style: none; }
-.home-hero-panel li { padding: 12px 0; border-top: 1px solid rgb(255 255 255 / 25%); font-size: 1rem; }
 .home-section { margin-top: 48px; }
 .home-section-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
 .home-section-head h2, .home-cta h2 { margin: 0; }
@@ -365,10 +365,85 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
   .account-layout, .home-hero { grid-template-columns: 1fr; }
   .account-sidebar { position: static; }
   .account-sidebar nav { flex-direction: row; flex-wrap: wrap; }
-  .home-hero-text, .home-hero-panel { padding: 28px; }
+  .home-hero-text { padding: 28px; }
 }
 
 /* Hộp thông báo realtime (NotificationToast) cho Admin/Staff/PT: nổi ở góc dưới phải, không đẩy nội dung xuống. */
 .site-header + aside[role="status"] { position: fixed; right: 24px; bottom: 24px; z-index: 20; width: min(380px, calc(100% - 48px)); margin: 0; padding: 20px; border-left: 3px solid var(--ink); box-shadow: 0 8px 24px rgb(15 23 42 / 12%); }
 /* Lịch tuần trong khung tài khoản hẹp hơn: cột tối thiểu 110px để vừa 7 ngày không phải cuộn ngang. */
 .account-content .shift-week { grid-template-columns: repeat(7, minmax(110px, 1fr)); }
+
+/* ===== 21. Phong cách hiện đại: bo góc mềm, nút gradient xanh, bóng đổ nhẹ (đặt cuối file để ghi đè các mục trên) ===== */
+/* Header kính mờ: nền trắng hơi trong, làm mờ nội dung cuộn phía sau. */
+.site-header { background: rgb(255 255 255 / 85%); backdrop-filter: blur(12px); }
+.brand-mark, .account-avatar { border-radius: var(--radius-sm); background: var(--gradient); }
+
+/* Nút chính: gradient xanh, bo 10px; rê chuột thì nổi lên và có bóng xanh. Nút phụ giữ nền trắng. */
+button, .button-link { border-radius: var(--radius-sm); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not([aria-pressed]) { border-color: transparent; background: var(--gradient); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not([aria-pressed]):hover:not(:disabled) { border-color: transparent; background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); transform: translateY(-1px); }
+.button-link:not(.secondary-link) { background: var(--gradient); }
+.button-link:not(.secondary-link):hover { background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); }
+
+/* Ô nhập: bo 10px, khi đang nhập có vòng sáng xanh nhạt 4px thay cho viền đen. */
+input, select, textarea { border-radius: var(--radius-sm); }
+input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow: 0 0 0 4px rgb(37 99 235 / 15%); }
+
+/* Thẻ và khung: bóng nhẹ; thẻ bấm được thì rê chuột nổi lên. */
+.auth-card, .status-card, .toolbar, .stat-cards, .account-sidebar, .users-table-wrap, .membership-card, .quota, .slots, .pt-confirm,
+.renewal-panel, .home-card, .home-cta, .class-list > li, .pt-bookings article, .order-list > li, .shift-week, .month-grid { box-shadow: var(--shadow); }
+.home-card, .quick-links a, .class-list > li { transition: box-shadow .2s, transform .2s, border-color .2s; }
+.home-card:hover, .quick-links a:hover, .class-list > li:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+.shift-item, .header-bell, .account-chip, .back-button { border-radius: var(--radius-sm); }
+
+/* Nhãn trạng thái, tag: dạng viên thuốc bo tròn. */
+.tag, .session-ended, .role-home p[role="status"], .pt-bookings article p:first-child span { border-radius: 999px; padding-left: 10px; padding-right: 10px; }
+.role-home p[role="status"] { background: var(--gradient); }
+.account-sidebar nav a { border-radius: var(--radius-sm); }
+.account-sidebar nav a.active { box-shadow: none; }
+
+/* Trang chủ: khối mở đầu bo 20px, ảnh phòng tập phủ kín nửa phải, chú thích dạng viên thuốc trên ảnh. */
+.home-hero { border-radius: var(--radius-lg); box-shadow: var(--shadow); }
+.home-hero h1 { background: linear-gradient(135deg, #0f172a 30%, #2563eb 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.home-hero-media { position: relative; min-height: 320px; margin: 0; }
+.home-hero-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.home-hero-media figcaption { position: absolute; left: 20px; bottom: 20px; padding: 6px 14px; border-radius: 999px; background: rgb(255 255 255 / 90%); color: var(--heading); font-size: .75rem; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; backdrop-filter: blur(6px); }
+.home-cta { border: 0; background: var(--gradient); color: #fff; }
+.home-cta h2, .home-cta .eyebrow { color: #fff; }
+.home-cta .button-link { background: #fff; color: var(--ink); }
+.home-cta .button-link:hover { background: #fff; color: var(--ink-2); }
+
+/* Hộp chi tiết lớp: nổi giữa màn hình, nền phía sau tối mờ. */
+.classes-page [role="dialog"] { position: fixed; top: 50%; left: 50%; z-index: 30; width: min(480px, calc(100% - 32px)); margin: 0; transform: translate(-50%, -50%); box-shadow: 0 0 0 100vmax rgb(15 23 42 / 45%), 0 24px 48px rgb(15 23 42 / 25%); }
+
+/* ===== 22. Trang lịch lớp: nút chuyển Tuần/Tháng và cuốn lịch tháng ===== */
+/* Nút chuyển chế độ dạng "segmented control": hai nút dính nhau trong một khung xám, nút đang chọn nền trắng chữ xanh. */
+.view-switch { display: inline-flex; flex: 0 0 auto !important; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.view-switch button { min-height: 36px; margin: 0; border: 0; background: transparent; color: var(--muted); box-shadow: none; }
+.view-switch button:hover:not(:disabled) { background: rgb(255 255 255 / 60%); color: var(--heading); }
+.view-switch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(15 23 42 / 12%); }
+.month-head { display: flex; gap: 12px; align-items: center; margin: 4px 0 16px; }
+.month-head > span { min-width: 140px; color: var(--heading); font-size: 1.1rem; font-weight: 600; text-align: center; }
+.month-head button { margin: 0; }
+/* Lưới 7 cột; mỗi ô cao tối thiểu 110px như ô của cuốn lịch treo tường. */
+.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius); background: var(--border); gap: 1px; }
+.month-weekday { padding: 10px 8px; background: var(--surface-2); color: var(--muted); font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-align: center; text-transform: uppercase; }
+.month-cell { display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 110px; padding: 8px; background: var(--surface); }
+.month-cell-outside { background: #fafbfc; }
+.month-cell-outside .month-day-number { color: #cbd5e1; }
+.month-day-number { align-self: flex-start; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 999px; color: var(--heading); font-size: .8rem; font-weight: 600; line-height: 26px; text-align: center; }
+/* Hôm nay: số ngày nằm trong vòng tròn gradient xanh. */
+.month-cell-today .month-day-number { background: var(--gradient); color: #fff; }
+/* Ghi chú lớp trong ô: thẻ nhỏ nền xanh nhạt, vạch xanh bên trái; bấm để xem chi tiết. */
+.month-event { display: block; width: 100%; min-height: 0; margin: 0; padding: 4px 6px; overflow: hidden; border: 0; border-left: 3px solid var(--ink); border-radius: 6px; background: var(--ink-soft); color: var(--heading); font-size: .72rem; font-weight: 500; line-height: 1.3; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.month-event:hover:not(:disabled) { background: #dbeafe; border-color: var(--ink-2); }
+.month-event-time { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.month-event-ended { border-left-color: #cbd5e1; background: var(--surface-2); color: var(--muted); }
+.month-event-ended .month-event-time { color: var(--muted); }
+.month-more { min-height: 0; margin: 0; padding: 2px 6px; border: 0; background: transparent; color: var(--ink); font-size: .72rem; font-weight: 600; text-align: left; }
+.month-more:hover:not(:disabled) { background: transparent; text-decoration: underline; }
+/* Điện thoại: ô thấp hơn, chỉ hiện giờ của lớp để vừa 7 cột. */
+@media (max-width: 767px) {
+  .month-cell { min-height: 72px; padding: 4px; }
+  .month-event { padding: 3px 4px; font-size: .65rem; }
+}
