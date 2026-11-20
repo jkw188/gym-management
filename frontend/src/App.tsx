@@ -9,7 +9,7 @@ import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
 import { AccountInfoPage, HeaderAccount, HomeRedirect, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
 import { AccountLayout } from './features/auth/AccountLayout';
-import { BackButton } from './components/BackButton';
+import { PageFrame } from './components/BackButton';
 import { LoginPage } from './features/auth/LoginPage';
 import { RegisterPage } from './features/auth/RegisterPage';
 import { ForgotPasswordPage } from './features/auth/ForgotPasswordPage';
@@ -68,7 +68,7 @@ export default function App() {
     </div></header>
     <NotificationToast />
     <main>
-    <BackButton />
+    <PageFrame scope="main">
     <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
       <Route path="/admin/notifications" element={<BroadcastsPage />} />
       <Route path="/admin/notifications/new" element={<BroadcastsPage />} />
@@ -162,6 +162,7 @@ export default function App() {
         <Route path={path} element={<RoleShell role={role} />} /></Route>)}
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
     </Routes>
+    </PageFrame>
     </main>
     <footer className="site-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
   </AuthProvider></BrowserRouter>;

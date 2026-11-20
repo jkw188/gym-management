@@ -447,3 +447,20 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
   .month-cell { min-height: 72px; padding: 4px; }
   .month-event { padding: 3px 4px; font-size: .65rem; }
 }
+
+/* ===== 23. Khung trang chung (components/BackButton.tsx – PageFrame) ===== */
+/* Một thẻ trắng bao cả trang. Nút "Trở về" nổi (float) sang phải nên nằm cùng hàng với tiêu đề trang ở góc trên phải;
+   hàng tiêu đề có nút riêng (.page-head, dạng flex) tự co lại bên cạnh nên không bị đè. */
+.page-frame { padding: 32px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.page-frame::after { content: ''; display: block; clear: both; }
+.page-frame-bar { float: right; margin: 0 0 8px 16px; }
+.page-frame-bar .back-button { margin: 0; }
+/* Thẻ ngoài cùng của trang con nằm trong khung: bỏ viền, bóng, đệm để không thành "thẻ lồng thẻ". */
+.page-frame > .auth-card, .page-frame > .account-stack > .auth-card { max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+/* Trang thông tin tài khoản: phần đổi mật khẩu ngăn với phần thông tin bằng đường mảnh. */
+.page-frame > .account-stack > .auth-card + .auth-card { margin-top: 32px; padding-top: 32px; border-top: 1px solid var(--border); }
+/* Tiêu đề đầu trang sát mép trên để thẳng hàng với nút "Trở về". */
+.page-frame h1:first-child, .page-frame h2:first-child, .page-frame .page-head:first-child { margin-top: 0; }
+@media (max-width: 767px) {
+  .page-frame { padding: 20px 16px; }
+}

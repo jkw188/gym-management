@@ -3,6 +3,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
 import { roleNames } from './auth.routes';
+import { PageFrame } from '../../components/BackButton';
 
 type AccountRole = 'MEMBER' | 'TRAINER';
 
@@ -40,6 +41,7 @@ export function AccountLayout({ role }: { role: AccountRole }) {
         {MENUS[role].map(item => <NavLink key={item.to} to={item.to}>{item.label}</NavLink>)}
       </nav>
     </aside>
-    <div className="account-content"><Outlet /></div>
+    {/* Khung chung có nút "Trở về" nằm trong cột nội dung, ngay trên trang con. */}
+    <div className="account-content"><PageFrame scope="account"><Outlet /></PageFrame></div>
   </div>;
 }
