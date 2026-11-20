@@ -162,7 +162,7 @@ export function NotificationsPage() {
       onClick={event => event.stopPropagation()}>
       <div className="modal-head">
         <h3 id="notification-detail-title">{selected.title}</h3>
-        <button type="button" className="secondary" onClick={() => setSelected(null)}>Đóng</button>
+        <button type="button" className="close-x" onClick={() => setSelected(null)}><Icon name="close" label="Đóng" /></button>
       </div>
       <p><small>{formatNotificationTime(selected.createdAt)}</small></p>
       {/* US-47-F05, TC11: body hiện như chữ thuần; URL trong body không thành link, không tự chuyển trang. */}

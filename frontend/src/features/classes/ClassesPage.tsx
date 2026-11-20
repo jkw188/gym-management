@@ -183,11 +183,11 @@ export function ClassesPage() {
     </>}
 
     {selected && <div role="dialog" aria-modal="true" aria-labelledby="class-detail-title" className="auth-card">
-      <h3 id="class-detail-title">Chi tiết lớp</h3>
-      <div className="class-detail"><SessionInfo session={selected} /></div>
-      <div className="user-actions">
-        <button type="button" className="secondary" onClick={() => setSelected(null)}><Icon name="close" label="Đóng" /></button>
+      <div className="modal-head">
+        <h3 id="class-detail-title">Chi tiết lớp</h3>
+        <button type="button" className="close-x" onClick={() => setSelected(null)}><Icon name="close" label="Đóng" /></button>
       </div>
+      <div className="class-detail"><SessionInfo session={selected} /></div>
     </div>}
   </section>;
 }
