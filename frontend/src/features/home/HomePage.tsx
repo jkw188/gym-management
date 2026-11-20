@@ -6,12 +6,14 @@ import { servicesApi, type PublicPlan } from '../services/services.api';
 import { shopApi, type PublicProduct } from '../shop/shop.api';
 import { ShopImage } from '../shop/ShopParts';
 import { formatVnd } from '../../utils/money';
+import { useAuth } from '../auth/AuthProvider';
 
 // Số gói và sản phẩm hiện ở trang chủ; muốn xem hết thì bấm "Xem tất cả".
 const PLAN_COUNT = 3;
 const PRODUCT_COUNT = 4;
 
 export function HomePage() {
+  const { user } = useAuth();
   const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [products, setProducts] = useState<PublicProduct[]>([]);
 
@@ -81,9 +83,10 @@ export function HomePage() {
       </ul>
     </section>}
 
-    <section className="home-cta">
+    {/* Đã đăng nhập thì không mời tạo tài khoản nữa. */}
+    {!user && <section className="home-cta">
       <div><p className="eyebrow">Trở thành hội viên</p><h2>Tạo tài khoản để đặt lịch PT và mua hàng</h2></div>
       <Link to="/register" className="button-link">Tạo tài khoản hội viên</Link>
-    </section>
+    </section>}
   </div>;
 }

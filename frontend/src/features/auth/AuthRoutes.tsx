@@ -58,8 +58,8 @@ export function HomeRedirect() {
   const auth = useAuth();
   if (auth.status === 'checking') return <AuthChecking />;
   if (auth.status === 'loggingOut') return <LogoutPending />;
-  if (auth.user) return <Navigate to={rolePaths[auth.user.roleCode]} replace />;
-  // Guest chưa đăng nhập vẫn xem được trang chủ (báo cáo: đăng xuất "chuyển về trang chủ (chế độ Guest)").
+  // Trang chủ công khai: Guest và người đã đăng nhập đều xem được (báo cáo: đăng xuất "chuyển về trang chủ (chế độ Guest)").
+  // Các chức năng của vai trò nằm trên thanh menu tab (RoleTaskbar) dưới header.
   return <HomePage />;
 }
 
@@ -67,53 +67,8 @@ export function RoleShell({ role }: { role: RoleCode }) {
   const { user } = useAuth();
   return <section className="auth-card role-home"><h2>Không gian {roleNames[role].toLowerCase()}</h2>
     <p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p>
-    {/* Trang chính chỉ có lời chào và các chức năng; thông tin tài khoản nằm ở trang riêng (thẻ "Thông tin tài khoản"). */}
-    <div className="quick-links">
-    {role === 'ADMIN' && <Link to="/admin/notifications">Thông báo nhóm</Link>}
-    {role === 'ADMIN' && <Link to="/admin/users">Quản lý tài khoản</Link>}
-    {role === 'ADMIN' && <Link to="/admin/reports/memberships">Báo cáo hội viên và membership</Link>}
-    {role === 'ADMIN' && <Link to="/admin/reports/cash-flow">Báo cáo khoản thu và hoàn tiền</Link>}
-    {role === 'ADMIN' && <Link to="/admin/reports/trainers">Báo cáo hiệu suất huấn luyện viên</Link>}
-    {role === 'ADMIN' && <Link to="/admin/trainers">Quản lý huấn luyện viên</Link>}
-    {role === 'ADMIN' && <Link to="/admin/trainers/activity">Đối chiếu chấm công và buổi PT</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/trainer-attendance`}>Chấm công huấn luyện viên</Link>}
-    {role === 'ADMIN' && <Link to="/admin/trainer-reviews">Tổng hợp đánh giá PT</Link>}
-    {role === 'ADMIN' && <Link to="/admin/classes">Quản lý lớp miễn phí</Link>}
-    {role === 'ADMIN' && <Link to="/admin/plans">Danh mục gói tập và PT</Link>}
-    {role === 'ADMIN' && <Link to="/admin/categories">Danh mục bán lẻ</Link>}
-    {role === 'ADMIN' && <Link to="/admin/products">Sản phẩm bán lẻ</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members`}>Tra cứu hội viên</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/transactions`}>Đối chiếu thanh toán</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/pos`}>Bán sản phẩm tại quầy</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/orders`}>Chuẩn bị đơn website</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/refunds`}>Nghĩa vụ hoàn tiền</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/returns`}>Tiếp nhận hàng trả</Link>}
-    {role === 'MEMBER' && <Link to="/member/cart">Giỏ hàng của tôi</Link>}
-    {role === 'MEMBER' && <Link to="/member/orders">Đơn hàng của tôi</Link>}
-    {role === 'ADMIN' && <Link to='/admin/stock-issues'>Phiếu xuất ngoài bán</Link>}
-    {role === 'ADMIN' && <Link to='/admin/stock-adjustments'>Kiểm kê và điều chỉnh kho</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/stock-receipts`}>Phiếu nhập kho</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/inventory`}>Tra cứu tồn kho</Link>}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/members/new`}>Tạo hồ sơ hội viên</Link>}
-    {/* US-29: tra cứu và hủy hỗ trợ lịch PT. */}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/pt-bookings`}>Tra cứu lịch PT</Link>}
-    {role === 'TRAINER' && <Link to="/trainer/shifts">Ca làm việc</Link>}
-    {/* US-64: PT xem buổi dạy của mình và xác nhận buổi đã dạy. */}
-    {role === 'TRAINER' && <Link to="/trainer/bookings">Buổi dạy của tôi</Link>}
-    {/* US-30: PT tra cứu học viên có buổi với mình. */}
-    {role === 'TRAINER' && <Link to="/trainer/trainees">Học viên của tôi</Link>}
-    {/* US-31: PT xem đánh giá học viên gửi cho các buổi mình dạy. */}
-    {role === 'TRAINER' && <Link to="/trainer/reviews">Đánh giá của học viên</Link>}
-    {/* US-17: member xem gói tập, lịch sử mua và chứng từ của mình. */}
-    {role === 'MEMBER' && <Link to="/member/memberships">Gói tập của tôi</Link>}
-    {/* US-18: member tự đăng ký mua gói. */}
-    {role === 'MEMBER' && <Link to="/member/service-registrations">Đăng ký gói tập</Link>}
-    {/* US-27: member xem lịch PT của mình và giờ trống của PT. */}
-    {role === 'MEMBER' && <Link to="/member/pt-bookings">Lịch PT của tôi</Link>}
-    {/* Admin/Staff xem thông tin ở trang /account (chỉ đọc); Member/PT dùng trang /profile có sẵn (sửa được). */}
-    {(role === 'ADMIN' || role === 'STAFF') && <Link to={`${rolePaths[role]}/account`}>Thông tin tài khoản</Link>}
-    {(role === 'MEMBER' || role === 'TRAINER') && <Link to={`${rolePaths[role]}/profile`}>Thông tin tài khoản</Link>}
-    </div>
+    {/* Các chức năng của vai trò nằm trên thanh menu tab (RoleTaskbar) dưới header; trang này chỉ có lời chào. */}
+    <p className="hint">Chọn chức năng trên thanh menu phía trên.</p>
   </section>;
 }
 
