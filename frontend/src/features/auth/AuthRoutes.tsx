@@ -57,7 +57,22 @@ export function HomeRedirect() {
   const auth = useAuth();
   if (auth.status === 'checking') return <AuthChecking />;
   if (auth.status === 'loggingOut') return <LogoutPending />;
-  return <Navigate to={auth.user ? rolePaths[auth.user.roleCode] : '/login'} replace />;
+  if (auth.user) return <Navigate to={rolePaths[auth.user.roleCode]} replace />;
+  // Guest chưa đăng nhập vẫn xem được trang chủ (báo cáo: đăng xuất "chuyển về trang chủ (chế độ Guest)").
+  return <GuestHome />;
+}
+
+// Trang chủ cho Guest: chỉ có liên kết tới các trang công khai; chức năng của user mới cần đăng nhập.
+function GuestHome() {
+  return <section className="auth-card role-home"><h2>Chào mừng đến Gym Management</h2>
+    <p>Bạn có thể xem lịch lớp, gói dịch vụ và cửa hàng mà không cần đăng nhập.</p>
+    <div className="quick-links">
+      <Link to="/classes">Lịch lớp</Link>
+      <Link to="/services">Gói dịch vụ</Link>
+      <Link to="/shop">Cửa hàng</Link>
+      <Link to="/login">Đăng nhập</Link>
+      <Link to="/register">Đăng ký</Link>
+    </div></section>;
 }
 
 export function RoleShell({ role }: { role: RoleCode }) {
