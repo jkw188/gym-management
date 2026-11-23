@@ -498,3 +498,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 
 /* ===== Ảnh trang trí gói tập (GYM/PT): phủ hết bề ngang thẻ, cắt theo tỉ lệ 16:10, bo góc ===== */
 .plan-image, .home-card img.plan-image { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; margin-bottom: 8px; object-fit: cover; border-radius: var(--radius); background: var(--surface-2); }
+
+/* ===== Thẻ sản phẩm ở Cửa hàng: ảnh vuông phủ hết bề ngang thẻ, chữ cỡ thường (không nhỏ như thẻ ca làm) ===== */
+.shop-item { gap: 6px; font-size: .95rem; }
+.shop-item img, .shop-item .shop-image-placeholder { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; margin-bottom: 6px; object-fit: cover; border-radius: var(--radius); }
+.shop-item strong { font-size: 1.05rem; color: var(--heading); }
+.shop-item .shop-price { font-size: 1.1rem; font-weight: 700; color: var(--heading); }
