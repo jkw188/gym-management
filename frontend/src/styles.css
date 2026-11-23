@@ -199,7 +199,24 @@ dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
 /* Cửa hàng (US-35) và giỏ hàng (US-40): khung ảnh xám nhạt, giá dùng số đều nét. */
 .shop-image-placeholder { display: grid; place-items: center; aspect-ratio: 4 / 3; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); color: var(--muted); }
 .shop-description { color: var(--muted); }
-.cart-lines { list-style: none; padding: 0; }
+.cart-lines { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; padding: 0; list-style: none; }
+/* Một dòng giỏ: ảnh | tên, mã, đơn giá | ô số lượng | thành tiền + Xóa. */
+.cart-line { display: grid; grid-template-columns: 96px 1fr auto auto; gap: 16px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.cart-line p { margin: 0; }
+.cart-line-image img, .cart-line-image .shop-image-placeholder { display: grid; width: 96px; height: 96px; aspect-ratio: 1; border-radius: var(--radius-sm); object-fit: cover; font-size: .7rem; text-align: center; }
+.cart-line-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.cart-line-name { font-size: 1rem; color: var(--heading); }
+.cart-line-meta { color: var(--muted); font-size: .8125rem; }
+.cart-qty { display: flex; align-items: center; gap: 6px; }
+.cart-qty button { width: 36px; min-height: 36px; margin: 0; padding: 0; border-color: var(--border); background: var(--surface); color: var(--heading); font-size: 1rem; }
+.cart-qty button:hover:not(:disabled) { border-color: var(--ink); background: var(--ink-soft); color: var(--ink); }
+.cart-qty input { width: 64px; min-height: 36px; padding: 4px 6px; text-align: center; }
+.cart-line-total { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 150px; text-align: right; }
+.cart-line-total strong { color: var(--heading); }
+.cart-remove { min-height: 32px; margin: 0; padding: 0 12px; border-color: var(--danger); background: transparent; color: var(--danger); }
+.cart-remove:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+.cart-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px; border-radius: var(--radius); background: var(--surface-2); font-size: 1rem; }
+.cart-summary p { margin: 0; }
 
 /* ===== 10. Màn hình nhỏ (điện thoại) ===== */
 @media (max-width: 767px) {
@@ -208,6 +225,11 @@ dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
   .auth-card { padding: 20px; }
   .site-header nav a { padding: 6px 8px; }
   h2 { font-size: 1.4rem; }
+  /* Giỏ hàng trên điện thoại: ảnh nhỏ bên trái, số lượng và thành tiền xuống hàng dưới. */
+  .cart-line { grid-template-columns: 72px 1fr; }
+  .cart-line-image img, .cart-line-image .shop-image-placeholder { width: 72px; height: 72px; }
+  .cart-qty { grid-column: 1 / -1; }
+  .cart-line-total { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; min-width: 0; }
 }
 
 /* ===== 11. Icon trong nút (components/Icon.tsx) ===== */
