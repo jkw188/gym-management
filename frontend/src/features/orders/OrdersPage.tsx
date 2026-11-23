@@ -108,7 +108,7 @@ export function OrdersPage() {
         {data?.items.map(item => <tr key={item.id}>
           {/* Tên hàng làm dòng chính, mã đơn chữ nhỏ bên dưới (giống danh sách của Member). Server cũ chưa có itemsSummary thì chỉ hiện mã. */}
           <td><strong>{item.itemsSummary || item.code}</strong>{item.itemsSummary && <><br /><small className="order-row-meta">{item.code}</small></>}</td><td>{orderStatus[item.status]}{item.expired && item.reservationState === 'HELD' && ['PENDING', 'CONFIRMED'].includes(item.status) && ' · Hết hạn, chờ xử lý hủy'}</td><td>{item.transactionStatus ? transactionStatus[item.transactionStatus] : 'Cần đối chiếu'}</td>
-          <td>{orderDate(item.reservationExpiresAt)}</td><td><button type="button" disabled={pending || unknown || cancellationLocked || fulfillmentLocked} aria-label={`Mở ${item.code}`} className="secondary" onClick={() => void open(item.id)}>Xem chi tiết</button></td></tr>)}</tbody></table>}
+          <td>{orderDate(item.reservationExpiresAt)}</td><td><button type="button" disabled={pending || unknown || cancellationLocked || fulfillmentLocked} aria-label={`Xem chi tiết ${item.code}`} className="secondary" onClick={() => void open(item.id)}>Xem chi tiết</button></td></tr>)}</tbody></table>}
       <div className="pagination"><button disabled={loading || query.page <= 1 || pending || unknown} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
         <span>Trang {query.page} / {data?.totalPages ?? 0} · {data?.total ?? 0} đơn</span><button disabled={loading || !data || query.page >= data.totalPages || pending || unknown} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
     </>}

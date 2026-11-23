@@ -94,8 +94,10 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
     {/* Trong cửa sổ nổi thì lỗi hiện ngay trong cửa sổ để người dùng thấy. */}
     {dialog && error && <p role="alert">{error}</p>}
     <p>Giải phóng hàng đang giữ. Khoản đã thu được ghi nghĩa vụ chờ hoàn để đối soát.</p>
-    {/* US-42-TC09: đơn đã thu – nói rõ hủy chỉ ghi khoản chờ hoàn, chưa phải tiền đã về. */}
-    {order.transactionStatus === 'SETTLED' && <p>Đơn đã thanh toán: sau khi hủy, số tiền được ghi là khoản chờ hoàn, chưa phải tiền đã về tài khoản của bạn.</p>}
+    {/* US-42-TC09: đơn đã thu – nói rõ hủy chỉ ghi khoản chờ hoàn, chưa phải tiền đã về. Member và nhân viên nhận câu khác nhau theo người đọc. */}
+    {order.transactionStatus === 'SETTLED' && (own
+      ? <p>Đơn đã thanh toán: sau khi hủy, số tiền được ghi là khoản chờ hoàn, chưa phải tiền đã về tài khoản của bạn.</p>
+      : <p>Đơn đã thanh toán: sau khi hủy, số tiền được ghi là khoản chờ hoàn cho khách, chưa thực chi hoàn tiền.</p>)}
     {/* Member có sẵn vài lý do để bấm chọn thay vì tự gõ. */}
     {own && <div className="reason-chips" aria-label="Lý do chọn nhanh">
       {QUICK_REASONS.map(text => <button key={text} type="button" className="secondary" disabled={pending || disabled || denied} onClick={() => setReason(text)}>{text}</button>)}
