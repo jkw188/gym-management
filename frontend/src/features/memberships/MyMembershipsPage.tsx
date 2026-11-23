@@ -157,6 +157,26 @@ export function MyMembershipsPage() {
     }
   }
 
+  // Bấm "Xem giao dịch" lần nữa khi giao dịch đó đang mở thì ẩn đi (ẩn luôn chứng từ bên trong).
+  function toggleTransaction(id: string) {
+    if (transaction?.id === id) {
+      setTransaction(null);
+      setInvoice(null);
+      setDetailError('');
+      return;
+    }
+    void openTransaction(id);
+  }
+
+  // Bấm "Xem chứng từ" lần nữa khi chứng từ đó đang mở thì ẩn đi.
+  function toggleInvoice(id: string) {
+    if (invoice?.id === id) {
+      setInvoice(null);
+      return;
+    }
+    void openInvoice(id);
+  }
+
   // US-19-TC01: previousSaleId và planVersion lấy từ field renewal của server, không tự chọn.
   function openRenewal(item: MyMembership) {
     if (!item.renewal) return;
@@ -222,9 +242,13 @@ export function MyMembershipsPage() {
               <dt>Kỳ dự kiến</dt><dd>{formatDate(sale.startDate)} – {formatDate(sale.endDate)}</dd>
               {sale.amountDue && <><dt>Số tiền</dt><dd className="info-money">{formatVnd(sale.amountDue)}</dd></>}
             </dl>
-            <button type="button" className="secondary" onClick={() => void openTransaction(sale.transactionId)}>Xem giao dịch</button>
+            {/* aria-expanded báo cho trình đọc màn hình biết khung giao dịch đang mở hay đóng. */}
+            <button type="button" className="secondary" aria-expanded={transaction?.id === sale.transactionId}
+              onClick={() => toggleTransaction(sale.transactionId)}>
+              {transaction?.id === sale.transactionId ? 'Ẩn giao dịch' : 'Xem giao dịch'}
+            </button>
             {transaction && transaction.id === sale.transactionId && <TransactionPanel transaction={transaction}
-              invoice={invoice} onOpenInvoice={id => void openInvoice(id)} />}
+              invoice={invoice} onToggleInvoice={toggleInvoice} />}
           </article>)}
       </section>
     </>}
@@ -239,10 +263,11 @@ export function MyMembershipsPage() {
 
 // Lớp 2: chi tiết giao dịch, hiện ngay trong thẻ lần mua đã bấm "Xem giao dịch".
 // US-17-F04: chỉ hiện các field cho phép; không hiện mã tham chiếu, người xác minh hay ghi chú nội bộ.
-function TransactionPanel({ transaction, invoice, onOpenInvoice }: {
-  transaction: MyTransaction; invoice: MyInvoice | null; onOpenInvoice: (id: string) => void;
+function TransactionPanel({ transaction, invoice, onToggleInvoice }: {
+  transaction: MyTransaction; invoice: MyInvoice | null; onToggleInvoice: (id: string) => void;
 }) {
   const payment = transaction.payment;
+  const invoiceOpen = invoice !== null && invoice.id === transaction.invoiceId;
   return <section aria-label="Chi tiết giao dịch" className="detail-panel">
     <div className="card-head">
       <h5>Giao dịch {transaction.code}</h5>
@@ -255,8 +280,11 @@ function TransactionPanel({ transaction, invoice, onOpenInvoice }: {
         {payment.paidAt && <><dt>Thời điểm thu</dt><dd>{formatDateTime(payment.paidAt)}</dd></>}
       </>}
     </dl>
-    {transaction.invoiceId && <button type="button" className="secondary" onClick={() => onOpenInvoice(transaction.invoiceId!)}>Xem chứng từ</button>}
-    {invoice && invoice.id === transaction.invoiceId && <InvoicePanel invoice={invoice} />}
+    {transaction.invoiceId && <button type="button" className="secondary" aria-expanded={invoiceOpen}
+      onClick={() => onToggleInvoice(transaction.invoiceId!)}>
+      {invoiceOpen ? 'Ẩn chứng từ' : 'Xem chứng từ'}
+    </button>}
+    {invoice && invoiceOpen && <InvoicePanel invoice={invoice} />}
   </section>;
 }
 
