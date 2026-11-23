@@ -76,11 +76,22 @@ export function MyOrdersPage() {
     {!loading && data?.memberLinked === false && <p>Tài khoản chưa được liên kết hồ sơ hội viên. Hãy liên hệ quầy để liên kết.</p>}
     {!loading && data?.memberLinked && data.items.length === 0 && <p>Chưa có đơn hàng</p>}
     {data && data.items.length > 0 && <ul className="order-list">
-      {data.items.map(item => <li key={item.id}>
-        <strong>{item.code}</strong> · {orderDate(item.createdAt)} · {moneyOrUnknown(item.total)}
-        {' · '}Đơn: {ORDER_LABEL[item.status]} · Tiền: {transactionLabel(item.transactionStatus)}
-        {item.refundState !== 'NONE' && <> · Hoàn: {REFUND_LABEL[item.refundState]}</>}
-        {' '}<button type="button" onClick={() => setSelectedId(item.id)}>Xem {item.code}</button>
+      {/* Mỗi đơn một thẻ: tên hàng làm tiêu đề, mã đơn và ngày đặt chữ nhỏ; bên phải là tổng tiền và nút xem chi tiết. */}
+      {data.items.map(item => <li key={item.id} className="order-row">
+        <div className="order-row-main">
+          {/* Server cũ chưa có itemsSummary thì hiện mã đơn làm tiêu đề. */}
+          <strong className="order-row-title">{item.itemsSummary || item.code}</strong>
+          <span className="order-row-meta">{item.code} · {orderDate(item.createdAt)}</span>
+          <span className="order-row-meta">
+            Đơn: {ORDER_LABEL[item.status]} · Tiền: {transactionLabel(item.transactionStatus)}
+            {item.refundState !== 'NONE' && <> · Hoàn: {REFUND_LABEL[item.refundState]}</>}
+          </span>
+        </div>
+        <div className="order-row-side">
+          <strong>{moneyOrUnknown(item.total)}</strong>
+          {/* Chữ trên nút là "Xem chi tiết"; aria-label giữ mã đơn để trình đọc màn hình biết đang mở đơn nào. */}
+          <button type="button" className="secondary" aria-label={`Xem ${item.code}`} onClick={() => setSelectedId(item.id)}>Xem chi tiết</button>
+        </div>
       </li>)}
     </ul>}
     {data && data.totalPages > 1 && <p>

@@ -315,6 +315,13 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 /* Đơn hàng của Member: mỗi đơn một thẻ, bộ lọc nằm trên một hàng. */
 .order-list { list-style: none; padding: 0; }
 .order-list > li { margin: 10px 0; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+/* Dòng đơn của Member: thông tin bên trái, tổng tiền + nút bên phải; màn hình hẹp thì xuống dưới. */
+.order-row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+.order-row-main { display: flex; flex: 1 1 280px; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.order-row-title { color: var(--heading); font-size: 1rem; }
+.order-row-meta { color: var(--muted); font-size: .8125rem; }
+.order-row-side { display: flex; gap: 12px; align-items: center; }
+.order-row-side button { margin: 0; }
 .orders-page form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); }
 .orders-page form label { flex: 1 1 200px; margin: 0; }
 .orders-page form label > * { margin-top: 6px; }
