@@ -1,18 +1,6 @@
 import { useEffect, useState } from 'react';
 import { paymentsApi, type InvoiceDetail, type PaymentSettlementResult } from './payments.api';
-import { money, paymentError, timestamp } from './payments-format';
-
-function buyerLabel(snapshot: string) {
-  try {
-    const buyer: unknown = JSON.parse(snapshot);
-    if (buyer && typeof buyer === 'object') {
-      const values = buyer as Record<string, unknown>;
-      const fields = [values.fullName, values.memberCode, values.phone].filter((value): value is string => typeof value === 'string');
-      if (fields.length) return fields.join(' · ');
-    }
-  } catch { /* Historical snapshots can be plain text. */ }
-  return snapshot;
-}
+import { buyerLabel, money, paymentError, timestamp } from './payments-format';
 
 export function InvoiceDetails({ id }: { id: string }) {
   const [open, setOpen] = useState(false);

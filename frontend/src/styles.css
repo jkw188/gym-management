@@ -504,3 +504,22 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 .shop-item img, .shop-item .shop-image-placeholder { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; margin-bottom: 6px; object-fit: cover; border-radius: var(--radius); }
 .shop-item strong { font-size: 1.05rem; color: var(--heading); }
 .shop-item .shop-price { font-size: 1.1rem; font-weight: 700; color: var(--heading); }
+
+/* ===== Lịch sử mua (Gói của tôi): 3 lớp lồng nhau – thẻ lần mua > khung giao dịch > chứng từ dạng hóa đơn ===== */
+.card-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.card-head > :is(h4, h5) { margin: 0; }
+/* Nhãn trạng thái dạng viên thuốc: xanh = đã thu, vàng = chờ thu, xám = đã hủy. */
+.status-badge { padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.status-settled { background: #dcfce7; color: #166534; }
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-cancelled { background: var(--surface-2); color: var(--muted); }
+/* Nhãn bên trái, giá trị bên phải, thẳng hàng như phiếu thu. */
+.membership-card .info-grid { grid-template-columns: max-content 1fr; gap: 6px 20px; margin: 12px 0; }
+.membership-card .info-grid dt { font-size: .8rem; letter-spacing: 0; text-transform: none; }
+.membership-card .info-grid dd { margin: 0; overflow-wrap: anywhere; }
+.info-money { font-weight: 700; }
+/* Lớp 2: khung giao dịch nền xám nhạt, thụt vào trong thẻ. */
+.detail-panel { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+/* Lớp 3: chứng từ nền trắng, viền nét đứt như tờ hóa đơn. */
+.receipt-panel { margin-top: 14px; padding: 16px; border: 1px dashed var(--muted); border-radius: var(--radius); background: var(--surface); }
+.receipt-panel h5 { margin: 0; }
