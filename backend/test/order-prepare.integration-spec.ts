@@ -103,6 +103,14 @@ describe('US-43: real MongoDB, HTTP guards, two processes, snapshot fixtures and
       expect(JSON.stringify(detail.body)).not.toMatch(/SECRET_TEST_REFERENCE|evidence_note|bank_reference|request_key|guard_revision/);
     }
   });
+  // Bổ sung ngoài spec gốc (nhóm chốt 24/11/2026): danh sách và chi tiết đơn phía nhân viên có itemsSummary giống danh sách của Member.
+  it('Bổ sung: list/detail nhân viên có itemsSummary là tên snapshot kèm số lượng', async () => {
+    const row = await fixture();
+    const list = await get(`?q=${row.id}`).expect(200);
+    expect(list.body.items).toEqual([expect.objectContaining({ id: row.id, itemsSummary: 'Tên snapshot ×1' })]);
+    expect((await get(`/${row.id}`).expect(200)).body.itemsSummary).toBe('Tên snapshot ×1');
+  });
+
   it('TC02: Member/PT forbidden, revoked session unauthorized, ID/DTO/query allowlists enforced', async () => {
     const row = await fixture(), before = await snapshot();
     for (const actor of [member, trainer]) { await prepare(row.id, 0, randomUUID(), actor).expect(403); await get('', actor).expect(403); await get(`/${row.id}`, actor).expect(403); }
