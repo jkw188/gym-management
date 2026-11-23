@@ -122,7 +122,12 @@ async function openDetail(server: Server) {
   await userEvent.click(await screen.findByRole('button', { name: `Xem ${CODE}` }));
   await waitFor(() => expect(details(server).length).toBeGreaterThan(0));
 }
+// Form hủy của Member nằm trong cửa sổ nổi: bấm nút "Hủy đơn" để mở (cửa sổ đang mở rồi thì thôi).
+async function openCancel() {
+  if (!screen.queryByLabelText('Lý do hủy')) await userEvent.click(await screen.findByRole('button', { name: 'Hủy đơn' }));
+}
 async function fillCancel(reason = `  ${REASON}  `) {
+  await openCancel();
   await userEvent.type(await screen.findByLabelText('Lý do hủy'), reason);
   await userEvent.click(screen.getByLabelText('Tôi xác nhận hủy toàn bộ đơn chưa bàn giao'));
 }
@@ -275,6 +280,7 @@ describe('US-42 bước 3: hủy đơn của mình', () => {
     let finish!: (value: Response) => void;
     const server = fakeServer({ details: [detailOf(), cancelledDetail()], cancels: [() => new Promise<Response>(resolve => { finish = resolve; })] });
     await openDetail(server);
+    await openCancel();
     expect((await confirmCancel()).disabled).toBe(true);
     await fillCancel();
     const button = await confirmCancel();
@@ -298,6 +304,7 @@ describe('US-42 bước 3: hủy đơn của mình', () => {
       cancels: [cancelResultOf({ transactionStatus: 'SETTLED', refundState: 'PENDING', refundAmount: '50000', refundId: '6c0000000000000000000001' })],
     });
     await openDetail(server);
+    await openCancel();
     await screen.findByLabelText('Lý do hủy');
     expect(text()).toMatch(/chờ hoàn/i);
     expect(text()).toMatch(/chưa phải tiền đã về/i);
