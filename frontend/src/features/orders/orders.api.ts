@@ -4,6 +4,8 @@ export interface OrderSummary {
   id: string; code: string; channel: 'WEBSITE' | 'POS'; status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'; version: number;
   transactionId: string; transactionStatus: 'PENDING' | 'SETTLED' | 'CANCELLED' | null; memberId: string | null; total: string | null;
   reservationState: string; reservationExpiresAt: string; expired: boolean; createdAt: string; updatedAt: string;
+  // Tên hàng tóm tắt do server ghép từ snapshot lúc đặt, ví dụ "Găng tay tập gym ×1, Whey 1kg ×2".
+  itemsSummary?: string;
   permittedActions: { prepare: boolean; prepareBlockedReason: string | null; fulfill: boolean; fulfillBlockedReason: string | null };
 }
 export interface OrderDetail extends OrderSummary {

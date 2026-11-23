@@ -20,7 +20,7 @@ const REASON_MAX = 500;
 const QUICK_REASONS = ["Tôi không còn nhu cầu mua", "Đặt nhầm sản phẩm", "Muốn đổi số lượng hoặc sản phẩm khác", "Không thể đến quầy nhận hàng kịp"];
 const messageOf = (cause: unknown) => cause instanceof Error ? cause.message : 'Không thực hiện được yêu cầu';
 // allowed (US-42): cờ cancelAllowed của server; không truyền thì giữ điều kiện cũ (PENDING/CONFIRMED và còn giữ hàng).
-// dialog: true thì chỉ hiện nút "Hủy đơn", bấm mới mở form hủy trong cửa sổ nổi (trang Đơn hàng của Member dùng).
+// dialog: true thì chỉ hiện nút "Hủy đơn", bấm mới mở form hủy trong cửa sổ nổi (trang Đơn hàng của Member, Đơn hàng nhân viên và POS dùng).
 export function OrderCancellation({ order, own = false, disabled = false, allowed, dialog = false, onLockedChange, onChanged }: {
   order: Target; own?: boolean; disabled?: boolean; allowed?: boolean; dialog?: boolean; onLockedChange: (locked: boolean) => void; onChanged: () => Promise<void>;
 }) {

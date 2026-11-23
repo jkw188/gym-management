@@ -86,10 +86,13 @@ export function OrdersPage() {
         onConflict={async message => { setError(message); await refresh(row.id); }} onCompleted={async result => {
           setError(''); setSuccess(`Đã bàn giao đủ sản phẩm lúc ${orderDate(result.fulfilledAt)} · Nhân viên: ${result.fulfilledBy}.`); await refresh(result.id);
         }} /></fieldset>
-      <OrderCancellation key={`cancel:${row.id}`} order={row} disabled={pending || unknown || fulfillmentLocked} onLockedChange={setCancellationLocked}
-        onChanged={async () => { setRow(await ordersApi.detail(row.id)); setRevision(value => value + 1); }} />
-      <button type="button" disabled={pending || unknown || fulfillmentLocked || cancellationLocked} onClick={() => void open(row.id)}>Tải lại đơn</button>
-      <button type="button" disabled={pending || unknown || fulfillmentLocked || cancellationLocked} onClick={() => { setRow(null); setChecked(false); setError(''); }}>Về danh sách</button>
+      {/* Hàng nút cuối chi tiết đơn (giống trang của Member): Tải lại đơn, Về danh sách bên trái; Hủy đơn mở cửa sổ nổi, nằm bên phải. */}
+      <div className="order-actions">
+        <OrderCancellation key={`cancel:${row.id}`} order={row} dialog disabled={pending || unknown || fulfillmentLocked} onLockedChange={setCancellationLocked}
+          onChanged={async () => { setRow(await ordersApi.detail(row.id)); setRevision(value => value + 1); }} />
+        <button type="button" className="secondary" disabled={pending || unknown || fulfillmentLocked || cancellationLocked} onClick={() => void open(row.id)}>Tải lại đơn</button>
+        <button type="button" className="secondary" disabled={pending || unknown || fulfillmentLocked || cancellationLocked} onClick={() => { setRow(null); setChecked(false); setError(''); }}>Về danh sách</button>
+      </div>
     </section> : !opening && <><form onSubmit={apply}>
       <label>Mã đơn<input value={filter.q} maxLength={120} onChange={event => setFilter({ ...filter, q: event.target.value })} /></label>
       <label>Kênh<select value={filter.channel} onChange={event => setFilter({ ...filter, channel: event.target.value })}><option value="WEBSITE">Website</option><option value="POS">Tại quầy</option><option value="">Tất cả</option></select></label>
@@ -101,9 +104,11 @@ export function OrdersPage() {
       <p>Ngày Việt Nam; để trống dùng 30 ngày gần nhất, tối đa 366 ngày.</p><button disabled={pending || unknown || cancellationLocked || fulfillmentLocked} type="submit">Lọc đơn</button>
       <button type="button" disabled={loading || pending || unknown} onClick={() => { setError(''); setRevision(value => value + 1); }}>Tải lại danh sách</button></form>
       {loading && <p role="status">Đang tải đơn…</p>}{!loading && data?.items.length === 0 && <p>Không có đơn phù hợp.</p>}
-      {!loading && Boolean(data?.items.length) && <table><thead><tr><th>Mã đơn</th><th>Chuẩn bị / bàn giao</th><th>Thanh toán</th><th>Hạn giữ</th><th>Thao tác</th></tr></thead><tbody>
-        {data?.items.map(item => <tr key={item.id}><td>{item.code}</td><td>{orderStatus[item.status]}{item.expired && item.reservationState === 'HELD' && ['PENDING', 'CONFIRMED'].includes(item.status) && ' · Hết hạn, chờ xử lý hủy'}</td><td>{item.transactionStatus ? transactionStatus[item.transactionStatus] : 'Cần đối chiếu'}</td>
-          <td>{orderDate(item.reservationExpiresAt)}</td><td><button type="button" disabled={pending || unknown || cancellationLocked || fulfillmentLocked} onClick={() => void open(item.id)}>Mở {item.code}</button></td></tr>)}</tbody></table>}
+      {!loading && Boolean(data?.items.length) && <table><thead><tr><th>Hàng / mã đơn</th><th>Chuẩn bị / bàn giao</th><th>Thanh toán</th><th>Hạn giữ</th><th>Thao tác</th></tr></thead><tbody>
+        {data?.items.map(item => <tr key={item.id}>
+          {/* Tên hàng làm dòng chính, mã đơn chữ nhỏ bên dưới (giống danh sách của Member). Server cũ chưa có itemsSummary thì chỉ hiện mã. */}
+          <td><strong>{item.itemsSummary || item.code}</strong>{item.itemsSummary && <><br /><small className="order-row-meta">{item.code}</small></>}</td><td>{orderStatus[item.status]}{item.expired && item.reservationState === 'HELD' && ['PENDING', 'CONFIRMED'].includes(item.status) && ' · Hết hạn, chờ xử lý hủy'}</td><td>{item.transactionStatus ? transactionStatus[item.transactionStatus] : 'Cần đối chiếu'}</td>
+          <td>{orderDate(item.reservationExpiresAt)}</td><td><button type="button" disabled={pending || unknown || cancellationLocked || fulfillmentLocked} aria-label={`Mở ${item.code}`} className="secondary" onClick={() => void open(item.id)}>Xem chi tiết</button></td></tr>)}</tbody></table>}
       <div className="pagination"><button disabled={loading || query.page <= 1 || pending || unknown} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
         <span>Trang {query.page} / {data?.totalPages ?? 0} · {data?.total ?? 0} đơn</span><button disabled={loading || !data || query.page >= data.totalPages || pending || unknown} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
     </>}
