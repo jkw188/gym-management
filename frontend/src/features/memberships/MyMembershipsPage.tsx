@@ -132,6 +132,14 @@ export function MyMembershipsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Cửa sổ gia hạn đang mở thì nhấn phím Esc để đóng; đóng rồi thì gỡ bộ nghe phím.
+  useEffect(() => {
+    if (!renewTarget) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setRenewTarget(null); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [renewTarget]);
+
   // US-17-TC09: xem giao dịch của một lần mua (chỉ GET).
   async function openTransaction(id: string) {
     const account = accountId;
@@ -253,9 +261,15 @@ export function MyMembershipsPage() {
       </section>
     </>}
 
-    {/* key: mở kỳ khác thì làm mới vùng gia hạn (xóa báo giá và key cũ). */}
-    {renewTarget && <RenewalPanel key={renewTarget.previousSaleId} target={renewTarget}
-      onCreated={() => void load()} onReload={reloadAfterStale} />}
+    {/* Gia hạn mở thành cửa sổ nổi giữa màn hình, không nằm cuối trang.
+        Không đóng khi bấm nền tối, để tránh lỡ tay mất kết quả gia hạn; đóng bằng nút X hoặc phím Esc.
+        key: mở kỳ khác thì làm mới vùng gia hạn (xóa báo giá và key cũ). */}
+    {renewTarget && <div className="modal-backdrop">
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="renewal-title">
+        <RenewalPanel key={renewTarget.previousSaleId} target={renewTarget}
+          onCreated={() => void load()} onReload={reloadAfterStale} onClose={() => setRenewTarget(null)} />
+      </div>
+    </div>}
 
     {detailError && <p role="alert">{detailError}</p>}
   </section>;

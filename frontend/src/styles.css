@@ -523,3 +523,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 /* Lớp 3: chứng từ nền trắng, viền nét đứt như tờ hóa đơn. */
 .receipt-panel { margin-top: 14px; padding: 16px; border: 1px dashed var(--muted); border-radius: var(--radius); background: var(--surface); }
 .receipt-panel h5 { margin: 0; }
+
+/* Vùng gia hạn nằm trong cửa sổ nổi (modal-card) thì bỏ viền/khoảng cách của thẻ, để không thành hai lớp khung chồng nhau. */
+.modal-card .renewal-panel { margin: 0; padding: 0; border: 0; box-shadow: none; }
+.modal-card .renewal-panel fieldset { margin: 12px 0; }
