@@ -5,6 +5,7 @@ import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { formatVnd } from '../../utils/money';
 import { servicesApi, type PublicPlan, type PublicPlanPage } from './services.api';
+import { PlanImage } from './PlanImage';
 
 // US-13-TC06: lỗi 400 để câu chung "Dữ liệu không hợp lệ" ở message, lý do cụ thể nằm trong details
 // (vd "minPrice không được lớn hơn maxPrice") – có details thì hiện details.
@@ -193,6 +194,7 @@ export function ServicesPage() {
     {/* US-13-TC07: giữ đúng thứ tự server trả (name rồi _id). US-13-TC08: dữ liệu hiển thị bằng {} nên luôn là chữ. */}
     {data && data.items.length > 0 && <ul aria-label="Danh sách dịch vụ" className="class-list">
       {data.items.map(plan => <li key={plan.id} className="shift-item">
+        <PlanImage kind={plan.kind} />
         <strong>{plan.name}</strong>
         <span>{formatVnd(plan.price)}</span>
         <span>{plan.durationDays} ngày</span>
@@ -217,6 +219,7 @@ export function ServicesPage() {
 
     {selected && <section aria-label="Chi tiết dịch vụ" className="auth-card">
       {/* Trang có h1 "Gói dịch vụ" nên tiêu đề vùng chi tiết là h2, không nhảy bậc. */}
+      <PlanImage kind={selected.kind} />
       <h2 ref={detailHeading} tabIndex={-1}>{selected.name}</h2>
       <dl className="class-detail">
         <dt>Mã gói</dt><dd>{selected.code}</dd>

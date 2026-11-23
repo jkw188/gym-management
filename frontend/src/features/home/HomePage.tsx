@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { servicesApi, type PublicPlan } from '../services/services.api';
 import { shopApi, type PublicProduct } from '../shop/shop.api';
 import { ShopImage } from '../shop/ShopParts';
+import { PlanImage } from '../services/PlanImage';
 import { formatVnd } from '../../utils/money';
 import { useAuth } from '../auth/AuthProvider';
 
@@ -59,6 +60,7 @@ export function HomePage() {
       </div>
       <ul className="home-grid home-grid-3">
         {plans.map(plan => <li key={plan.id} className="home-card">
+          <PlanImage kind={plan.kind} />
           <span className="tag">{plan.kind === 'PT' ? 'Gói PT' : 'Gói Gym'}</span>
           <h3>{plan.name}</h3>
           <p className="home-price">{formatVnd(plan.price)}</p>

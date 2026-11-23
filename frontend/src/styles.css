@@ -495,3 +495,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 /* Nút X đóng: cùng hàng tiêu đề ở góc phải trên, nền trong suốt, rê chuột vào thì chuyển đỏ. */
 .close-x { display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--muted); }
 .close-x:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+
+/* ===== Ảnh trang trí gói tập (GYM/PT): phủ hết bề ngang thẻ, cắt theo tỉ lệ 16:10, bo góc ===== */
+.plan-image, .home-card img.plan-image { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; margin-bottom: 8px; object-fit: cover; border-radius: var(--radius); background: var(--surface-2); }
