@@ -268,6 +268,23 @@ describe('US-42 bước 1: Member xem đơn của mình (Own Order Query Service
     expect((await detail(me, pos.id).expect(200)).body).toMatchObject({ id: pos.id, channel: 'POS' });
   });
 
+  // Bổ sung ngoài spec gốc (nhóm chốt 24/11/2026): danh sách có itemsSummary – tên hàng snapshot kèm số lượng, quá 2 sản phẩm thì gom "+N sản phẩm khác".
+  it('US-42 bổ sung: itemsSummary ghép tên snapshot và số lượng; quá 2 dòng thì gom phần còn lại', async () => {
+    const me = await linkedMember();
+    const single = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, createdAt: new Date(Date.parse(NOW) - 2 * MINUTE) });
+    const many = await seedOrder({ memberId: me.memberId, createdBy: me.accountId, createdAt: new Date(Date.parse(NOW) - MINUTE) });
+    // Thêm 2 dòng nữa cho đơn "many" (mỗi dòng một sản phẩm khác) → tổng 3 dòng.
+    for (const [name, quantity] of [['Whey 1kg', 1], ['Bình nước', 3]] as const) {
+      const itemId = new ObjectId();
+      await db().collection('order_items').insertOne({ _id: itemId, id: itemId, order_id: new ObjectId(many.id), product_id: new ObjectId(),
+        sku_snapshot: 'US42_EXTRA', name_snapshot: name, product_version_snapshot: new Int32(0), quantity: new Int32(quantity),
+        unit_price: Decimal128.fromString('0'), line_total: Decimal128.fromString('0') });
+    }
+    const items = (await list(me).expect(200)).body.items as Array<{ id: string; itemsSummary: string }>;
+    expect(items.find(item => item.id === single.id)?.itemsSummary).toBe('Tên snapshot ×2');
+    expect(items.find(item => item.id === many.id)?.itemsSummary).toBe('Tên snapshot ×2, Whey 1kg ×1 +1 sản phẩm khác');
+  });
+
   it('US-42-TC02: đổi orderId sang đơn của Member khác ở detail/payment-instructions/invoice → 404, không lộ người nhận hoặc tiền', async () => {
     const owner = await linkedMember(), intruder = await linkedMember();
     const unpaid = await seedOrder({ memberId: owner.memberId, createdBy: owner.accountId });
