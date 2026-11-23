@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { apiClient, ApiError } from '../../api/client';
 import { cancellationApi, type CancelResult, type LateReceiptResult, type OrderCommand } from './order-cancellation.api';
 import { orderMoney } from './orders.api';
+import { Icon } from '../../components/Icon';
 
 type Target = { id: string; status: string; version: number; total: string | null; transactionStatus: string | null; reservationState: string; refunds: { id: string; status: string; amount: string }[] };
 function recover(storageKey: string, own: boolean): OrderCommand | null {
@@ -84,7 +85,7 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
   // Form hủy đơn: hiện thẳng trên trang, hoặc nằm trong cửa sổ nổi khi dialog = true.
   const cancelForm = <form onSubmit={cancel}>
     {dialog ? <div className="modal-head"><h4 id={`cancel-title-${order.id}`}>Hủy đơn hàng</h4>
-      <button type="button" aria-label="Đóng" disabled={pending} onClick={() => setOpen(false)}>✕</button></div> : <h4>Hủy đơn hàng</h4>}
+      <button type="button" className="close-x" disabled={pending} onClick={() => setOpen(false)}><Icon name="close" label="Đóng" /></button></div> : <h4>Hủy đơn hàng</h4>}
     {/* Trong cửa sổ nổi thì lỗi hiện ngay trong cửa sổ để người dùng thấy. */}
     {dialog && error && <p role="alert">{error}</p>}
     <p>Giải phóng hàng đang giữ. Khoản đã thu được ghi nghĩa vụ chờ hoàn để đối soát.</p>

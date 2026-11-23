@@ -378,8 +378,8 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 
 /* Nút chính: gradient xanh, bo 10px; rê chuột thì nổi lên và có bóng xanh. Nút phụ giữ nền trắng. */
 button, .button-link { border-radius: var(--radius-sm); }
-button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not(.close-x):not([aria-pressed]) { border-color: transparent; background: var(--gradient); }
-button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not(.close-x):not([aria-pressed]):hover:not(:disabled) { border-color: transparent; background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); transform: translateY(-1px); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not(.close-x):not(.cancel-open):not([aria-pressed]) { border-color: transparent; background: var(--gradient); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not(.close-x):not(.cancel-open):not([aria-pressed]):hover:not(:disabled) { border-color: transparent; background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); transform: translateY(-1px); }
 .button-link:not(.secondary-link) { background: var(--gradient); }
 .button-link:not(.secondary-link):hover { background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); }
 
