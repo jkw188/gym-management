@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useAccountId } from '../notifications/inbox-signals';
 import { formatVnd } from '../../utils/money';
+import { Icon } from '../../components/Icon';
 import type { PublicPlan } from '../services/services.api';
 import {
   isValidCancelReason, serviceRegistrationsApi, type CancelInput, type MySale, type PaymentInstructions, type PaymentMethod,
@@ -251,6 +252,31 @@ export function ServiceRegistrationPage() {
     setCancelNotice('');
   }
 
+  // Đóng cửa sổ hủy (nút X, nút "Đóng", phím Esc). Đang gửi yêu cầu hủy thì không cho đóng giữa chừng.
+  function closeCancel() {
+    if (cancellingNow.current) return;
+    setCancelTarget(null);
+    setCancelError('');
+  }
+
+  // Đóng cửa sổ hướng dẫn thanh toán.
+  function closeGuide() {
+    setGuideTransactionId(null);
+  }
+
+  // Phím Esc đóng cửa sổ đang mở trên cùng: cửa sổ hủy trước, rồi đến hướng dẫn thanh toán.
+  // Không ghi danh sách phụ thuộc: effect chạy lại mỗi lần render để luôn dùng closeCancel/closeGuide mới nhất.
+  useEffect(() => {
+    if (!cancelTarget && !guideTransactionId) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (cancelTarget) closeCancel();
+      else closeGuide();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  });
+
   // US-18-TC11, TC12: giao dịch không còn PENDING (đã hủy, hoặc nhân viên đã thu) thì "Kết quả đăng ký" đổi theo trạng thái mới
   // và ẩn "Hướng dẫn thanh toán" nếu đang hiện cho đúng giao dịch đó – không còn bảo Member trả tiền cho yêu cầu đã kết thúc.
   function applyFinalStatus(transactionId: string, status: SaleStatus) {
@@ -343,19 +369,32 @@ export function ServiceRegistrationPage() {
         <p>{resultMessage(result)}</p>
       </section>}
 
-      {guideTransactionId && (guide || guideError) && <PaymentGuide guide={guide} error={guideError} />}
+      {/* Hướng dẫn thanh toán mở thành cửa sổ nổi; chỉ để đọc nên bấm nền tối cũng đóng. */}
+      {guideTransactionId && (guide || guideError) && <div className="modal-backdrop" onClick={closeGuide}>
+        <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="payment-guide"
+          onClick={event => event.stopPropagation()}>
+          <PaymentGuide guide={guide} error={guideError} onClose={closeGuide} />
+        </div>
+      </div>}
 
       <section aria-labelledby="registration-history">
         <h3 id="registration-history">Yêu cầu mua gói của tôi</h3>
         {historyError && <p role="alert">{historyError}</p>}
-        {cancelError && <p role="alert">{cancelError}</p>}
+        {/* Cửa sổ hủy đang mở thì lỗi hiện trong cửa sổ; đã đóng (server từ chối) thì hiện ở đây. */}
+        {cancelError && !cancelTarget && <p role="alert">{cancelError}</p>}
         {history === null && !historyError && <p>Đang tải…</p>}
         {history?.length === 0 && <p>Bạn chưa có yêu cầu mua gói nào.</p>}
         {history?.map(sale => <SaleCard key={sale.id} sale={sale}
-          onShowGuide={() => void loadGuide(sale.transactionId)} onOpenCancel={() => openCancel(sale)}
-          cancelOpen={cancelTarget?.id === sale.id} cancelReason={cancelReason} cancelling={cancelling}
-          onReasonChange={setCancelReason} onConfirmCancel={() => void handleCancel()} onCloseCancel={() => setCancelTarget(null)} />)}
+          onShowGuide={() => void loadGuide(sale.transactionId)} onOpenCancel={() => openCancel(sale)} />)}
       </section>
+
+      {/* Hủy yêu cầu mở thành cửa sổ nổi. Không đóng khi bấm nền tối để khỏi mất lý do đang gõ. */}
+      {cancelTarget && <div className="modal-backdrop">
+        <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="cancel-title">
+          <CancelDialog sale={cancelTarget} reason={cancelReason} cancelling={cancelling} error={cancelError}
+            onReasonChange={setCancelReason} onConfirm={() => void handleCancel()} onClose={closeCancel} />
+        </div>
+      </div>}
       {cancelNotice && <p role="status">{cancelNotice}</p>}
     </>}
   </section>;
@@ -373,9 +412,12 @@ function resultMessage(result: RegistrationResult) {
 }
 
 // US-18-TC07, TC08: hướng dẫn thanh toán; mỗi tài khoản nhận là một thẻ. Không có transferOptions thì không hiện tài khoản nào.
-function PaymentGuide({ guide, error }: { guide: PaymentInstructions | null; error: string }) {
+function PaymentGuide({ guide, error, onClose }: { guide: PaymentInstructions | null; error: string; onClose: () => void }) {
   return <section aria-labelledby="payment-guide">
-    <h3 id="payment-guide">Hướng dẫn thanh toán</h3>
+    <div className="modal-head">
+      <h3 id="payment-guide">Hướng dẫn thanh toán</h3>
+      <button type="button" className="close-x" onClick={onClose}><Icon name="close" label="Đóng" /></button>
+    </div>
     {error && <p role="alert">{error}</p>}
     {guide && <>
       <p>Mã giao dịch: {guide.transactionCode}</p>
@@ -392,37 +434,48 @@ function PaymentGuide({ guide, error }: { guide: PaymentInstructions | null; err
   </section>;
 }
 
-interface SaleCardProps {
-  sale: MySale;
-  cancelOpen: boolean;
-  cancelReason: string;
-  cancelling: boolean;
-  onShowGuide: () => void;
-  onOpenCancel: () => void;
-  onReasonChange: (reason: string) => void;
-  onConfirmCancel: () => void;
-  onCloseCancel: () => void;
-}
-
 // Một lần mua trong lịch sử. Nút "Hủy yêu cầu" chỉ khi server báo canCancel (US-18-TC11).
-function SaleCard(props: SaleCardProps) {
-  const { sale } = props;
+function SaleCard({ sale, onShowGuide, onOpenCancel }: { sale: MySale; onShowGuide: () => void; onOpenCancel: () => void }) {
   return <article aria-label={sale.planName}>
     <h4>{sale.planName}</h4>
     <p>{sale.status ? STATUS_LABELS[sale.status] : 'Chưa rõ trạng thái'}</p>
     {sale.amountDue !== undefined && <p>Số tiền: {formatVnd(sale.amountDue)}</p>}
     <p>Thời gian: {formatDay(sale.startDate)} – {formatDay(sale.endDate)}</p>
     <p>{sale.channel === 'SELF_SERVICE' ? 'Tự đăng ký' : 'Mua tại quầy'}</p>
-    {sale.status === 'PENDING' && <button type="button" onClick={props.onShowGuide}>Xem hướng dẫn thanh toán</button>}
-    {sale.canCancel && !props.cancelOpen && <button type="button" onClick={props.onOpenCancel}>Hủy yêu cầu</button>}
-    {props.cancelOpen && <div>
-      <label>Lý do hủy
-        <textarea value={props.cancelReason} maxLength={500} onChange={event => props.onReasonChange(event.target.value)} />
-      </label>
-      <p className="hint">Lý do dài 10–500 ký tự.</p>
-      <button type="button" disabled={props.cancelling || !isValidCancelReason(props.cancelReason)}
-        onClick={props.onConfirmCancel}>Xác nhận hủy</button>
-      <button type="button" disabled={props.cancelling} onClick={props.onCloseCancel}>Đóng</button>
-    </div>}
+    {sale.status === 'PENDING' && <button type="button" onClick={onShowGuide}>Xem hướng dẫn thanh toán</button>}
+    {sale.canCancel && <button type="button" className="secondary" onClick={onOpenCancel}>Hủy yêu cầu</button>}
   </article>;
+}
+
+interface CancelDialogProps {
+  sale: MySale;
+  reason: string;
+  cancelling: boolean;
+  error: string;
+  onReasonChange: (reason: string) => void;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
+// Nội dung cửa sổ "Hủy yêu cầu": nhập lý do rồi xác nhận (US-18-TC11, TC12).
+function CancelDialog(props: CancelDialogProps) {
+  return <>
+    <div className="modal-head">
+      <h3 id="cancel-title">Hủy yêu cầu</h3>
+      <button type="button" className="close-x" disabled={props.cancelling} onClick={props.onClose}>
+        <Icon name="close" label="Đóng" />
+      </button>
+    </div>
+    <p>{props.sale.planName}</p>
+    {props.error && <p role="alert">{props.error}</p>}
+    <label>Lý do hủy
+      <textarea value={props.reason} maxLength={500} onChange={event => props.onReasonChange(event.target.value)} />
+    </label>
+    <p className="hint">Lý do dài 10–500 ký tự.</p>
+    <div className="user-actions">
+      <button type="button" disabled={props.cancelling || !isValidCancelReason(props.reason)}
+        onClick={props.onConfirm}>Xác nhận hủy</button>
+      <button type="button" className="secondary" disabled={props.cancelling} onClick={props.onClose}>Đóng</button>
+    </div>
+  </>;
 }
