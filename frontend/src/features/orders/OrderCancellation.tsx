@@ -13,6 +13,11 @@ function recover(storageKey: string, own: boolean): OrderCommand | null {
     return value;
   } catch { return null; }
 }
+// US-42-F04, US-45: lý do hủy sau trim dài 10–500 ký tự (server kiểm tra lại).
+const REASON_MIN = 10;
+const REASON_MAX = 500;
+// Lý do chọn nhanh cho Member: bấm là điền vào ô, vẫn sửa được. Câu nào cũng đủ 10 ký tự trở lên.
+const QUICK_REASONS = ["Tôi không còn nhu cầu mua", "Đặt nhầm sản phẩm", "Muốn đổi số lượng hoặc sản phẩm khác", "Không thể đến quầy nhận hàng kịp"];
 const messageOf = (cause: unknown) => cause instanceof Error ? cause.message : 'Không thực hiện được yêu cầu';
 // allowed (US-42): cờ cancelAllowed của server; không truyền thì giữ điều kiện cũ (PENDING/CONFIRMED và còn giữ hàng).
 // dialog: true thì chỉ hiện nút "Hủy đơn", bấm mới mở form hủy trong cửa sổ nổi (trang Đơn hàng của Member dùng).
@@ -72,7 +77,7 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
   }
   function cancel(event: FormEvent) {
     event.preventDefault();
-    if (!checked || disabled || denied || reason.trim().length < 10 || command) return;
+    if (!checked || disabled || denied || reason.trim().length < REASON_MIN || command) return;
     void send({ key: crypto.randomUUID(), operation: own ? 'ORDER_CANCEL_OWN' : 'ORDER_CANCEL_SUPPORT', body: { version: order.version, reason: reason.trim() } });
   }
   function late(event: FormEvent) {
@@ -91,9 +96,15 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
     <p>Giải phóng hàng đang giữ. Khoản đã thu được ghi nghĩa vụ chờ hoàn để đối soát.</p>
     {/* US-42-TC09: đơn đã thu – nói rõ hủy chỉ ghi khoản chờ hoàn, chưa phải tiền đã về. */}
     {order.transactionStatus === 'SETTLED' && <p>Đơn đã thanh toán: sau khi hủy, số tiền được ghi là khoản chờ hoàn, chưa phải tiền đã về tài khoản của bạn.</p>}
-    <label>Lý do hủy<textarea required minLength={10} maxLength={500} value={reason} disabled={pending || disabled || denied} onChange={event => setReason(event.target.value)} /></label>
+    {/* Member có sẵn vài lý do để bấm chọn thay vì tự gõ. */}
+    {own && <div className="reason-chips" aria-label="Lý do chọn nhanh">
+      {QUICK_REASONS.map(text => <button key={text} type="button" className="secondary" disabled={pending || disabled || denied} onClick={() => setReason(text)}>{text}</button>)}
+    </div>}
+    <label>Lý do hủy<textarea required minLength={REASON_MIN} maxLength={REASON_MAX} value={reason} disabled={pending || disabled || denied} onChange={event => setReason(event.target.value)} /></label>
+    {/* Nói rõ vì sao nút xác nhận còn khóa: lý do chưa đủ 10 ký tự (không tính khoảng trắng hai đầu). */}
+    {reason.trim().length < REASON_MIN && <p className="field-hint">Cần ít nhất {REASON_MIN} ký tự (hiện có {reason.trim().length}).</p>}
     <label><input type="checkbox" checked={checked} disabled={pending || disabled || denied} onChange={event => setChecked(event.target.checked)} />Tôi xác nhận hủy toàn bộ đơn chưa bàn giao</label>
-    <button type="submit" disabled={!checked || reason.trim().length < 10 || pending || disabled || denied}>Xác nhận hủy đơn</button>
+    <button type="submit" disabled={!checked || reason.trim().length < REASON_MIN || pending || disabled || denied}>Xác nhận hủy đơn</button>
   </form>;
 
   return <section aria-label="Hủy và đối soát đơn" aria-busy={pending}>

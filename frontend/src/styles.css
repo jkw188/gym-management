@@ -524,6 +524,10 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 .order-actions button { margin: 0; }
 .order-actions > section > p { flex: 1 0 100%; margin: 0; }
 .order-actions .cancel-open { order: 1; margin-left: auto; }
+/* Cửa sổ hủy đơn: các lý do chọn nhanh xếp thành hàng nút nhỏ; dòng nhắc số ký tự chữ xám nhỏ dưới ô lý do. */
+.reason-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.reason-chips button { min-height: 32px; margin: 0; padding: 0 12px; font-size: .75rem; font-weight: 400; }
+.field-hint { margin: 4px 0 0; color: var(--muted); font-size: .75rem; }
 /* Nút X đóng: cùng hàng tiêu đề ở góc phải trên, nền trong suốt, rê chuột vào thì chuyển đỏ. */
 .close-x { display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--muted); }
 .close-x:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
