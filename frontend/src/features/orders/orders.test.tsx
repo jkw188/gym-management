@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
@@ -6,6 +6,7 @@ import { apiClient, ApiError } from '../../api/client';
 import { resolveReturnTo } from '../auth/auth.routes';
 import { OrdersPage } from './OrdersPage';
 import { ordersApi, orderDate, type OrderDetail, type PreparedOrder } from './orders.api';
+import { cancellationApi, type CancelResult } from './order-cancellation.api';
 
 const row: OrderDetail = { id: 'a'.repeat(24), code: `ORD-${'a'.repeat(24)}`, channel: 'WEBSITE', status: 'PENDING', version: 0,
   transactionId: 'b'.repeat(24), transactionStatus: 'PENDING', memberId: 'c'.repeat(24), total: '25000', reservationState: 'HELD', reservationExpiresAt: '2035-11-15T17:00:00.000Z',
@@ -17,12 +18,12 @@ const detail: OrderDetail = { ...row, ...prepared, permittedActions: { fulfill: 
 const page = { items: [row], total: 1, totalPages: 1, page: 1, limit: 20 };
 beforeEach(() => { vi.spyOn(ordersApi, 'list').mockResolvedValue(page); vi.spyOn(ordersApi, 'detail').mockResolvedValue(row); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); window.history.pushState({}, '', '/'); });
-async function open() { render(<OrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Mở ${row.code}` })); await screen.findByRole('heading', { name: row.code }); }
+async function open() { render(<OrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Xem chi tiết ${row.code}` })); await screen.findByRole('heading', { name: row.code }); }
 async function check() { await userEvent.click(screen.getByLabelText('Tôi đã kiểm tra và chuẩn bị đủ hàng thực tế')); }
 describe('US-43 TC12: list/detail, command recovery and separate operational/payment states', () => {
   it('defaults WEBSITE/PENDING, loading, literal filter, VN dates, empty/error and retry', async () => {
     render(<OrdersPage />); expect(screen.getByRole('status').textContent).toContain('Đang tải');
-    await screen.findByRole('button', { name: `Mở ${row.code}` });
+    await screen.findByRole('button', { name: `Xem chi tiết ${row.code}` });
     expect(ordersApi.list).toHaveBeenCalledWith(expect.objectContaining({ channel: 'WEBSITE', status: 'PENDING', page: 1, limit: 20 }), expect.any(AbortSignal));
     vi.mocked(ordersApi.list).mockResolvedValueOnce({ ...page, items: [], total: 0, totalPages: 0 });
     fireEvent.change(screen.getByLabelText('Mã đơn'), { target: { value: ' .* ' } });
@@ -31,7 +32,7 @@ describe('US-43 TC12: list/detail, command recovery and separate operational/pay
     expect(ordersApi.list).toHaveBeenLastCalledWith(expect.objectContaining({ q: '.*', fromDate: '2035-11-15', page: 1 }), expect.any(AbortSignal));
     vi.mocked(ordersApi.list).mockRejectedValueOnce(new ApiError('Không tải được đơn'));
     await userEvent.click(screen.getByRole('button', { name: 'Tải lại danh sách' })); await screen.findByText('Không tải được đơn');
-    await userEvent.click(screen.getByRole('button', { name: 'Tải lại danh sách' })); await screen.findByRole('button', { name: `Mở ${row.code}` });
+    await userEvent.click(screen.getByRole('button', { name: 'Tải lại danh sách' })); await screen.findByRole('button', { name: `Xem chi tiết ${row.code}` });
     expect(orderDate('2035-11-14T17:00:00.000Z')).toContain('15/11/2035');
   });
   it('requires physical check, prevents double submit, reloads success without declaring paid or handed over', async () => {
@@ -84,8 +85,8 @@ describe('US-43 TC12: list/detail, command recovery and separate operational/pay
   });
   it('detail failure reports error and keeps list usable', async () => {
     vi.mocked(ordersApi.detail).mockRejectedValue(new ApiError('Không đọc được đơn'));
-    render(<OrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Mở ${row.code}` })); await screen.findByText('Không đọc được đơn');
-    expect(screen.getByRole('button', { name: `Mở ${row.code}` })).toBeDefined();
+    render(<OrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Xem chi tiết ${row.code}` })); await screen.findByText('Không đọc được đơn');
+    expect(screen.getByRole('button', { name: `Xem chi tiết ${row.code}` })).toBeDefined();
   });
   it('does not describe a completed order as awaiting expiry cancellation', async () => {
     const completed: OrderDetail = { ...row, status: 'COMPLETED', reservationState: 'CONSUMED', transactionStatus: 'SETTLED', expired: true, permittedActions: { fulfill: false, fulfillBlockedReason: 'ORDER_NOT_PREPARED', prepare: false, prepareBlockedReason: 'INVALID_ORDER_STATE' } };
@@ -103,5 +104,39 @@ describe('US-43 TC12: list/detail, command recovery and separate operational/pay
     vi.spyOn(apiClient, 'subscribe').mockImplementation(() => () => {}); vi.spyOn(apiClient, 'restore').mockResolvedValue();
     const path = `/${roleCode.toLowerCase()}/orders`; window.history.pushState({}, '', path); render(<App />);
     await screen.findByRole('heading', { name: 'Chuẩn bị và bàn giao đơn hàng website' }); expect(resolveReturnTo(path, roleCode)).toBe(path);
+  });
+});
+
+// Hủy đơn phía nhân viên mở thành cửa sổ nổi (đồng bộ với trang của Member): bấm "Hủy đơn" mới thấy form, gửi đúng một lệnh hủy hỗ trợ.
+describe('US-45: hủy đơn ở trang Đơn hàng nhân viên qua cửa sổ nổi', () => {
+  it('form hủy ẩn tới khi bấm "Hủy đơn"; ✕ đóng không gửi; xác nhận gửi một lệnh ORDER_CANCEL_SUPPORT rồi cửa sổ đóng', async () => {
+    const result: CancelResult = { id: row.id, code: row.code, status: 'CANCELLED', version: 1, reservationState: 'RELEASED', cancelledAt: '2035-11-14T18:00:00.000Z',
+      transactionStatus: 'CANCELLED', refundState: 'NONE', refundAmount: '0', notificationState: 'STORED' };
+    const send = vi.spyOn(cancellationApi, 'send').mockResolvedValue(result);
+    await open();
+    expect(screen.queryByLabelText('Lý do hủy')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hủy đơn' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Đóng' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    vi.mocked(ordersApi.detail).mockResolvedValue({ ...row, status: 'CANCELLED', version: 1, reservationState: 'RELEASED', transactionStatus: 'CANCELLED' });
+    await userEvent.click(screen.getByRole('button', { name: 'Hủy đơn' }));
+    await userEvent.type(await screen.findByLabelText('Lý do hủy'), '  Khách yêu cầu hủy toàn bộ đơn  ');
+    await userEvent.click(screen.getByLabelText('Tôi xác nhận hủy toàn bộ đơn chưa bàn giao'));
+    await userEvent.click(screen.getByRole('button', { name: 'Xác nhận hủy đơn' }));
+    await screen.findByText(/Đã hủy đơn/);
+    expect(send).toHaveBeenCalledOnce();
+    expect(send.mock.calls[0]).toEqual([row.id, { key: expect.any(String), operation: 'ORDER_CANCEL_SUPPORT', body: { version: 0, reason: 'Khách yêu cầu hủy toàn bộ đơn' } }]);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('US-42-TC09: đơn đã thu → câu nhắc dành cho nhân viên (chờ hoàn cho khách), không dùng lời nói với Member', async () => {
+    vi.mocked(ordersApi.detail).mockResolvedValue({ ...row, transactionStatus: 'SETTLED' });
+    await open();
+    await userEvent.click(screen.getByRole('button', { name: 'Hủy đơn' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog.textContent).toContain('khoản chờ hoàn cho khách, chưa thực chi hoàn tiền');
+    expect(dialog.textContent).not.toContain('tài khoản của bạn');
   });
 });
