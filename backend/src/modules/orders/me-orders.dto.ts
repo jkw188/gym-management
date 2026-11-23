@@ -31,6 +31,7 @@ export class OwnOrderListItemResponseDto {
   @ApiProperty() reservationExpiresAt!: string;
   @ApiProperty({ enum: ['NONE', 'PENDING', 'FAILED', 'SUCCEEDED'] }) refundState!: string;
   @ApiProperty() createdAt!: string;
+  @ApiProperty({ description: 'Tên hàng tóm tắt, ví dụ "Găng tay tập gym ×1, Whey 1kg ×2"' }) itemsSummary!: string;
 }
 export class OwnOrderPageResponseDto {
   @ApiProperty() memberLinked!: boolean;
