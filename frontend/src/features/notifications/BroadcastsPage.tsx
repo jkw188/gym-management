@@ -119,8 +119,8 @@ function BroadcastScreen({ actorId, id, create }: { actorId: string; id?: string
       {data && <><p>{data.total} bản ghi — trang {data.page}/{data.totalPages}. Số liệu tại {date(data.asOf)}</p>
         <table><thead><tr><th>Tiêu đề</th><th>Nhóm nhận</th><th>Trạng thái</th><th>Tạo lúc</th></tr></thead><tbody>{data.items.map(row =>
           <tr key={row.broadcastId}><td><Link to={`/admin/notifications/${row.broadcastId}`}>{row.title}</Link></td><td>{row.audienceSummary} ({row.recipientCount})</td><td>{row.status}</td><td>{date(row.createdAt)}</td></tr>)}</tbody></table>
-        <button disabled={pending || query.page === 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
-        <button disabled={pending || query.page >= data.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></>}
+        <div className="pagination"><button disabled={pending || query.page === 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
+        <button disabled={pending || query.page >= data.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div></>}
     </>}
   </section>;
 }

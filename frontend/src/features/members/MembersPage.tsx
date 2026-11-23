@@ -63,7 +63,7 @@ export function MembersPage() {
           <MemberEntitlements summary={member.entitlementSummary} />
         </li>)}
       </ul>}
-      <div className="user-actions">
+      <div className="pagination">
         <button type="button" disabled={page <= 1} onClick={() => change(() => setPage(value => value - 1))}><Icon name="prev" label="Trang trước" /></button>
         <span>Trang {data.page}/{data.totalPages} · {data.total} hội viên</span>
         <button type="button" disabled={page >= data.totalPages} onClick={() => change(() => setPage(value => value + 1))}><Icon name="next" label="Trang sau" /></button>

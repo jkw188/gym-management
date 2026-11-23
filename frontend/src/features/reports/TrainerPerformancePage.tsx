@@ -39,8 +39,8 @@ function Summary({ value }: { value: PerformanceMetrics }) {
   </dl><Quality value={value} /></div>;
 }
 function Pagination({ value, change }: { value: PerformancePage<unknown>; change: (p: number) => void }) {
-  return <div className="pagination"><span>{value.total} bản ghi; trang {value.totalPages ? value.page : 0}/{value.totalPages}</span>
-    <button disabled={value.page <= 1} onClick={() => change(value.page - 1)}>Trang trước</button>
+  return <div className="pagination"><button disabled={value.page <= 1} onClick={() => change(value.page - 1)}>Trang trước</button>
+    <span>{value.total} bản ghi; trang {value.totalPages ? value.page : 0}/{value.totalPages}</span>
     <button disabled={value.page >= value.totalPages} onClick={() => change(value.page + 1)}>Trang sau</button></div>;
 }
 export function TrainerPerformancePage() {

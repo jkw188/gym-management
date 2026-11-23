@@ -63,9 +63,10 @@ function TransactionsContent() {
             <tbody>{page.items.map(item => <tr key={item.id}><td>{item.code}</td><td>{item.member?.memberCode} – {item.member?.fullName ?? (item.kind === 'RETAIL' ? 'Khách lẻ' : 'Thiếu hồ sơ')}</td>
               <td>{item.kind}</td><td>{money(item.amountDue)}</td><td>{statusLabels[item.status]}</td><td>{timestamp(item.createdAt)}</td>
               <td><button onClick={() => { setDetail(null); setSettlement(null); setSelected(item.id); setDetailRetry(value => value + 1); }}>Chi tiết {item.code}</button></td></tr>)}</tbody></table>
-            <p>Trang {page.page}/{page.totalPages} · {page.total} giao dịch</p>
-            <button disabled={page.page <= 1} onClick={() => setFilters({ ...filters, page: page.page - 1 })}>Trang trước</button>{' '}
-            <button disabled={page.page >= page.totalPages} onClick={() => setFilters({ ...filters, page: page.page + 1 })}>Trang sau</button></>}
+            <div className="pagination">
+              <button disabled={page.page <= 1} onClick={() => setFilters({ ...filters, page: page.page - 1 })}>Trang trước</button>
+              <span>Trang {page.page}/{page.totalPages} · {page.total} giao dịch</span>
+              <button disabled={page.page >= page.totalPages} onClick={() => setFilters({ ...filters, page: page.page + 1 })}>Trang sau</button></div></>}
     </section>
     {selected && <section aria-label="Chi tiết giao dịch"><h3>Chi tiết giao dịch</h3>
       {detailError ? <div role="alert">{detailError} <button onClick={() => setDetailRetry(value => value + 1)}>Tải lại chi tiết</button></div>

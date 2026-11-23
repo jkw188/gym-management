@@ -45,7 +45,7 @@ export function StockAdjustmentsPage() {
       {!loading && !error && Boolean(data?.items.length) && <table><thead><tr><th>Phiếu / nguồn</th><th>Trạng thái</th><th>Giá trị biến động (không phải doanh thu)</th><th>Ngày lập</th><th>Thao tác</th></tr></thead>
         <tbody>{data?.items.map(row => <tr key={row.id}><td>{row.code}<br />{row.sourceReference}</td><td>{row.status === 'POSTED' ? 'Đã ghi sổ' : 'Nháp'}</td>
           <td>{stockMoney(row.totalCost)}</td><td>{stockDate(row.createdAt)}</td><td><button type="button" disabled={opening} onClick={() => void open(row.id)}>Mở {row.code}</button></td></tr>)}</tbody></table>}
-      <div className="user-actions"><button type="button" disabled={loading || opening || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
+      <div className="pagination"><button type="button" disabled={loading || opening || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
         <span>Trang {query.page} / {data?.totalPages ?? 0}</span><button type="button" disabled={loading || opening || !data || query.page >= data.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
     </>}</section>;
 }

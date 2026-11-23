@@ -29,8 +29,8 @@ function Summary({ value }: { value: ActivitySummary }) {
   </dl>;
 }
 function Pagination({ data, change }: { data: Page<unknown>; change: (page: number) => void }) {
-  return <div className="pagination"><span>{data.total} bản ghi; trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
-    <button disabled={data.page <= 1} onClick={() => change(data.page - 1)}>Trang trước</button>
+  return <div className="pagination"><button disabled={data.page <= 1} onClick={() => change(data.page - 1)}>Trang trước</button>
+    <span>{data.total} bản ghi; trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
     <button disabled={data.page >= data.totalPages} onClick={() => change(data.page + 1)}>Trang sau</button></div>;
 }
 function Issues({ values }: { values: string[] }) {

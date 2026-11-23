@@ -43,7 +43,7 @@ export function TrainersPage() {
         {data.items.length === 0 ? <p>Chưa có hồ sơ PT phù hợp.</p> : <div className="users-table-wrap"><table className="users-table"><thead><tr><th>PT</th><th>Chuyên môn</th><th>Trạng thái</th><th>Phiên bản</th><th>Thao tác</th></tr></thead><tbody>
           {data.items.map(trainer => <tr key={trainer.id}><td>{trainer.fullName}</td><td>{trainer.specialty}</td><td>{trainer.status === 'ACTIVE' ? 'Hoạt động' : 'Ngừng hoạt động'}</td><td>{trainer.version}</td><td><button disabled={opening} onClick={() => void open(trainer.id)}>Xem / sửa {trainer.fullName}</button></td></tr>)}
         </tbody></table></div>}
-        <div className="user-actions"><button disabled={query.page <= 1 || opening} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button><span>Trang {query.page} / {data.totalPages} — {data.total} kết quả</span>
+        <div className="pagination"><button disabled={query.page <= 1 || opening} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button><span>Trang {query.page} / {data.totalPages} — {data.total} kết quả</span>
           <button disabled={query.page >= data.totalPages || opening} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
       </>}
     </>}

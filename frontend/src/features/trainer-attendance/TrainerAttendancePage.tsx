@@ -92,8 +92,8 @@ function AttendanceContent({ admin }: { admin: boolean }) {
           <td>{time(shift.startAt)} – {time(shift.endAt)}</td><td>{shift.status}</td><td>{shift.attendance.state}</td>
           <td>{time(shift.attendance.checkInAt)} – {time(shift.attendance.checkOutAt)}</td>
           <td><button disabled={locked} onClick={() => { setSelected(shift.id); setError(''); setSuccess(''); }}>Chọn ca</button></td></tr>)}</tbody></table>}
-      <button disabled={locked || list.page <= 1} onClick={() => setFilter({ ...filter, page: filter.page - 1 })}>Trang trước</button>
-      <button disabled={locked || list.page >= list.totalPages} onClick={() => setFilter({ ...filter, page: filter.page + 1 })}>Trang sau</button></>}
+      <div className="pagination"><button disabled={locked || list.page <= 1} onClick={() => setFilter({ ...filter, page: filter.page - 1 })}>Trang trước</button>
+      <button disabled={locked || list.page >= list.totalPages} onClick={() => setFilter({ ...filter, page: filter.page + 1 })}>Trang sau</button></div></>}
     {detailLoading && <p role="status">Đang tải chấm công…</p>}{detailError && <p role="alert">{detailError}</p>}
     {error && <p role="alert">{error}</p>}{success && <p role="status">{success}</p>}
     {pending && <div><p>Khóa tra cứu: {pending.key}</p>

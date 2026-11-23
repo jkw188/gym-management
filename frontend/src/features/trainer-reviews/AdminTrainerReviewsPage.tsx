@@ -25,8 +25,8 @@ function Metrics({ value }: { value: ReviewMetrics }) {
 }
 function Pagination({ data, change }: { data: AdminReviewPage<unknown>; change: (page: number) => void }) {
   return <div className="pagination">
-    <span>{data.total} bản ghi · Trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
     <button disabled={data.page <= 1} onClick={() => change(data.page - 1)}>Trang trước</button>
+    <span>{data.total} bản ghi · Trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
     <button disabled={data.page >= data.totalPages} onClick={() => change(data.page + 1)}>Trang sau</button>
   </div>;
 }

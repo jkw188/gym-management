@@ -104,7 +104,7 @@ export function OrdersPage() {
       {!loading && Boolean(data?.items.length) && <table><thead><tr><th>Mã đơn</th><th>Chuẩn bị / bàn giao</th><th>Thanh toán</th><th>Hạn giữ</th><th>Thao tác</th></tr></thead><tbody>
         {data?.items.map(item => <tr key={item.id}><td>{item.code}</td><td>{orderStatus[item.status]}{item.expired && item.reservationState === 'HELD' && ['PENDING', 'CONFIRMED'].includes(item.status) && ' · Hết hạn, chờ xử lý hủy'}</td><td>{item.transactionStatus ? transactionStatus[item.transactionStatus] : 'Cần đối chiếu'}</td>
           <td>{orderDate(item.reservationExpiresAt)}</td><td><button type="button" disabled={pending || unknown || cancellationLocked || fulfillmentLocked} onClick={() => void open(item.id)}>Mở {item.code}</button></td></tr>)}</tbody></table>}
-      <div className="user-actions"><button disabled={loading || query.page <= 1 || pending || unknown} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
+      <div className="pagination"><button disabled={loading || query.page <= 1 || pending || unknown} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
         <span>Trang {query.page} / {data?.totalPages ?? 0} · {data?.total ?? 0} đơn</span><button disabled={loading || !data || query.page >= data.totalPages || pending || unknown} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
     </>}
     {pending && <p role="status">Đang xử lý yêu cầu…</p>}

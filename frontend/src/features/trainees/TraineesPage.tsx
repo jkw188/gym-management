@@ -121,8 +121,8 @@ function TraineesContent() {
         <p>{item.nextBookingAt ? `Buổi sắp tới: ${formatAsOf(item.nextBookingAt)}` : 'Chưa có buổi sắp tới'}</p>
         <button type="button" onClick={() => void openDetail(item.memberId)}>Xem chi tiết</button>
       </article>)}
-      {list && list.page > 1 && <button type="button" onClick={() => setParams({ ...params, page: params.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
-      {list && list.totalPages > list.page && <button type="button" onClick={() => setParams({ ...params, page: params.page + 1 })}><Icon name="next" label="Trang sau" /></button>}
+      <div className="pagination">{list && list.page > 1 && <button type="button" onClick={() => setParams({ ...params, page: params.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
+      {list && list.totalPages > list.page && <button type="button" onClick={() => setParams({ ...params, page: params.page + 1 })}><Icon name="next" label="Trang sau" /></button>}</div>
     </section>
 
     {detailLoading && <p>Đang tải chi tiết học viên...</p>}

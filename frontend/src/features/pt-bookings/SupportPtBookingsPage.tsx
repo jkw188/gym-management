@@ -154,7 +154,7 @@ export function SupportPtBookingsPage() {
                 <p><span>{STATUS_LABELS[item.status]}</span></p>
                 <button type="button" onClick={() => openDetail(item.id)}>Chi tiết</button>
               </article>)}
-              {results.totalPages > 1 && <p>
+              {results.totalPages > 1 && <p className="pagination">
                 <button type="button" disabled={applied.page <= 1}
                   onClick={() => setApplied(current => ({ ...current, page: current.page - 1 }))}><Icon name="prev" label="Trang trước" /></button>
                 {' '}Trang {applied.page}/{results.totalPages} ({results.total} buổi){' '}

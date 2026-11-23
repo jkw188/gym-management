@@ -98,8 +98,8 @@ function CashFlowContent() {
         <tbody>{data.items.map(event => <tr key={event.eventId}><td>{event.eventType === 'RECEIPT' ? 'Thu' : 'Hoàn'} / {event.kind} / {event.method}</td>
           <td>{timestamp(event.occurredAt)}</td><td>{money(event.amount)}</td><td>{event.transactionCode ?? event.eventId}{event.lateReceipt && ' (thu muộn đơn hủy)'}</td>
           <td><button onClick={() => setSelected(event)}>Xem nguồn {event.eventId}</button></td></tr>)}</tbody></table>}
-      <div className="pagination"><span>{data.total} sự kiện; trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
-        <button disabled={data.page <= 1} onClick={() => paginate(data.page - 1)}>Trang trước</button>
+      <div className="pagination"><button disabled={data.page <= 1} onClick={() => paginate(data.page - 1)}>Trang trước</button>
+        <span>{data.total} sự kiện; trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
         <button disabled={data.page >= data.totalPages} onClick={() => paginate(data.page + 1)}>Trang sau</button></div>
     </>}
     {detailLoading && <p role="status">Đang tải nguồn...</p>}{detailError && <p role="alert">{detailError}</p>}

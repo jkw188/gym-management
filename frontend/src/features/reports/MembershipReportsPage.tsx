@@ -101,8 +101,8 @@ function ReportContent() {
         <tbody>{data.items.map(member => <tr key={member.memberId}><td>{member.code}</td><td>{member.displayName}</td>
           <td>{member.linkedAccount ? 'Có' : 'Chưa liên kết'}</td><td>{value(member.qualifyingMembershipCount)} ({member.activity === 'ACTIVE' ? 'Có gói hiệu lực' : member.activity === 'INACTIVE' ? 'Không có gói hiệu lực' : 'Chưa xác định'})</td>
           <td><button onClick={() => setSelected(member.memberId)}>Xem quyền nguồn {member.displayName}</button></td></tr>)}</tbody></table>}
-      <div className="pagination"><span>{data.total} hội viên; trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
-        <button disabled={data.page <= 1} onClick={() => setFilter({ ...filter, asOfAt: data.asOfAt, page: data.page - 1 })}>Trang trước</button>
+      <div className="pagination"><button disabled={data.page <= 1} onClick={() => setFilter({ ...filter, asOfAt: data.asOfAt, page: data.page - 1 })}>Trang trước</button>
+        <span>{data.total} hội viên; trang {data.totalPages ? data.page : 0}/{data.totalPages}</span>
         <button disabled={data.page >= data.totalPages} onClick={() => setFilter({ ...filter, asOfAt: data.asOfAt, page: data.page + 1 })}>Trang sau</button></div>
     </>}
     {detailLoading && <p role="status">Đang tải quyền nguồn...</p>}

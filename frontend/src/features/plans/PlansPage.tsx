@@ -58,7 +58,7 @@ export function PlansPage() {
         {tab === 'policies' && Boolean(policies?.items.length) && <div className="users-table-wrap"><table className="users-table"><caption>Chính sách chuyển đổi</caption><thead><tr><th>Gói nguồn → đích</th><th>Công thức / ghi chú</th><th>Trạng thái</th><th>Phiên bản</th><th>Thao tác</th></tr></thead><tbody>
           {policies?.items.map(policy => <tr key={policy.id}><td>{policy.fromPlanId} → {policy.toPlanId}<small>ID: {policy.id}</small></td><td>{policy.ruleCode}<br />{policy.note}</td><td>{policy.status === 'ACTIVE' ? 'Đang áp dụng' : 'Ngừng áp dụng'}</td><td>{policy.version}</td><td><button onClick={() => setEditingPolicy(policy)}>Sửa chính sách {policy.id}</button></td></tr>)}
         </tbody></table></div>}
-        <div className="user-actions"><button disabled={page <= 1} onClick={() => go(page - 1)}><Icon name="prev" label="Trang trước" /></button><span>Trang {page} / {result?.totalPages ?? 0} — {result?.total ?? 0} kết quả</span><button disabled={!result || page >= result.totalPages} onClick={() => go(page + 1)}><Icon name="next" label="Trang sau" /></button></div>
+        <div className="pagination"><button disabled={page <= 1} onClick={() => go(page - 1)}><Icon name="prev" label="Trang trước" /></button><span>Trang {page} / {result?.totalPages ?? 0} — {result?.total ?? 0} kết quả</span><button disabled={!result || page >= result.totalPages} onClick={() => go(page + 1)}><Icon name="next" label="Trang sau" /></button></div>
       </>}
     </>}
   </section>;

@@ -176,7 +176,7 @@ export function ClassesPage() {
       </li>)}
     </ul>}
 
-    {data && data.totalPages > 1 && <div className="user-actions">
+    {data && data.totalPages > 1 && <div className="pagination">
       {data.page > 1 && <button type="button" className="secondary" onClick={() => changePage(page - 1)}><Icon name="prev" label="Trang trước" /></button>}
       <span>Trang {data.page}/{data.totalPages}</span>
       {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => changePage(page + 1)}><Icon name="next" label="Trang sau" /></button>}

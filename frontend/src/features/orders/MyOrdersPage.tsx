@@ -94,7 +94,7 @@ export function MyOrdersPage() {
         </div>
       </li>)}
     </ul>}
-    {data && data.totalPages > 1 && <p>
+    {data && data.totalPages > 1 && <p className="pagination">
       <button type="button" disabled={loading || filter.page <= 1} onClick={() => setFilter({ ...filter, page: filter.page - 1 })}>Trang trước</button>
       <span> Trang {filter.page} / {data.totalPages} </span>
       <button type="button" disabled={loading || filter.page >= data.totalPages} onClick={() => setFilter({ ...filter, page: filter.page + 1 })}>Trang sau</button>

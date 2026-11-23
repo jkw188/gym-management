@@ -183,8 +183,8 @@ function TrainerReviewsContent() {
         <p>Buổi tập: {sessionTime(review)}</p>
         <button type="button" onClick={() => void openDetail(review.id)}>Xem chi tiết</button>
       </article>)}
-      {list && list.page > 1 && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
-      {list && list.totalPages > list.page && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page + 1 })}><Icon name="next" label="Trang sau" /></button>}
+      <div className="pagination">{list && list.page > 1 && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
+      {list && list.totalPages > list.page && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page + 1 })}><Icon name="next" label="Trang sau" /></button>}</div>
     </section>
 
     {detailLoading && <p>Đang tải chi tiết đánh giá...</p>}
