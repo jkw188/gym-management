@@ -514,6 +514,9 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 .modal-head { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .modal-head > :is(h2, h3, h4, p) { margin: 0; }
 .modal-head button { flex: 0 0 auto; margin: 0; }
+/* Nút "Hủy đơn" của Member (mở cửa sổ hủy): viền đỏ, nền trắng để không nhầm với nút chính. */
+.cancel-open { border-color: var(--danger); background: transparent; color: var(--danger); }
+.cancel-open:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
 /* Nút X đóng: cùng hàng tiêu đề ở góc phải trên, nền trong suốt, rê chuột vào thì chuyển đỏ. */
 .close-x { display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--muted); }
 .close-x:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }

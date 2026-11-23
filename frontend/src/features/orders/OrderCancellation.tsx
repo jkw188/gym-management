@@ -14,8 +14,9 @@ function recover(storageKey: string, own: boolean): OrderCommand | null {
 }
 const messageOf = (cause: unknown) => cause instanceof Error ? cause.message : 'Không thực hiện được yêu cầu';
 // allowed (US-42): cờ cancelAllowed của server; không truyền thì giữ điều kiện cũ (PENDING/CONFIRMED và còn giữ hàng).
-export function OrderCancellation({ order, own = false, disabled = false, allowed, onLockedChange, onChanged }: {
-  order: Target; own?: boolean; disabled?: boolean; allowed?: boolean; onLockedChange: (locked: boolean) => void; onChanged: () => Promise<void>;
+// dialog: true thì chỉ hiện nút "Hủy đơn", bấm mới mở form hủy trong cửa sổ nổi (trang Đơn hàng của Member dùng).
+export function OrderCancellation({ order, own = false, disabled = false, allowed, dialog = false, onLockedChange, onChanged }: {
+  order: Target; own?: boolean; disabled?: boolean; allowed?: boolean; dialog?: boolean; onLockedChange: (locked: boolean) => void; onChanged: () => Promise<void>;
 }) {
   const showCancelForm = allowed ?? (['PENDING', 'CONFIRMED'].includes(order.status) && order.reservationState === 'HELD');
   // Khóa của lệnh chưa rõ kết quả lưu theo id tài khoản: tài khoản khác không đọc được. Cố ý KHÔNG xóa khi đăng xuất –
@@ -27,6 +28,15 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [denied, setDenied] = useState(false);
   const [receipt, setReceipt] = useState({ amount: order.total ?? '', evidenceNote: '', receivingAccountCode: '', bankReference: '', receivedAt: '' });
   const busy = useRef(false);
+  // Cửa sổ hủy đang mở hay không (chỉ dùng khi dialog = true).
+  const [open, setOpen] = useState(false);
+  // Cửa sổ đang mở thì nhấn Esc để đóng (trừ lúc đang gửi); đóng rồi thì gỡ bộ nghe phím.
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy.current) setOpen(false); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [open]);
   useEffect(() => { onLockedChange(Boolean(command) || pending); }, [command, pending, onLockedChange]);
   function keep(value: OrderCommand | null) {
     setCommand(value);
@@ -35,7 +45,7 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
   }
   async function complete(result: CancelResult | LateReceiptResult) {
     if (('id' in result ? result.id : result.orderId) !== order.id) throw new ApiError('Kết quả chưa khớp đơn; giữ khóa để đối soát');
-    keep(null); onLockedChange(false); setChecked(false);
+    keep(null); onLockedChange(false); setChecked(false); setOpen(false);
     setNotice('refundAmount' in result ? `Đã hủy đơn. Khoản hoàn ${orderMoney(result.refundAmount)} · ${refundLabel(result.refundState)}.` : 'Đã ghi khoản thu muộn và nghĩa vụ chờ hoàn. Đơn vẫn hủy; chưa thực chi hoàn tiền.');
     try { await onChanged(); } catch (cause) { setError(`Đã ghi nhận kết quả; chưa tải lại được đơn. ${messageOf(cause)}`); }
   }
@@ -71,20 +81,33 @@ export function OrderCancellation({ order, own = false, disabled = false, allowe
       evidenceNote: receipt.evidenceNote.trim(), bankReference: receipt.bankReference.trim(), receivingAccountCode: receipt.receivingAccountCode.trim(),
       receivedAt: new Date(`${receipt.receivedAt}+07:00`).toISOString() } });
   }
+  // Form hủy đơn: hiện thẳng trên trang, hoặc nằm trong cửa sổ nổi khi dialog = true.
+  const cancelForm = <form onSubmit={cancel}>
+    {dialog ? <div className="modal-head"><h4 id={`cancel-title-${order.id}`}>Hủy đơn hàng</h4>
+      <button type="button" aria-label="Đóng" disabled={pending} onClick={() => setOpen(false)}>✕</button></div> : <h4>Hủy đơn hàng</h4>}
+    {/* Trong cửa sổ nổi thì lỗi hiện ngay trong cửa sổ để người dùng thấy. */}
+    {dialog && error && <p role="alert">{error}</p>}
+    <p>Giải phóng hàng đang giữ. Khoản đã thu được ghi nghĩa vụ chờ hoàn để đối soát.</p>
+    {/* US-42-TC09: đơn đã thu – nói rõ hủy chỉ ghi khoản chờ hoàn, chưa phải tiền đã về. */}
+    {order.transactionStatus === 'SETTLED' && <p>Đơn đã thanh toán: sau khi hủy, số tiền được ghi là khoản chờ hoàn, chưa phải tiền đã về tài khoản của bạn.</p>}
+    <label>Lý do hủy<textarea required minLength={10} maxLength={500} value={reason} disabled={pending || disabled || denied} onChange={event => setReason(event.target.value)} /></label>
+    <label><input type="checkbox" checked={checked} disabled={pending || disabled || denied} onChange={event => setChecked(event.target.checked)} />Tôi xác nhận hủy toàn bộ đơn chưa bàn giao</label>
+    <button type="submit" disabled={!checked || reason.trim().length < 10 || pending || disabled || denied}>Xác nhận hủy đơn</button>
+  </form>;
+
   return <section aria-label="Hủy và đối soát đơn" aria-busy={pending}>
-    {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
+    {/* Khi form nằm trong cửa sổ đang mở thì lỗi hiện trong cửa sổ, không hiện ở đây (bị nền tối che). */}
+    {error && !(dialog && open && showCancelForm && !command) && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {command ? <><p>Chưa xác định kết quả. Giữ nguyên khóa {command.key}; tra cứu chưa thấy không chứng minh yêu cầu thất bại. Không tạo khoản thu hoặc nghĩa vụ hoàn khác.</p>
       <button type="button" disabled={pending} onClick={() => void lookup()}>Tra cứu kết quả hủy / khoản muộn</button>
       <button type="button" disabled={pending || denied || disabled} onClick={() => void send(command)}>Gửi lại cùng yêu cầu hủy / khoản muộn</button></>
       : <>
-        {showCancelForm && <form onSubmit={cancel}>
-          <h4>Hủy đơn hàng</h4><p>Giải phóng hàng đang giữ. Khoản đã thu được ghi nghĩa vụ chờ hoàn để đối soát.</p>
-          {/* US-42-TC09: đơn đã thu – nói rõ hủy chỉ ghi khoản chờ hoàn, chưa phải tiền đã về. */}
-          {order.transactionStatus === 'SETTLED' && <p>Đơn đã thanh toán: sau khi hủy, số tiền được ghi là khoản chờ hoàn, chưa phải tiền đã về tài khoản của bạn.</p>}
-          <label>Lý do hủy<textarea required minLength={10} maxLength={500} value={reason} disabled={pending || disabled || denied} onChange={event => setReason(event.target.value)} /></label>
-          <label><input type="checkbox" checked={checked} disabled={pending || disabled || denied} onChange={event => setChecked(event.target.checked)} />Tôi xác nhận hủy toàn bộ đơn chưa bàn giao</label>
-          <button type="submit" disabled={!checked || reason.trim().length < 10 || pending || disabled || denied}>Xác nhận hủy đơn</button>
-        </form>}
+        {showCancelForm && !dialog && cancelForm}
+        {/* Cách hiển thị cửa sổ nổi: nút "Hủy đơn" mở form giữa màn hình; đóng bằng nút ✕ hoặc phím Esc, không đóng khi bấm nền tối. */}
+        {showCancelForm && dialog && <button type="button" className="cancel-open" disabled={disabled || denied} onClick={() => { setError(''); setOpen(true); }}>Hủy đơn</button>}
+        {showCancelForm && dialog && open && <div className="modal-backdrop">
+          <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby={`cancel-title-${order.id}`}>{cancelForm}</div>
+        </div>}
         {order.status === 'COMPLETED' && <p>Đơn đã bàn giao; hủy không còn khả dụng. Cần xử lý theo quy trình trả hàng.</p>}
         {!own && order.status === 'CANCELLED' && order.reservationState === 'RELEASED' && order.transactionStatus === 'CANCELLED' && order.refunds.length === 0 && <form onSubmit={late}>
           <h4>Ghi nhận khoản chuyển muộn</h4><p>Chỉ một khoản chuyển đủ tiền, có chứng từ ngân hàng thật. Thời điểm báo có theo giờ Việt Nam, có thể trước lúc hủy. Đơn vẫn hủy và không có chứng từ bán mới.</p>

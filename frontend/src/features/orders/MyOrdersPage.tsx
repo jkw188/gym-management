@@ -157,8 +157,8 @@ function OwnOrderDetailView({ id, onBack }: { id: string; onBack: () => void }) 
       {instructionsError && <p>Không tải được hướng dẫn thanh toán: {instructionsError}</p>}
       {instructions && <PaymentInstructionsView value={instructions} deadline={order.reservationExpiresAt} />}
       {/* US-42-F04, TC09–TC11: hủy qua component dùng chung của US-45 (khóa Idempotency-Key, gửi lại cùng key, tra kết quả).
-          Form chỉ hiện khi server báo cancelAllowed; sau khi hủy, component vẫn giữ để hiện kết quả. */}
-      <OrderCancellation key={order.id} own allowed={order.cancelAllowed} onLockedChange={setLocked} onChanged={load}
+          Nút "Hủy đơn" chỉ hiện khi server báo cancelAllowed, bấm mới mở form trong cửa sổ nổi; sau khi hủy, kết quả hiện ngay trên trang. */}
+      <OrderCancellation key={order.id} own dialog allowed={order.cancelAllowed} onLockedChange={setLocked} onChanged={load}
         order={{ id: order.id, status: order.status, version: order.version, total: order.total, transactionStatus: order.transactionStatus,
           reservationState: order.reservationState, refunds: [] }} />
       <p>
