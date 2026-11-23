@@ -156,15 +156,16 @@ function OwnOrderDetailView({ id, onBack }: { id: string; onBack: () => void }) 
         <p>Đơn đã thanh toán. Mời bạn đến quầy nhận hàng trước {orderDate(order.reservationExpiresAt)}.</p>}
       {instructionsError && <p>Không tải được hướng dẫn thanh toán: {instructionsError}</p>}
       {instructions && <PaymentInstructionsView value={instructions} deadline={order.reservationExpiresAt} />}
-      {/* US-42-F04, TC09–TC11: hủy qua component dùng chung của US-45 (khóa Idempotency-Key, gửi lại cùng key, tra kết quả).
-          Nút "Hủy đơn" chỉ hiện khi server báo cancelAllowed, bấm mới mở form trong cửa sổ nổi; sau khi hủy, kết quả hiện ngay trên trang. */}
-      <OrderCancellation key={order.id} own dialog allowed={order.cancelAllowed} onLockedChange={setLocked} onChanged={load}
-        order={{ id: order.id, status: order.status, version: order.version, total: order.total, transactionStatus: order.transactionStatus,
-          reservationState: order.reservationState, refunds: [] }} />
-      <p>
-        <button type="button" disabled={locked || loading} onClick={() => void load()}>Tải lại đơn</button>
-        {' '}<button type="button" disabled={locked} onClick={onBack}>Về danh sách</button>
-      </p>
+      {/* Hàng nút cuối chi tiết đơn: Tải lại đơn, Về danh sách bên trái, Hủy đơn bên phải (CSS .order-actions). */}
+      <div className="order-actions">
+        {/* US-42-F04, TC09–TC11: hủy qua component dùng chung của US-45 (khóa Idempotency-Key, gửi lại cùng key, tra kết quả).
+            Nút "Hủy đơn" chỉ hiện khi server báo cancelAllowed, bấm mới mở form trong cửa sổ nổi; sau khi hủy, kết quả hiện ngay trên trang. */}
+        <OrderCancellation key={order.id} own dialog allowed={order.cancelAllowed} onLockedChange={setLocked} onChanged={load}
+          order={{ id: order.id, status: order.status, version: order.version, total: order.total, transactionStatus: order.transactionStatus,
+            reservationState: order.reservationState, refunds: [] }} />
+        <button type="button" className="secondary" disabled={locked || loading} onClick={() => void load()}>Tải lại đơn</button>
+        <button type="button" className="secondary" disabled={locked} onClick={onBack}>Về danh sách</button>
+      </div>
     </>}
     {!order && !loading && <p>
       {error && <><button type="button" onClick={() => void load()}>Thử lại</button>{' '}</>}

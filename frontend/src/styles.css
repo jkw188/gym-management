@@ -517,6 +517,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 /* Nút "Hủy đơn" của Member (mở cửa sổ hủy): viền đỏ, nền trắng để không nhầm với nút chính. */
 .cancel-open { border-color: var(--danger); background: transparent; color: var(--danger); }
 .cancel-open:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+/* Hàng nút cuối chi tiết đơn của Member: các nút cùng một hàng, cách đều; thông báo hủy (nếu có) chiếm trọn một dòng phía trên.
+   section của OrderCancellation dùng display: contents để nút "Hủy đơn" bên trong nằm chung hàng với các nút khác. */
+.order-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.order-actions > section { display: contents; }
+.order-actions button { margin: 0; }
+.order-actions > section > p { flex: 1 0 100%; margin: 0; }
+.order-actions .cancel-open { order: 1; margin-left: auto; }
 /* Nút X đóng: cùng hàng tiêu đề ở góc phải trên, nền trong suốt, rê chuột vào thì chuyển đỏ. */
 .close-x { display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--muted); }
 .close-x:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
