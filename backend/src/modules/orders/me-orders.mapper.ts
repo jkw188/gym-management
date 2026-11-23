@@ -17,7 +17,7 @@ export type OwnOrderFlags = { expired: boolean; cancelAllowed: boolean; paymentA
 // Tóm tắt tên hàng cho danh sách đơn: 2 sản phẩm đầu kèm số lượng, còn lại gom thành "+N sản phẩm khác".
 // Ví dụ: "Găng tay tập gym ×1, Whey 1kg ×2 +1 sản phẩm khác". Dùng tên snapshot lúc đặt, không đọc catalog hiện tại.
 const SUMMARY_SHOWN = 2;
-function itemsSummary(lines: Pick<OrderItem, 'name_snapshot' | 'quantity'>[]) {
+export function itemsSummary(lines: Pick<OrderItem, 'name_snapshot' | 'quantity'>[]) {
   const shown = lines.slice(0, SUMMARY_SHOWN).map(line => `${line.name_snapshot} ×${line.quantity}`).join(', ');
   const rest = lines.length - SUMMARY_SHOWN;
   return rest > 0 ? `${shown} +${rest} sản phẩm khác` : shown;

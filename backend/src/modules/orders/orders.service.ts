@@ -14,6 +14,7 @@ import { Order } from './order.schema';
 import { assertOrderIntegrity, fulfillBlockedReason, orderConflict, orderIntegrityError, prepareBlockedReason } from './order.policy';
 import { OrderQueryDto, PrepareOrderDto } from './orders.dto';
 import { OrdersRepository } from './orders.repository';
+import { itemsSummary } from './me-orders.mapper';
 
 const idOf = (id: string) => new Types.ObjectId(validateObjectId(id));
 const missing = () => new ApplicationError(404, 'NOT_FOUND', 'Không tìm thấy đơn hàng');
@@ -67,6 +68,8 @@ export class OrdersService {
       total: transaction ? fromVndDecimal(transaction.amount_due) : null, reservationState: row.reservation_state,
       reservationExpiresAt: row.reservation_expires_at.toISOString(), expired: asOf.getTime() >= row.reservation_expires_at.getTime(),
       createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
+      // Tên hàng tóm tắt giống danh sách của Member (đồng bộ giao diện nhân viên), dùng dòng hàng đã đọc ở trên.
+      itemsSummary: itemsSummary(lines),
       permittedActions: { prepare: reason === null, prepareBlockedReason: reason, fulfill: fulfillReason === null, fulfillBlockedReason: fulfillReason } };
   }
   async prepare(actorId: string, id: string, input: PrepareOrderDto, key: string) {

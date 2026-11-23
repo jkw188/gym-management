@@ -64,6 +64,7 @@ export class OrderSummaryResponseDto {
   @ApiProperty() expired!: boolean;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
+  @ApiProperty({ description: 'Tên hàng tóm tắt, ví dụ "Găng tay tập gym ×1, Whey 1kg ×2"' }) itemsSummary!: string;
   @ApiProperty({ type: OrderActionsResponseDto }) permittedActions!: OrderActionsResponseDto;
 }
 export class OrderItemResponseDto {
