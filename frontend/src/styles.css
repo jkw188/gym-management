@@ -146,6 +146,12 @@ dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
 /* Nhóm nút lọc/chọn tab (Tất cả – Chưa đọc – Đã đọc, Lịch sử gói – Lịch sử giao dịch) dùng kiểu view-switch: cách lề dưới một chút. */
 .view-switch[role="group"] { margin: 8px 0 16px; }
 .view-switch button { white-space: nowrap; }
+/* Trong thanh công cụ (trang Lịch lớp) thì bỏ khoảng cách trên/dưới để thẳng hàng với chọn tuần và ô Bộ môn. */
+.toolbar > .view-switch { margin: 0; }
+/* Chọn tuần / chọn tháng: hai nút mũi tên vuông 44px (bằng chiều cao khung Tuần/Tháng và ô chọn), không lệch margin, chữ ở giữa. */
+.toolbar > .week-picker { gap: 8px; align-items: center; }
+.week-picker button, .month-head button { min-width: 44px; min-height: 44px; margin: 0; padding: 0; }
+.week-picker > span, .month-head > span { white-space: nowrap; }
 
 /* Hộp thoại (US-09, US-10): nền trắng viền đen sắc như "overlay" trong DESIGN.md. */
 .account-status-dialog { width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 32px; border: 1px solid var(--ink-2); border-radius: var(--radius); color: inherit; background: var(--surface); overflow-wrap: anywhere; }
