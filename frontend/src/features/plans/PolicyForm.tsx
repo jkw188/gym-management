@@ -27,7 +27,7 @@ export function PlanPicker({ label, value, onChange }: { label: string; value: s
     {loading && <p role="status">Đang tải gói…</p>}
     {!loading && !error && result?.items.length === 0 && <p>Không tìm thấy gói.</p>}
     <CatalogError error={error} />{error && <button type="button" onClick={() => setRetry(value => value + 1)}>Thử lại {label.toLowerCase()}</button>}
-    <div className="user-actions"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}><Icon name="prev" label={`Trang trước ${label.toLowerCase()}`} /></button>
+    <div className="pagination"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)}><Icon name="prev" label={`Trang trước ${label.toLowerCase()}`} /></button>
       <span>{page} / {result?.totalPages ?? 0}</span><button type="button" disabled={loading || !result || page >= result.totalPages} onClick={() => setPage(page + 1)}><Icon name="next" label={`Trang sau ${label.toLowerCase()}`} /></button></div>
   </div>;
 }

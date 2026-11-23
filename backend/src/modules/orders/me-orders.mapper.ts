@@ -14,9 +14,21 @@ export type RefundSummary = { refundState: 'NONE' | 'PENDING' | 'FAILED' | 'SUCC
 // Các cờ gợi ý do service tính (lệnh ghi vẫn kiểm lại).
 export type OwnOrderFlags = { expired: boolean; cancelAllowed: boolean; paymentAllowed: boolean };
 
-// US-42 list item: {id, code, channel, status, transactionStatus, total, reservationExpiresAt, refundState, createdAt}.
-export function toOwnListItem(order: Order, transaction: Transaction | null, refund: RefundSummary) {
+// Tóm tắt tên hàng cho danh sách đơn: 2 sản phẩm đầu kèm số lượng, còn lại gom thành "+N sản phẩm khác".
+// Ví dụ: "Găng tay tập gym ×1, Whey 1kg ×2 +1 sản phẩm khác". Dùng tên snapshot lúc đặt, không đọc catalog hiện tại.
+const SUMMARY_SHOWN = 2;
+export function itemsSummary(lines: Pick<OrderItem, 'name_snapshot' | 'quantity'>[]) {
+  const shown = lines.slice(0, SUMMARY_SHOWN).map(line => `${line.name_snapshot} ×${line.quantity}`).join(', ');
+  const rest = lines.length - SUMMARY_SHOWN;
+  return rest > 0 ? `${shown} +${rest} sản phẩm khác` : shown;
+}
+
+// US-42 list item: {id, code, channel, status, transactionStatus, total, reservationExpiresAt, refundState, createdAt},
+// bổ sung itemsSummary (tên hàng) theo yêu cầu của nhóm ngày 24/11/2026 – không có trong bản spec gốc.
+export function toOwnListItem(order: Order, transaction: Transaction | null, refund: RefundSummary,
+  lines: Pick<OrderItem, 'name_snapshot' | 'quantity'>[]) {
   return {
+    itemsSummary: itemsSummary(lines),
     id: String(order._id), code: order.code, channel: order.channel, status: order.status,
     transactionStatus: transaction?.status ?? null, total: transaction ? fromVndDecimal(transaction.amount_due) : null,
     reservationExpiresAt: order.reservation_expires_at.toISOString(), refundState: refund.refundState, createdAt: order.created_at.toISOString(),

@@ -12,6 +12,7 @@ import {
 } from './memberships.api';
 import { Icon } from '../../components/Icon';
 import { RenewalPanel, type RenewalTarget } from './RenewalPanel';
+import { buyerLabel } from '../payments/payments-format';
 
 // membershipsTotal/salesTotal là total server trả về, để biết còn bản ghi chưa tải (US-17-TC10).
 interface PageData {
@@ -131,6 +132,14 @@ export function MyMembershipsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Cửa sổ gia hạn đang mở thì nhấn phím Esc để đóng; đóng rồi thì gỡ bộ nghe phím.
+  useEffect(() => {
+    if (!renewTarget) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setRenewTarget(null); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [renewTarget]);
+
   // US-17-TC09: xem giao dịch của một lần mua (chỉ GET).
   async function openTransaction(id: string) {
     const account = accountId;
@@ -154,6 +163,26 @@ export function MyMembershipsPage() {
     } catch (error) {
       if (currentAccount.current === account) setDetailError(errorMessage(error, 'Không xem được chứng từ.'));
     }
+  }
+
+  // Bấm "Xem giao dịch" lần nữa khi giao dịch đó đang mở thì ẩn đi (ẩn luôn chứng từ bên trong).
+  function toggleTransaction(id: string) {
+    if (transaction?.id === id) {
+      setTransaction(null);
+      setInvoice(null);
+      setDetailError('');
+      return;
+    }
+    void openTransaction(id);
+  }
+
+  // Bấm "Xem chứng từ" lần nữa khi chứng từ đó đang mở thì ẩn đi.
+  function toggleInvoice(id: string) {
+    if (invoice?.id === id) {
+      setInvoice(null);
+      return;
+    }
+    void openInvoice(id);
   }
 
   // US-19-TC01: previousSaleId và planVersion lấy từ field renewal của server, không tự chọn.
@@ -199,7 +228,7 @@ export function MyMembershipsPage() {
       <section aria-labelledby="sales-pending">
         <h3 id="sales-pending">Giao dịch chờ xác nhận</h3>
         {pendingSales.length === 0 ? <p>Không có giao dịch chờ xác nhận.</p> : pendingSales.map(sale =>
-          <article key={sale.id} aria-label={sale.planName}>
+          <article key={sale.id} aria-label={sale.planName} className="membership-card">
             <h4>{sale.planName}</h4>
             <p>Chờ xác nhận thu{sale.amountDue ? ` – ${formatVnd(sale.amountDue)}` : ''}</p>
           </article>)}
@@ -209,40 +238,79 @@ export function MyMembershipsPage() {
         <h3 id="sales-history">Lịch sử mua</h3>
         {data.salesTotal > sales.length &&
           <p role="note">Đang hiện {sales.length} lần mua gần nhất trên tổng {data.salesTotal}.</p>}
+        {/* Mỗi lần mua là một thẻ (lớp 1); giao dịch mở ra nằm ngay trong thẻ (lớp 2), chứng từ lồng trong giao dịch (lớp 3). */}
         {sales.length === 0 ? <p>Chưa có lần mua nào.</p> : sales.map(sale =>
-          <article key={sale.id} aria-label={sale.planName}>
-            <h4>{sale.planName}</h4>
-            <p>{OPERATION_LABELS[sale.operation]}{sale.status ? ` – ${SALE_STATUS_LABELS[sale.status]}` : ''}</p>
-            <p>Kỳ dự kiến: {formatDate(sale.startDate)} – {formatDate(sale.endDate)}</p>
-            {sale.amountDue && <p>Số tiền: {formatVnd(sale.amountDue)}</p>}
-            <button type="button" onClick={() => void openTransaction(sale.transactionId)}>Xem giao dịch</button>
+          <article key={sale.id} aria-label={sale.planName} className="membership-card">
+            <div className="card-head">
+              <h4>{sale.planName}</h4>
+              {sale.status && <span className={`status-badge status-${sale.status.toLowerCase()}`}>{SALE_STATUS_LABELS[sale.status]}</span>}
+            </div>
+            <dl className="info-grid">
+              <dt>Loại</dt><dd>{OPERATION_LABELS[sale.operation]}</dd>
+              <dt>Kỳ dự kiến</dt><dd>{formatDate(sale.startDate)} – {formatDate(sale.endDate)}</dd>
+              {sale.amountDue && <><dt>Số tiền</dt><dd className="info-money">{formatVnd(sale.amountDue)}</dd></>}
+            </dl>
+            {/* aria-expanded báo cho trình đọc màn hình biết khung giao dịch đang mở hay đóng. */}
+            <button type="button" className="secondary" aria-expanded={transaction?.id === sale.transactionId}
+              onClick={() => toggleTransaction(sale.transactionId)}>
+              {transaction?.id === sale.transactionId ? 'Ẩn giao dịch' : 'Xem giao dịch'}
+            </button>
+            {transaction && transaction.id === sale.transactionId && <TransactionPanel transaction={transaction}
+              invoice={invoice} onToggleInvoice={toggleInvoice} />}
           </article>)}
       </section>
     </>}
 
-    {/* key: mở kỳ khác thì làm mới vùng gia hạn (xóa báo giá và key cũ). */}
-    {renewTarget && <RenewalPanel key={renewTarget.previousSaleId} target={renewTarget}
-      onCreated={() => void load()} onReload={reloadAfterStale} />}
+    {/* Gia hạn mở thành cửa sổ nổi giữa màn hình, không nằm cuối trang.
+        Không đóng khi bấm nền tối, để tránh lỡ tay mất kết quả gia hạn; đóng bằng nút X hoặc phím Esc.
+        key: mở kỳ khác thì làm mới vùng gia hạn (xóa báo giá và key cũ). */}
+    {renewTarget && <div className="modal-backdrop">
+      <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="renewal-title">
+        <RenewalPanel key={renewTarget.previousSaleId} target={renewTarget}
+          onCreated={() => void load()} onReload={reloadAfterStale} onClose={() => setRenewTarget(null)} />
+      </div>
+    </div>}
 
     {detailError && <p role="alert">{detailError}</p>}
+  </section>;
+}
 
-    {/* US-17-F04: chỉ hiện các field cho phép; không hiện mã tham chiếu, người xác minh hay ghi chú nội bộ. */}
-    {transaction && <section aria-label="Chi tiết giao dịch">
-      <h3>Giao dịch {transaction.code}</h3>
-      <p>Trạng thái: {SALE_STATUS_LABELS[transaction.status]}</p>
-      <p>Số tiền phải trả: {formatVnd(transaction.amountDue)}</p>
-      {transaction.payment && <p>
-        Đã thu {formatVnd(transaction.payment.amount)} bằng {transaction.payment.method === 'CASH' ? 'tiền mặt' : 'chuyển khoản'}
-        {transaction.payment.paidAt ? ` lúc ${formatDateTime(transaction.payment.paidAt)}` : ''}
-      </p>}
-      {transaction.invoiceId && <button type="button" onClick={() => void openInvoice(transaction.invoiceId!)}>Xem chứng từ</button>}
-    </section>}
+// Lớp 2: chi tiết giao dịch, hiện ngay trong thẻ lần mua đã bấm "Xem giao dịch".
+// US-17-F04: chỉ hiện các field cho phép; không hiện mã tham chiếu, người xác minh hay ghi chú nội bộ.
+function TransactionPanel({ transaction, invoice, onToggleInvoice }: {
+  transaction: MyTransaction; invoice: MyInvoice | null; onToggleInvoice: (id: string) => void;
+}) {
+  const payment = transaction.payment;
+  const invoiceOpen = invoice !== null && invoice.id === transaction.invoiceId;
+  return <section aria-label="Chi tiết giao dịch" className="detail-panel">
+    <div className="card-head">
+      <h5>Giao dịch {transaction.code}</h5>
+      <span className={`status-badge status-${transaction.status.toLowerCase()}`}>{SALE_STATUS_LABELS[transaction.status]}</span>
+    </div>
+    <dl className="info-grid">
+      <dt>Số tiền phải trả</dt><dd className="info-money">{formatVnd(transaction.amountDue)}</dd>
+      {payment && <>
+        <dt>Đã thu</dt><dd>{formatVnd(payment.amount)} bằng {payment.method === 'CASH' ? 'tiền mặt' : 'chuyển khoản'}</dd>
+        {payment.paidAt && <><dt>Thời điểm thu</dt><dd>{formatDateTime(payment.paidAt)}</dd></>}
+      </>}
+    </dl>
+    {transaction.invoiceId && <button type="button" className="secondary" aria-expanded={invoiceOpen}
+      onClick={() => onToggleInvoice(transaction.invoiceId!)}>
+      {invoiceOpen ? 'Ẩn chứng từ' : 'Xem chứng từ'}
+    </button>}
+    {invoice && invoiceOpen && <InvoicePanel invoice={invoice} />}
+  </section>;
+}
 
-    {invoice && <section aria-label="Chứng từ">
-      <h3>Chứng từ {invoice.invoiceNo}</h3>
-      <p>Ngày lập: {formatDateTime(invoice.issuedAt)}</p>
-      <p>Tổng tiền: {formatVnd(invoice.totalAmount)}</p>
-      <p>Người mua: {invoice.buyer}</p>
-    </section>}
+// Lớp 3: chứng từ dạng hóa đơn, lồng trong khung giao dịch.
+// US-17-TC09: người mua lấy theo snapshot của chứng từ; buyerLabel đổi chuỗi JSON thành "Tên · Mã HV · SĐT".
+function InvoicePanel({ invoice }: { invoice: MyInvoice }) {
+  return <section aria-label="Chứng từ" className="receipt-panel">
+    <h5>Chứng từ {invoice.invoiceNo}</h5>
+    <dl className="info-grid">
+      <dt>Ngày lập</dt><dd>{formatDateTime(invoice.issuedAt)}</dd>
+      <dt>Người mua</dt><dd>{buyerLabel(invoice.buyer)}</dd>
+      <dt>Tổng tiền</dt><dd className="info-money">{formatVnd(invoice.totalAmount)}</dd>
+    </dl>
   </section>;
 }

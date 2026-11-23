@@ -109,7 +109,7 @@ export function AdminClassesPage() {
               {row.status === 'DRAFT' && <button disabled={blocked || Boolean(selected)} onClick={() => void open(row.id, 'publish')}>Công bố {row.title}</button>}
               <button disabled={blocked || Boolean(selected)} onClick={() => void open(row.id, 'cancel')}>Hủy {row.title}</button></>}
           </div></li>)}</ul>
-        <div className="user-actions"><button disabled={blocked || Boolean(selected) || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
+        <div className="pagination"><button disabled={blocked || Boolean(selected) || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button>
           <span>Trang {query.page}/{data.totalPages} · {data.total} lớp</span><button disabled={blocked || Boolean(selected) || query.page >= data.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
       </>}
     </>}

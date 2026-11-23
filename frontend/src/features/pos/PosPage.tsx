@@ -113,9 +113,12 @@ export function PosPage() {
         onLockedChange={setPaymentLocked} onRefresh={() => { void loadOrder(order.id).catch(report); }} onSettled={() => { setPaymentLocked(false); void loadOrder(order.id).catch(report); }} /></fieldset>}
       <fieldset disabled={denied || paymentLocked || cancelLocked}><OrderFulfillment order={order} expired={expired} onLockedChange={setFulfillLocked}
         onConflict={async text => { setError(text); await loadOrder(order.id); }} onCompleted={async () => { setNotice('Đã bàn giao đủ sản phẩm.'); await loadOrder(order.id); }} /></fieldset>
-      <OrderCancellation order={order} disabled={denied || paymentLocked || fulfillLocked} onLockedChange={setCancelLocked} onChanged={() => loadOrder(order.id)} />
-      <button disabled={locked} onClick={() => void loadOrder(order.id).catch(report)}>Tải lại đơn POS</button>
-      <button disabled={locked || denied} onClick={() => { keep(null); setOrder(null); setPayment(null); setQuote(null); setNotice(''); setReload(value => value + 1); }}>Lập đơn POS mới</button>
+      {/* Hàng nút cuối đơn POS (giống trang Đơn hàng): Tải lại, Lập đơn mới bên trái; Hủy đơn mở cửa sổ nổi, nằm bên phải. */}
+      <div className="order-actions">
+        <OrderCancellation order={order} dialog disabled={denied || paymentLocked || fulfillLocked} onLockedChange={setCancelLocked} onChanged={() => loadOrder(order.id)} />
+        <button className="secondary" disabled={locked} onClick={() => void loadOrder(order.id).catch(report)}>Tải lại đơn POS</button>
+        <button className="secondary" disabled={locked || denied} onClick={() => { keep(null); setOrder(null); setPayment(null); setQuote(null); setNotice(''); setReload(value => value + 1); }}>Lập đơn POS mới</button>
+      </div>
     </section> : recovery && 'orderId' in recovery ? <button onClick={() => void loadOrder(recovery.orderId).catch(report)}>Tải lại đơn POS đã lập</button> : <>
       <fieldset disabled={locked || denied}><legend>1. Khách mua và sản phẩm</legend>
         <label>Loại khách<select value={buyerType} onChange={event => { setBuyerType(event.target.value); setQuote(null); setMember(null); }}><option value="ANONYMOUS">Khách lẻ</option><option value="MEMBER">Hội viên đã tồn tại</option></select></label>

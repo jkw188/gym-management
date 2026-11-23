@@ -2,6 +2,7 @@
 // Chọn cách trả, xem trước, xác nhận; số tiền và ngày dự kiến lấy từ server, React không tự tính (US-19-F02).
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '../../api/client';
+import { Icon } from '../../components/Icon';
 import type { PaymentInstructions, PaymentMethod } from '../service-registrations/service-registrations.api';
 import { renewalsApi, type RenewalInput, type RenewalQuote, type RenewalResult } from './renewals.api';
 
@@ -46,10 +47,11 @@ function messageOf(error: unknown, fallback: string) {
   return error instanceof ApiError && error.message ? error.message : fallback;
 }
 
-export function RenewalPanel({ target, onCreated, onReload }: {
+export function RenewalPanel({ target, onCreated, onReload, onClose }: {
   target: RenewalTarget;
   onCreated: () => void;   // tải lại danh sách gói và lần mua của trang
   onReload: () => void;    // đóng vùng gia hạn và tải lại dữ liệu mới
+  onClose?: () => void;    // nút X: đóng cửa sổ gia hạn
 }) {
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   const [quote, setQuote] = useState<RenewalQuote | null>(null);
@@ -153,7 +155,11 @@ export function RenewalPanel({ target, onCreated, onReload }: {
   }
 
   return <section aria-labelledby="renewal-title" className="renewal-panel">
-    <h3 id="renewal-title">Gia hạn gói</h3>
+    {/* Tiêu đề và nút X đóng cùng một hàng (khi trang mở vùng này dạng cửa sổ nổi thì có onClose). */}
+    <div className="modal-head">
+      <h3 id="renewal-title">Gia hạn gói</h3>
+      {onClose && <button type="button" className="close-x" onClick={onClose}><Icon name="close" label="Đóng" /></button>}
+    </div>
     <p>{target.planName}</p>
 
     {!result && <>

@@ -1,9 +1,10 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/client';
 import { membersApi } from '../members/members.api';
 import { ordersApi, type OrderDetail } from '../orders/orders.api';
+import { cancellationApi, type CancelResult } from '../orders/order-cancellation.api';
 import { paymentsApi } from '../payments/payments.api';
 import { PosPage } from './PosPage';
 import { posApi, type PosCreated, type PosQuote } from './pos.api';
@@ -115,5 +116,25 @@ describe('US-53 TC14 POS counter workflow', () => {
     expect(await screen.findByRole('button', { name: 'Thêm WATER' })).toHaveProperty('disabled', true);
     vi.mocked(posApi.products).mockResolvedValue({ items: [], total: 0, page: 1, totalPages: 0 });
     await userEvent.click(screen.getByRole('button', { name: 'Tìm sản phẩm' })); await screen.findByText('Không có sản phẩm đang bán phù hợp.');
+  });
+  // Hủy đơn POS mở thành cửa sổ nổi (đồng bộ với trang Đơn hàng): bấm "Hủy đơn" mới thấy form, gửi đúng một lệnh hủy hỗ trợ.
+  it('hủy đơn POS: form ẩn tới khi bấm "Hủy đơn", xác nhận gửi một lệnh ORDER_CANCEL_SUPPORT rồi cửa sổ đóng', async () => {
+    const result: CancelResult = { id, code: created.code, status: 'CANCELLED', version: 1, reservationState: 'RELEASED', cancelledAt: '2035-11-14T18:00:00Z',
+      transactionStatus: 'CANCELLED', refundState: 'NONE', refundAmount: '0', notificationState: 'STORED' };
+    const send = vi.spyOn(cancellationApi, 'send').mockResolvedValue(result);
+    render(<PosPage />); await preview();
+    await userEvent.click(screen.getByRole('button', { name: 'Xác nhận lập POS' }));
+    await screen.findByText('Đã lập POS · Chưa bàn giao');
+    expect(screen.queryByLabelText('Lý do hủy')).toBeNull();
+
+    vi.mocked(ordersApi.detail).mockResolvedValue({ ...row, status: 'CANCELLED', version: 1, reservationState: 'RELEASED', transactionStatus: 'CANCELLED' });
+    await userEvent.click(screen.getByRole('button', { name: 'Hủy đơn' }));
+    await userEvent.type(within(await screen.findByRole('dialog')).getByLabelText('Lý do hủy'), 'Khách đổi ý tại quầy');
+    await userEvent.click(screen.getByLabelText('Tôi xác nhận hủy toàn bộ đơn chưa bàn giao'));
+    await userEvent.click(screen.getByRole('button', { name: 'Xác nhận hủy đơn' }));
+    await screen.findByText(/Đã hủy đơn/);
+    expect(send).toHaveBeenCalledOnce();
+    expect(send.mock.calls[0]).toEqual([id, { key: expect.any(String), operation: 'ORDER_CANCEL_SUPPORT', body: { version: 0, reason: 'Khách đổi ý tại quầy' } }]);
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

@@ -61,8 +61,8 @@ function ReturnsWorkspace() {
     {!loading && history?.items.length === 0 && <p>Chưa có phiếu trả phù hợp.</p>}
     {history?.items.map(row => <article key={row.id}><p>Đã nhận hàng: {orderDate(row.receivedAt)} · Đơn {row.orderId} · {orderMoney(row.amount)}</p>
       <p>Nghĩa vụ: {orderMoney(row.refundAmount)} · Đã hoàn tiền: {orderMoney(row.refundedAmount)} · Còn phải hoàn: {orderMoney(row.outstandingRefundAmount)}</p><button disabled={loading} onClick={() => void show(row.id)}>Xem phiếu {row.id}</button></article>)}
-    <button disabled={loading || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button><span> Trang {query.page}/{history?.totalPages ?? 0} · {history?.total ?? 0} phiếu </span>
-    <button disabled={loading || !history || query.page >= history.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button>
+    <div className="pagination"><button disabled={loading || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button><span> Trang {query.page}/{history?.totalPages ?? 0} · {history?.total ?? 0} phiếu </span>
+    <button disabled={loading || !history || query.page >= history.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
     {detail && <section><h3>Phiếu {detail.id}</h3><p>{detail.reason} · Nhân viên {detail.createdBy} · {orderDate(detail.receivedAt)}</p>
       {detail.items.map(item => <p key={item.id}>{item.name} × {item.quantity} · {item.restockable ? 'Nhập lại kho bán được' : 'Không nhập kho bán được'} · {item.conditionNote} · {orderMoney(item.amount)}</p>)}
       {detail.refunds.map(refund => <p key={refund.id}>Khoản hoàn {refund.id}: {refundLabel(refund.status)} · {orderMoney(refund.amount)}</p>)}<button onClick={() => setDetail(null)}>Đóng phiếu</button></section>}

@@ -24,7 +24,7 @@ beforeEach(() => {
   vi.spyOn(ordersApi, 'detail').mockResolvedValue(row);
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); sessionStorage.clear(); });
-async function open() { render(<OrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Mở ${row.code}` })); await screen.findByRole('heading', { name: row.code }); }
+async function open() { render(<OrdersPage />); await userEvent.click(await screen.findByRole('button', { name: `Xem chi tiết ${row.code}` })); await screen.findByRole('heading', { name: row.code }); }
 async function submit() { await userEvent.click(screen.getByLabelText(acknowledgment)); await userEvent.click(screen.getByRole('button', { name: 'Xác nhận đã bàn giao' })); }
 
 describe('US-44 TC13: physical handover acknowledgement, pending, conflicts and recovery', () => {

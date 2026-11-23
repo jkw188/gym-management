@@ -9,6 +9,8 @@ export type OwnRefundState = 'NONE' | 'PENDING' | 'FAILED' | 'SUCCEEDED';
 export interface OwnOrderListItem {
   id: string; code: string; channel: 'WEBSITE' | 'POS'; status: OwnOrderStatus; transactionStatus: OwnTransactionStatus | null;
   total: string | null; reservationExpiresAt: string; refundState: OwnRefundState; createdAt: string;
+  // Tên hàng tóm tắt do server ghép từ snapshot lúc đặt, ví dụ "Găng tay tập gym ×1, Whey 1kg ×2".
+  itemsSummary?: string;
 }
 export interface OwnOrderPage {
   memberLinked: boolean; items: OwnOrderListItem[]; page: number; limit: number; total: number; totalPages: number; asOf: string;

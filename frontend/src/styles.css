@@ -136,8 +136,22 @@ dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
 .user-details { font-size: .875rem; }
 .user-notice { padding: 12px 16px; border: 1px solid var(--border); border-left: 3px solid var(--ink); border-radius: var(--radius); background: var(--surface-2); overflow-wrap: anywhere; }
 /* Phân trang: các nút nhỏ viền mảnh. */
-.pagination { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
-.pagination button { min-height: 32px; margin: 0; }
+/* Phân trang dùng chung mọi trang (mọi role): nút Trang trước – "Trang x/y" – Trang sau nằm giữa, cùng một hàng.
+   Chữ và nút không tự xuống dòng; chỉ khi màn hình quá hẹp cả cụm mới xuống hàng, vẫn căn giữa. */
+.pagination { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: center; margin: 20px 0; text-align: center; }
+.pagination button { min-height: 36px; margin: 0; white-space: nowrap; }
+.pagination > span { color: var(--muted); font-size: .8125rem; white-space: nowrap; }
+.pagination label { margin: 0; white-space: nowrap; }
+.pagination select { width: auto; }
+/* Nhóm nút lọc/chọn tab (Tất cả – Chưa đọc – Đã đọc, Lịch sử gói – Lịch sử giao dịch) dùng kiểu view-switch: cách lề dưới một chút. */
+.view-switch[role="group"] { margin: 8px 0 16px; }
+.view-switch button { white-space: nowrap; }
+/* Trong thanh công cụ (trang Lịch lớp) thì bỏ khoảng cách trên/dưới để thẳng hàng với chọn tuần và ô Bộ môn. */
+.toolbar > .view-switch { margin: 0; }
+/* Chọn tuần / chọn tháng: hai nút mũi tên vuông 44px (bằng chiều cao khung Tuần/Tháng và ô chọn), không lệch margin, chữ ở giữa. */
+.toolbar > .week-picker { gap: 8px; align-items: center; }
+.week-picker button, .month-head button { min-width: 44px; min-height: 44px; margin: 0; padding: 0; }
+.week-picker > span, .month-head > span { white-space: nowrap; }
 
 /* Hộp thoại (US-09, US-10): nền trắng viền đen sắc như "overlay" trong DESIGN.md. */
 .account-status-dialog { width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 32px; border: 1px solid var(--ink-2); border-radius: var(--radius); color: inherit; background: var(--surface); overflow-wrap: anywhere; }
@@ -199,7 +213,24 @@ dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
 /* Cửa hàng (US-35) và giỏ hàng (US-40): khung ảnh xám nhạt, giá dùng số đều nét. */
 .shop-image-placeholder { display: grid; place-items: center; aspect-ratio: 4 / 3; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); color: var(--muted); }
 .shop-description { color: var(--muted); }
-.cart-lines { list-style: none; padding: 0; }
+.cart-lines { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; padding: 0; list-style: none; }
+/* Một dòng giỏ: ảnh | tên, mã, đơn giá | ô số lượng | thành tiền + Xóa. */
+.cart-line { display: grid; grid-template-columns: 96px 1fr auto auto; gap: 16px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.cart-line p { margin: 0; }
+.cart-line-image img, .cart-line-image .shop-image-placeholder { display: grid; width: 96px; height: 96px; aspect-ratio: 1; border-radius: var(--radius-sm); object-fit: cover; font-size: .7rem; text-align: center; }
+.cart-line-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.cart-line-name { font-size: 1rem; color: var(--heading); }
+.cart-line-meta { color: var(--muted); font-size: .8125rem; }
+.cart-qty { display: flex; align-items: center; gap: 6px; }
+.cart-qty button { width: 36px; min-height: 36px; margin: 0; padding: 0; border-color: var(--border); background: var(--surface); color: var(--heading); font-size: 1rem; }
+.cart-qty button:hover:not(:disabled) { border-color: var(--ink); background: var(--ink-soft); color: var(--ink); }
+.cart-qty input { width: 64px; min-height: 36px; padding: 4px 6px; text-align: center; }
+.cart-line-total { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; min-width: 150px; text-align: right; }
+.cart-line-total strong { color: var(--heading); }
+.cart-remove { min-height: 32px; margin: 0; padding: 0 12px; border-color: var(--danger); background: transparent; color: var(--danger); }
+.cart-remove:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+.cart-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px; border-radius: var(--radius); background: var(--surface-2); font-size: 1rem; }
+.cart-summary p { margin: 0; }
 
 /* ===== 10. Màn hình nhỏ (điện thoại) ===== */
 @media (max-width: 767px) {
@@ -208,6 +239,11 @@ dd { margin: 4px 0; color: var(--heading); overflow-wrap: anywhere; }
   .auth-card { padding: 20px; }
   .site-header nav a { padding: 6px 8px; }
   h2 { font-size: 1.4rem; }
+  /* Giỏ hàng trên điện thoại: ảnh nhỏ bên trái, số lượng và thành tiền xuống hàng dưới. */
+  .cart-line { grid-template-columns: 72px 1fr; }
+  .cart-line-image img, .cart-line-image .shop-image-placeholder { width: 72px; height: 72px; }
+  .cart-qty { grid-column: 1 / -1; }
+  .cart-line-total { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; min-width: 0; }
 }
 
 /* ===== 11. Icon trong nút (components/Icon.tsx) ===== */
@@ -293,6 +329,13 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 /* Đơn hàng của Member: mỗi đơn một thẻ, bộ lọc nằm trên một hàng. */
 .order-list { list-style: none; padding: 0; }
 .order-list > li { margin: 10px 0; padding: 14px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+/* Dòng đơn của Member: thông tin bên trái, tổng tiền + nút bên phải; màn hình hẹp thì xuống dưới. */
+.order-row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+.order-row-main { display: flex; flex: 1 1 280px; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.order-row-title { color: var(--heading); font-size: 1rem; }
+.order-row-meta { color: var(--muted); font-size: .8125rem; }
+.order-row-side { display: flex; gap: 12px; align-items: center; }
+.order-row-side button { margin: 0; }
 .orders-page form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); }
 .orders-page form label { flex: 1 1 200px; margin: 0; }
 .orders-page form label > * { margin-top: 6px; }
@@ -356,8 +399,8 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 
 /* Nút chính: gradient xanh, bo 10px; rê chuột thì nổi lên và có bóng xanh. Nút phụ giữ nền trắng. */
 button, .button-link { border-radius: var(--radius-sm); }
-button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not([aria-pressed]) { border-color: transparent; background: var(--gradient); }
-button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not([aria-pressed]):hover:not(:disabled) { border-color: transparent; background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); transform: translateY(-1px); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not(.close-x):not(.cancel-open):not([aria-pressed]) { border-color: transparent; background: var(--gradient); }
+button:not(.secondary):not(.back-button):not(.month-event):not(.month-more):not(.bell-item):not(.notification-item):not(.close-x):not(.cancel-open):not([aria-pressed]):hover:not(:disabled) { border-color: transparent; background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); transform: translateY(-1px); }
 .button-link:not(.secondary-link) { background: var(--gradient); }
 .button-link:not(.secondary-link):hover { background: var(--gradient); box-shadow: 0 6px 16px rgb(37 99 235 / 30%); }
 
@@ -489,6 +532,55 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 /* ===== 26. Cửa sổ chi tiết (modal): nền tối mờ phủ cả màn hình, thẻ trắng bo góc ở giữa ===== */
 .modal-backdrop { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: rgb(15 23 42 / 45%); }
 .modal-card { width: min(520px, 100%); max-height: calc(100vh - 32px); margin: 0; padding: 24px; overflow-y: auto; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 24px 48px rgb(15 23 42 / 25%); }
-.modal-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
-.modal-head h3 { margin: 0; }
+.modal-head { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.modal-head > :is(h2, h3, h4, p) { margin: 0; }
 .modal-head button { flex: 0 0 auto; margin: 0; }
+/* Nút "Hủy đơn" của Member (mở cửa sổ hủy): viền đỏ, nền trắng để không nhầm với nút chính. */
+.cancel-open { border-color: var(--danger); background: transparent; color: var(--danger); }
+.cancel-open:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+/* Hàng nút cuối chi tiết đơn (Member, nhân viên, POS): các nút cùng một hàng, cách đều; thông báo hủy (nếu có) chiếm trọn một dòng phía trên.
+   section của OrderCancellation dùng display: contents để nút "Hủy đơn" bên trong nằm chung hàng với các nút khác. */
+.order-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.order-actions > section { display: contents; }
+.order-actions button { margin: 0; }
+.order-actions > section > :is(p, form) { flex: 1 0 100%; margin: 0; }
+.order-actions .cancel-open { order: 1; margin-left: auto; }
+/* Cửa sổ hủy đơn: các lý do chọn nhanh xếp thành hàng nút nhỏ; dòng nhắc số ký tự chữ xám nhỏ dưới ô lý do. */
+.reason-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.reason-chips button { min-height: 32px; margin: 0; padding: 0 12px; font-size: .75rem; font-weight: 400; }
+.field-hint { margin: 4px 0 0; color: var(--muted); font-size: .75rem; }
+/* Nút X đóng: cùng hàng tiêu đề ở góc phải trên, nền trong suốt, rê chuột vào thì chuyển đỏ. */
+.close-x { display: inline-grid; place-items: center; border: 1px solid transparent; border-radius: var(--radius); background: transparent; color: var(--muted); }
+.close-x:hover:not(:disabled) { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+
+/* ===== Ảnh trang trí gói tập (GYM/PT): phủ hết bề ngang thẻ, cắt theo tỉ lệ 16:10, bo góc ===== */
+.plan-image, .home-card img.plan-image { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; margin-bottom: 8px; object-fit: cover; border-radius: var(--radius); background: var(--surface-2); }
+
+/* ===== Thẻ sản phẩm ở Cửa hàng: ảnh vuông phủ hết bề ngang thẻ, chữ cỡ thường (không nhỏ như thẻ ca làm) ===== */
+.shop-item { gap: 6px; font-size: .95rem; }
+.shop-item img, .shop-item .shop-image-placeholder { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; margin-bottom: 6px; object-fit: cover; border-radius: var(--radius); }
+.shop-item strong { font-size: 1.05rem; color: var(--heading); }
+.shop-item .shop-price { font-size: 1.1rem; font-weight: 700; color: var(--heading); }
+
+/* ===== Lịch sử mua (Gói của tôi): 3 lớp lồng nhau – thẻ lần mua > khung giao dịch > chứng từ dạng hóa đơn ===== */
+.card-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.card-head > :is(h4, h5) { margin: 0; }
+/* Nhãn trạng thái dạng viên thuốc: xanh = đã thu, vàng = chờ thu, xám = đã hủy. */
+.status-badge { padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.status-settled { background: #dcfce7; color: #166534; }
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-cancelled { background: var(--surface-2); color: var(--muted); }
+/* Nhãn bên trái, giá trị bên phải, thẳng hàng như phiếu thu. */
+.membership-card .info-grid { grid-template-columns: max-content 1fr; gap: 6px 20px; margin: 12px 0; }
+.membership-card .info-grid dt { font-size: .8rem; letter-spacing: 0; text-transform: none; }
+.membership-card .info-grid dd { margin: 0; overflow-wrap: anywhere; }
+.info-money { font-weight: 700; }
+/* Lớp 2: khung giao dịch nền xám nhạt, thụt vào trong thẻ. */
+.detail-panel { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+/* Lớp 3: chứng từ nền trắng, viền nét đứt như tờ hóa đơn. */
+.receipt-panel { margin-top: 14px; padding: 16px; border: 1px dashed var(--muted); border-radius: var(--radius); background: var(--surface); }
+.receipt-panel h5 { margin: 0; }
+
+/* Vùng gia hạn nằm trong cửa sổ nổi (modal-card) thì bỏ viền/khoảng cách của thẻ, để không thành hai lớp khung chồng nhau. */
+.modal-card .renewal-panel { margin: 0; padding: 0; border: 0; box-shadow: none; }
+.modal-card .renewal-panel fieldset { margin: 12px 0; }

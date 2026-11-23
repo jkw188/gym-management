@@ -46,8 +46,8 @@ function RefundsWorkspace() {
       {!loading && Boolean(data?.items.length) && <table><thead><tr><th>Mã nội bộ / nguồn</th><th>Đơn</th><th>Số tiền</th><th>Trạng thái</th><th>Ngày tạo</th><th>Chi tiết</th></tr></thead><tbody>
         {data?.items.map(item => <tr key={item.id}><td>{item.reference} · {item.source}</td><td>{item.orderId}</td><td>{orderMoney(item.amount)}</td><td>{refundLabel(item.status)}</td><td>{orderDate(item.createdAt)}</td><td><button disabled={loading} onClick={() => void open(item.id)}>Xem {item.reference}</button></td></tr>)}
       </tbody></table>}
-      <button disabled={loading || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button><span> Trang {query.page} / {data?.totalPages ?? 0} · {data?.total ?? 0} nghĩa vụ </span>
-      <button disabled={loading || !data || query.page >= data.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button>
+      <div className="pagination"><button disabled={loading || query.page <= 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>Trang trước</button><span> Trang {query.page} / {data?.totalPages ?? 0} · {data?.total ?? 0} nghĩa vụ </span>
+      <button disabled={loading || !data || query.page >= data.totalPages} onClick={() => setQuery({ ...query, page: query.page + 1 })}>Trang sau</button></div>
     </>}
   </section>;
 }

@@ -58,7 +58,7 @@ export function RetailCatalogPage({ kind }: { kind: CatalogKind }) {
     {!loading && data && data.items.length > 0 && <div className="users-table-wrap"><table className="users-table"><thead><tr><th>Tên</th>{product && <><th>Ảnh</th><th>SKU / Danh mục</th><th>Giá bán</th><th>Hiệu lực bán</th></>}<th>Trạng thái</th><th>Phiên bản</th><th>Thao tác</th></tr></thead>
       <tbody>{data.items.map(row => <tr key={row.id}><td>{row.name}</td>{'sku' in row && <><td><RetailImage url={row.imageUrl} name={row.name} /></td><td>{row.sku}<br />{row.categoryName} ({row.categoryStatus})</td><td>{new Intl.NumberFormat('vi-VN').format(BigInt(row.price))} ₫</td><td>{row.effectiveActive ? 'Đang bán' : row.status === 'ACTIVE' ? 'Ẩn do danh mục ngừng bán' : 'Ngừng bán'}</td></>}
         <td>{row.status}</td><td>{row.version}</td><td><button type="button" disabled={Boolean(form) || detailLoading} onClick={() => void edit(row.id)}>Sửa {row.name}</button></td></tr>)}</tbody></table></div>}
-    <div className="user-actions"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(value => value - 1)}>Trang trước</button>
+    <div className="pagination"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(value => value - 1)}>Trang trước</button>
       <span>Trang {page} / {data?.totalPages ?? 0} · {data?.total ?? 0} kết quả</span><button type="button" disabled={loading || !data || page >= data.totalPages} onClick={() => setPage(value => value + 1)}>Trang sau</button></div>
   </section>;
 }

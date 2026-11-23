@@ -17,7 +17,7 @@ export function MemberHistory({ id }: { id: string }) {
   const [upgradeLocked, setUpgradeLocked] = useState(false);
   const [revision, setRevision] = useState(0);
   return <section><h3>Gói tập và giao dịch</h3>
-    <div className="user-actions" role="group" aria-label="Chọn lịch sử">
+    <div className="view-switch" role="group" aria-label="Chọn lịch sử">
       <button type="button" aria-pressed={tab === 'memberships'} onClick={() => setTab('memberships')}>Lịch sử gói</button>
       <button type="button" aria-pressed={tab === 'transactions'} onClick={() => setTab('transactions')}>Lịch sử giao dịch</button>
     </div>

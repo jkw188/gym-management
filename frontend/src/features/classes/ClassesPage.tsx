@@ -8,6 +8,7 @@ import { classesApi, type PublicSession, type PublicSessionPage, type Subject } 
 import { Icon } from '../../components/Icon';
 import { subscribeClassChanges } from './class-signals';
 import { ClassesMonthView } from './ClassesMonthView';
+import { ClassImage } from './ClassImage';
 
 // "2026-11-05" → "05/11".
 const shortDate = (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`;
@@ -175,7 +176,7 @@ export function ClassesPage() {
       </li>)}
     </ul>}
 
-    {data && data.totalPages > 1 && <div className="user-actions">
+    {data && data.totalPages > 1 && <div className="pagination">
       {data.page > 1 && <button type="button" className="secondary" onClick={() => changePage(page - 1)}><Icon name="prev" label="Trang trước" /></button>}
       <span>Trang {data.page}/{data.totalPages}</span>
       {data.page < data.totalPages && <button type="button" className="secondary" onClick={() => changePage(page + 1)}><Icon name="next" label="Trang sau" /></button>}
@@ -183,11 +184,13 @@ export function ClassesPage() {
     </>}
 
     {selected && <div role="dialog" aria-modal="true" aria-labelledby="class-detail-title" className="auth-card">
-      <h3 id="class-detail-title">Chi tiết lớp</h3>
-      <div className="class-detail"><SessionInfo session={selected} /></div>
-      <div className="user-actions">
-        <button type="button" className="secondary" onClick={() => setSelected(null)}><Icon name="close" label="Đóng" /></button>
+      <div className="modal-head">
+        <h3 id="class-detail-title">Chi tiết lớp</h3>
+        <button type="button" className="close-x" onClick={() => setSelected(null)}><Icon name="close" label="Đóng" /></button>
       </div>
+      {/* Chế độ tuần và tháng đều mở chung cửa sổ này, nên ảnh hiện ở cả hai. */}
+      <ClassImage subjectCode={selected.subjectCode} />
+      <div className="class-detail"><SessionInfo session={selected} /></div>
     </div>}
   </section>;
 }

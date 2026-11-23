@@ -18,7 +18,7 @@
 //     Lỗi mạng → role="alert", không báo "Đã hủy đơn"; nút "Gửi lại…" dùng CÙNG key và cùng body. 401 → không báo thành công.
 //   - Đăng xuất rồi tài khoản khác đăng nhập: không còn thấy đơn của tài khoản cũ; storage không còn id đơn của tài khoản cũ.
 // Thủ công (không tự động): socket báo đơn đổi/kết nối lại → trang tải lại REST và không hiện trùng (xem báo cáo).
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -122,7 +122,12 @@ async function openDetail(server: Server) {
   await userEvent.click(await screen.findByRole('button', { name: `Xem ${CODE}` }));
   await waitFor(() => expect(details(server).length).toBeGreaterThan(0));
 }
+// Form hủy của Member nằm trong cửa sổ nổi: bấm nút "Hủy đơn" để mở (cửa sổ đang mở rồi thì thôi).
+async function openCancel() {
+  if (!screen.queryByLabelText('Lý do hủy')) await userEvent.click(await screen.findByRole('button', { name: 'Hủy đơn' }));
+}
 async function fillCancel(reason = `  ${REASON}  `) {
+  await openCancel();
   await userEvent.type(await screen.findByLabelText('Lý do hủy'), reason);
   await userEvent.click(screen.getByLabelText('Tôi xác nhận hủy toàn bộ đơn chưa bàn giao'));
 }
@@ -275,6 +280,7 @@ describe('US-42 bước 3: hủy đơn của mình', () => {
     let finish!: (value: Response) => void;
     const server = fakeServer({ details: [detailOf(), cancelledDetail()], cancels: [() => new Promise<Response>(resolve => { finish = resolve; })] });
     await openDetail(server);
+    await openCancel();
     expect((await confirmCancel()).disabled).toBe(true);
     await fillCancel();
     const button = await confirmCancel();
@@ -298,6 +304,7 @@ describe('US-42 bước 3: hủy đơn của mình', () => {
       cancels: [cancelResultOf({ transactionStatus: 'SETTLED', refundState: 'PENDING', refundAmount: '50000', refundId: '6c0000000000000000000001' })],
     });
     await openDetail(server);
+    await openCancel();
     await screen.findByLabelText('Lý do hủy');
     expect(text()).toMatch(/chờ hoàn/i);
     expect(text()).toMatch(/chưa phải tiền đã về/i);
@@ -317,6 +324,41 @@ describe('US-42 bước 3: hủy đơn của mình', () => {
     await waitFor(() => expect(text()).toMatch(/Đã nhận hàng|Đã hủy/));
     expect(screen.queryByLabelText('Lý do hủy')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Xác nhận hủy đơn' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Hủy đơn' })).toBeNull();
+  });
+
+  // Cửa sổ hủy của Member: form ẩn tới khi bấm "Hủy đơn"; nút ✕ và phím Esc đóng mà không gửi gì.
+  it('US-42-TC09: form hủy chỉ hiện sau khi bấm "Hủy đơn"; ✕ và Esc đóng cửa sổ, không gửi yêu cầu hủy', async () => {
+    const server = fakeServer({ details: [detailOf()] });
+    await openDetail(server);
+    await screen.findByRole('button', { name: 'Hủy đơn' });
+    expect(screen.queryByLabelText('Lý do hủy')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hủy đơn' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Đóng' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hủy đơn' }));
+    await screen.findByRole('dialog');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(cancels(server)).toHaveLength(0);
+  });
+
+  // Bấm xác nhận thì đã có khóa lệnh nên cửa sổ đóng ngay, không còn form để gửi lần hai; xong thì kết quả hiện trên trang.
+  it('US-42-TC09: bấm xác nhận hủy → cửa sổ đóng ngay, không còn form; hủy xong kết quả hiện trên trang', async () => {
+    let finish!: (value: Response) => void;
+    const server = fakeServer({ details: [detailOf(), cancelledDetail()], cancels: [() => new Promise<Response>(resolve => { finish = resolve; })] });
+    await openDetail(server);
+    await fillCancel();
+    await userEvent.click(await confirmCancel());
+    await waitFor(() => expect(cancels(server)).toHaveLength(1));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByLabelText('Lý do hủy')).toBeNull();
+
+    finish(json(cancelResultOf()));
+    expect(await screen.findByText(/Đã hủy đơn/)).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('US-42-TC10: 409 VERSION_CONFLICT (nhân viên vừa thu/chuẩn bị) → báo "đã thay đổi", tự tải lại chi tiết, không tự gửi lại; gửi lần sau dùng version mới và key mới', async () => {

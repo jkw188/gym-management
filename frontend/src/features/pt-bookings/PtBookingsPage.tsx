@@ -311,7 +311,7 @@ export function PtBookingsPage() {
               {bookings.items.map(item => <BookingCard key={item.id} booking={item} onCancel={openCancel}
                 onReview={(booking, mode) => setReviewTarget({ booking, mode })} />)}
               {/* Lịch có phân trang: chỉ chuyển trang, không dùng số buổi đang thấy để suy ra quota. */}
-              {bookings.totalPages > 1 && <p>
+              {bookings.totalPages > 1 && <p className="pagination">
                 <button type="button" disabled={filter.page <= 1}
                   onClick={() => setFilter(current => ({ ...current, page: current.page - 1 }))}><Icon name="prev" label="Trang trước" /></button>
                 {' '}Trang {filter.page}/{bookings.totalPages} ({bookings.total} buổi){' '}

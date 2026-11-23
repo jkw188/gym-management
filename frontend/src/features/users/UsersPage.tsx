@@ -150,7 +150,7 @@ export function UsersPage() {
             <button type="button" className="secondary" disabled={!!editor || !!statusTarget || !!roleTarget} aria-label={`Khóa / Mở khóa ${account.fullName}`} onClick={() => setStatusTarget(account.id)}>Khóa / Mở khóa</button>
             <button type="button" className="secondary" disabled={!!editor || !!statusTarget || !!roleTarget} aria-label={`Phân quyền ${account.fullName}`} onClick={() => setRoleTarget(account.id)}>Phân quyền</button></td></tr>)}</tbody>
       </table></div> : <p>Không có tài khoản phù hợp.</p>}
-      <div className="user-actions" aria-label="Phân trang">
+      <div className="pagination" aria-label="Phân trang">
         <button type="button" disabled={loading || query.page <= 1} onClick={() => setQuery(current => ({ ...current, page: current.page - 1 }))}><Icon name="prev" label="Trang trước" /></button>
         <span>Trang {data.page} / {data.totalPages}</span>
         <button type="button" disabled={loading || query.page >= data.totalPages} onClick={() => setQuery(current => ({ ...current, page: current.page + 1 }))}><Icon name="next" label="Trang sau" /></button>

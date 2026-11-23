@@ -56,9 +56,12 @@ export class MeOrdersService {
       // Đọc giao dịch và khoản hoàn của cả trang bằng 2 truy vấn $in, không đọc từng đơn một.
       const transactions = await this.repository.transactionsByIds(page.items.map(order => order.transaction_id), session);
       const refunds = await this.repository.refundsByOrderIds(page.items.map(order => order._id), session);
+      // Tên hàng của cả trang (snapshot lúc đặt) để danh sách hiện "Găng tay ×1, …" thay vì chỉ có mã đơn.
+      const lines = await this.repository.linesByOrderIds(page.items.map(order => order._id), session);
       const transactionById = new Map(transactions.map(transaction => [String(transaction._id), transaction]));
       const items = page.items.map(order => toOwnListItem(order, transactionById.get(String(order.transaction_id)) ?? null,
-        this.refundSummary(refunds.filter(refund => refund.order_id.equals(order._id)))));
+        this.refundSummary(refunds.filter(refund => refund.order_id.equals(order._id))),
+        lines.filter(line => line.order_id.equals(order._id))));
       return { memberLinked: true, ...page, items, asOf: asOf.toISOString() };
     });
   }

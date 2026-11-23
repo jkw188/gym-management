@@ -127,7 +127,7 @@ export function NotificationsPage() {
     <h2>Thông báo</h2>
     {unreadCount !== null && <p>Chưa đọc: {unreadCount}</p>}
 
-    <div role="group" aria-label="Lọc theo trạng thái đọc">
+    <div className="view-switch" role="group" aria-label="Lọc theo trạng thái đọc">
       {FILTERS.map(filter => <button key={filter.value} type="button" aria-pressed={readState === filter.value}
         onClick={() => changeFilter(filter.value)}>{filter.label}</button>)}
     </div>
@@ -150,7 +150,7 @@ export function NotificationsPage() {
       </li>)}
     </ul>}
 
-    {data && data.totalPages > 0 && <nav aria-label="Phân trang thông báo">
+    {data && data.totalPages > 0 && <nav className="pagination" aria-label="Phân trang thông báo">
       <button type="button" disabled={pageNumber <= 1} onClick={() => setPageNumber(pageNumber - 1)}><Icon name="prev" label="Trang trước" /></button>
       <span> Trang {data.page}/{data.totalPages} </span>
       <button type="button" disabled={pageNumber >= data.totalPages} onClick={() => setPageNumber(pageNumber + 1)}><Icon name="next" label="Trang sau" /></button>
@@ -162,7 +162,7 @@ export function NotificationsPage() {
       onClick={event => event.stopPropagation()}>
       <div className="modal-head">
         <h3 id="notification-detail-title">{selected.title}</h3>
-        <button type="button" className="secondary" onClick={() => setSelected(null)}>Đóng</button>
+        <button type="button" className="close-x" onClick={() => setSelected(null)}><Icon name="close" label="Đóng" /></button>
       </div>
       <p><small>{formatNotificationTime(selected.createdAt)}</small></p>
       {/* US-47-F05, TC11: body hiện như chữ thuần; URL trong body không thành link, không tự chuyển trang. */}

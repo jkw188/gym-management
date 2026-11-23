@@ -6,6 +6,7 @@ import { ApiError } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { formatVnd } from '../../utils/money';
 import { useAuth } from '../auth/AuthProvider';
+import { ShopImage } from '../shop/ShopParts';
 import { cartApi, isOutcomeUnknown, type Cart, type CartCommand, type CartItem, type CartLineReason } from './cart.api';
 
 // US-40-F02: mỗi dòng 1–999.
@@ -185,15 +186,19 @@ export function CartPage() {
       : <ul aria-label="Dòng giỏ hàng" className="cart-lines">
         {cart.items.map(item => {
           const name = item.name ?? MISSING_NAME;
-          return <li key={item.productId}>
-            <p><strong>{name}</strong>{item.sku && <> – Mã: {item.sku}</>}</p>
-            <p>Đơn giá: {item.unitPrice !== null ? formatVnd(item.unitPrice) : 'Chưa có giá'}</p>
-            <p>Thành tiền: {item.lineTotal !== null ? formatVnd(item.lineTotal) : 'Chưa tính được'}</p>
-            {/* US-40-TC05: dòng bị chặn vẫn giữ trong giỏ và nói rõ lý do. */}
-            {item.reasons.map(reason => <p key={reason} className="form-error">{reasonText(reason, item)}</p>)}
-            {/* US-40-TC16: báo rõ giá mới, không giữ hay tự chốt giá cũ. */}
-            {priceChanged.includes(item.productId) && <p role="status">Giá đã thay đổi, đơn giá trên là giá hiện tại.</p>}
-            <div className="toolbar">
+          return <li key={item.productId} className="cart-line">
+            {/* Ảnh sản phẩm: dùng lại ShopImage của Cửa hàng (không có ảnh hoặc ảnh lỗi thì hiện "Không có ảnh"). */}
+            <div className="cart-line-image"><ShopImage url={item.imageUrl ?? undefined} name={name} size={96} /></div>
+            <div className="cart-line-info">
+              <p className="cart-line-name"><strong>{name}</strong></p>
+              {item.sku && <p className="cart-line-meta">Mã: {item.sku}</p>}
+              <p className="cart-line-meta">Đơn giá: {item.unitPrice !== null ? formatVnd(item.unitPrice) : 'Chưa có giá'}</p>
+              {/* US-40-TC05: dòng bị chặn vẫn giữ trong giỏ và nói rõ lý do. */}
+              {item.reasons.map(reason => <p key={reason} className="form-error">{reasonText(reason, item)}</p>)}
+              {/* US-40-TC16: báo rõ giá mới, không giữ hay tự chốt giá cũ. */}
+              {priceChanged.includes(item.productId) && <p role="status">Giá đã thay đổi, đơn giá trên là giá hiện tại.</p>}
+            </div>
+            <div className="cart-qty">
               {/* US-40-TC04, TC06: giảm khóa khi còn 1 (bỏ thì bấm Xóa); dòng bị chặn vẫn giảm được để dọn giỏ. */}
               <button type="button" aria-label={`Giảm ${name}`} disabled={busy || item.quantity <= MIN_QUANTITY}
                 onClick={() => setQuantity(item, item.quantity - 1)}>−</button>
@@ -205,14 +210,20 @@ export function CartPage() {
               <button type="button" aria-label={`Tăng ${name}`}
                 disabled={busy || item.lineState === 'BLOCKED' || item.quantity >= MAX_QUANTITY}
                 onClick={() => setQuantity(item, item.quantity + 1)}>+</button>
-              <button type="button" aria-label={`Xóa ${name}`} disabled={busy} onClick={() => remove(item)}>Xóa</button>
+            </div>
+            <div className="cart-line-total">
+              <p>Thành tiền: <strong>{item.lineTotal !== null ? formatVnd(item.lineTotal) : 'Chưa tính được'}</strong></p>
+              <button type="button" className="cart-remove" aria-label={`Xóa ${name}`} disabled={busy} onClick={() => remove(item)}>Xóa</button>
             </div>
           </li>;
         })}
       </ul>}
 
-    <p><strong>Tạm tính: {subtotalText(cart)}</strong></p>
-    {/* US-41-TC18: chỉ có liên kết "Đặt hàng" khi server trả canCheckout true; giá và tồn vẫn được kiểm lại khi đặt. */}
-    {cart.canCheckout && <Link to="/member/checkout">Đặt hàng</Link>}
+    {/* Khối tổng cuối giỏ: tạm tính bên trái, nút đặt hàng bên phải. */}
+    <div className="cart-summary">
+      <p>Tạm tính: <strong>{subtotalText(cart)}</strong></p>
+      {/* US-41-TC18: chỉ có liên kết "Đặt hàng" khi server trả canCheckout true; giá và tồn vẫn được kiểm lại khi đặt. */}
+      {cart.canCheckout && <Link className="button-link" to="/member/checkout">Đặt hàng</Link>}
+    </div>
   </section>;
 }

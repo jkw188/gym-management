@@ -94,11 +94,11 @@ export function ShopPage() {
 
     {/* Giữ đúng thứ tự server trả. Dữ liệu hiển thị bằng {} nên luôn là chữ, không chèn HTML (US-35-TC04). */}
     {data && data.items.length > 0 && <ul aria-label="Danh sách sản phẩm" className="class-list">
-      {data.items.map(product => <li key={product.id} className="shift-item">
-        <ShopImage url={product.imageUrl} name={product.name} size={64} />
+      {data.items.map(product => <li key={product.id} className="shift-item shop-item">
+        <ShopImage url={product.imageUrl} name={product.name} size={240} />
         <strong>{product.name}</strong>
         {/* US-35-TC12: giá "0" vẫn hiện "0 ₫", không đổi thành "Liên hệ". */}
-        <span>{formatVnd(product.price)}</span>
+        <span className="shop-price">{formatVnd(product.price)}</span>
         <span>{AVAILABILITY_TEXT[product.availability]}</span>
         <div className="shift-item-actions"><Link to={`/shop/${product.id}`}>Xem chi tiết</Link></div>
       </li>)}

@@ -76,14 +76,25 @@ export function MyOrdersPage() {
     {!loading && data?.memberLinked === false && <p>Tài khoản chưa được liên kết hồ sơ hội viên. Hãy liên hệ quầy để liên kết.</p>}
     {!loading && data?.memberLinked && data.items.length === 0 && <p>Chưa có đơn hàng</p>}
     {data && data.items.length > 0 && <ul className="order-list">
-      {data.items.map(item => <li key={item.id}>
-        <strong>{item.code}</strong> · {orderDate(item.createdAt)} · {moneyOrUnknown(item.total)}
-        {' · '}Đơn: {ORDER_LABEL[item.status]} · Tiền: {transactionLabel(item.transactionStatus)}
-        {item.refundState !== 'NONE' && <> · Hoàn: {REFUND_LABEL[item.refundState]}</>}
-        {' '}<button type="button" onClick={() => setSelectedId(item.id)}>Xem {item.code}</button>
+      {/* Mỗi đơn một thẻ: tên hàng làm tiêu đề, mã đơn và ngày đặt chữ nhỏ; bên phải là tổng tiền và nút xem chi tiết. */}
+      {data.items.map(item => <li key={item.id} className="order-row">
+        <div className="order-row-main">
+          {/* Server cũ chưa có itemsSummary thì hiện mã đơn làm tiêu đề. */}
+          <strong className="order-row-title">{item.itemsSummary || item.code}</strong>
+          <span className="order-row-meta">{item.code} · {orderDate(item.createdAt)}</span>
+          <span className="order-row-meta">
+            Đơn: {ORDER_LABEL[item.status]} · Tiền: {transactionLabel(item.transactionStatus)}
+            {item.refundState !== 'NONE' && <> · Hoàn: {REFUND_LABEL[item.refundState]}</>}
+          </span>
+        </div>
+        <div className="order-row-side">
+          <strong>{moneyOrUnknown(item.total)}</strong>
+          {/* Chữ trên nút là "Xem chi tiết"; aria-label giữ mã đơn để trình đọc màn hình biết đang mở đơn nào. */}
+          <button type="button" className="secondary" aria-label={`Xem ${item.code}`} onClick={() => setSelectedId(item.id)}>Xem chi tiết</button>
+        </div>
       </li>)}
     </ul>}
-    {data && data.totalPages > 1 && <p>
+    {data && data.totalPages > 1 && <p className="pagination">
       <button type="button" disabled={loading || filter.page <= 1} onClick={() => setFilter({ ...filter, page: filter.page - 1 })}>Trang trước</button>
       <span> Trang {filter.page} / {data.totalPages} </span>
       <button type="button" disabled={loading || filter.page >= data.totalPages} onClick={() => setFilter({ ...filter, page: filter.page + 1 })}>Trang sau</button>
@@ -156,15 +167,16 @@ function OwnOrderDetailView({ id, onBack }: { id: string; onBack: () => void }) 
         <p>Đơn đã thanh toán. Mời bạn đến quầy nhận hàng trước {orderDate(order.reservationExpiresAt)}.</p>}
       {instructionsError && <p>Không tải được hướng dẫn thanh toán: {instructionsError}</p>}
       {instructions && <PaymentInstructionsView value={instructions} deadline={order.reservationExpiresAt} />}
-      {/* US-42-F04, TC09–TC11: hủy qua component dùng chung của US-45 (khóa Idempotency-Key, gửi lại cùng key, tra kết quả).
-          Form chỉ hiện khi server báo cancelAllowed; sau khi hủy, component vẫn giữ để hiện kết quả. */}
-      <OrderCancellation key={order.id} own allowed={order.cancelAllowed} onLockedChange={setLocked} onChanged={load}
-        order={{ id: order.id, status: order.status, version: order.version, total: order.total, transactionStatus: order.transactionStatus,
-          reservationState: order.reservationState, refunds: [] }} />
-      <p>
-        <button type="button" disabled={locked || loading} onClick={() => void load()}>Tải lại đơn</button>
-        {' '}<button type="button" disabled={locked} onClick={onBack}>Về danh sách</button>
-      </p>
+      {/* Hàng nút cuối chi tiết đơn: Tải lại đơn, Về danh sách bên trái, Hủy đơn bên phải (CSS .order-actions). */}
+      <div className="order-actions">
+        {/* US-42-F04, TC09–TC11: hủy qua component dùng chung của US-45 (khóa Idempotency-Key, gửi lại cùng key, tra kết quả).
+            Nút "Hủy đơn" chỉ hiện khi server báo cancelAllowed, bấm mới mở form trong cửa sổ nổi; sau khi hủy, kết quả hiện ngay trên trang. */}
+        <OrderCancellation key={order.id} own dialog allowed={order.cancelAllowed} onLockedChange={setLocked} onChanged={load}
+          order={{ id: order.id, status: order.status, version: order.version, total: order.total, transactionStatus: order.transactionStatus,
+            reservationState: order.reservationState, refunds: [] }} />
+        <button type="button" className="secondary" disabled={locked || loading} onClick={() => void load()}>Tải lại đơn</button>
+        <button type="button" className="secondary" disabled={locked} onClick={onBack}>Về danh sách</button>
+      </div>
     </>}
     {!order && !loading && <p>
       {error && <><button type="button" onClick={() => void load()}>Thử lại</button>{' '}</>}

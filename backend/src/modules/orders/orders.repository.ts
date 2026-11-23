@@ -63,6 +63,11 @@ export class OrdersRepository {
     return this.connection.db!.collection<Transaction>('transactions').find({ _id: { $in: ids } }, { session }).toArray();
   }
   // US-42 list: đọc khoản hoàn của cả trang bằng MỘT truy vấn $in; chỉ lấy field cần để tính refundState.
+  // Danh sách đơn của Member: đọc dòng hàng của cả trang bằng một truy vấn $in (dùng index bắt đầu bằng order_id).
+  linesByOrderIds(orderIds: Types.ObjectId[], session: ClientSession) {
+    return this.connection.db!.collection<OrderItem>('order_items')
+      .find({ order_id: { $in: orderIds } }, { session, projection: { order_id: 1, name_snapshot: 1, quantity: 1 } }).sort({ _id: 1 }).toArray();
+  }
   refundsByOrderIds(orderIds: Types.ObjectId[], session: ClientSession) {
     return this.connection.db!.collection<{ _id: Types.ObjectId; order_id: Types.ObjectId; amount: Types.Decimal128; status: string }>('refunds')
       .find({ order_id: { $in: orderIds } }, { session, projection: { _id: 1, order_id: 1, amount: 1, status: 1 } }).toArray();
