@@ -605,3 +605,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 .review-detail .review-comment { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .review-detail-list { margin-top: 12px; }
 .review-detail-list p { margin: 2px 0; overflow-wrap: anywhere; }
+/* Trang Học viên của tôi: phần chi tiết hiện ngay dưới thẻ học viên vừa bấm, thụt vào và có vạch nhấn bên trái. */
+.trainee-detail-panel { margin: -4px 0 16px 16px; padding: 12px 16px; border-left: 3px solid var(--ink); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surface-2); }
+.trainee-detail-panel h3 { margin-top: 0; }

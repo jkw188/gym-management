@@ -1,6 +1,6 @@
 // Tầng giao diện – trang (US-30 bước 3): trang /trainer/trainees – PT tìm học viên của mình, xem lịch với mình và gói liên quan.
 // Chỉ hiển thị số liệu server trả (quota, đã dùng, giữ chỗ, còn lại); không có nút hoàn tất buổi hay nhận xét (thuộc S07).
-import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { ApiError, apiClient } from '../../api/client';
 import { formatAsOf, formatDate, formatRange, STATUS_LABELS } from '../pt-bookings/pt-booking-format';
 import {
@@ -43,6 +43,8 @@ function TraineesContent() {
   const [detail, setDetail] = useState<DetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<DetailError>(null);
+  // Học viên đang mở chi tiết: phần chi tiết hiện ngay dưới thẻ của học viên này. null = không mở ai.
+  const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   // Kết quả tải cũ về muộn (đã tìm/mở học viên khác) thì bỏ qua.
   const latestList = useRef(0);
   const latestDetail = useRef(0);
@@ -68,6 +70,7 @@ function TraineesContent() {
   // US-30-TC09: mỗi lần mở chi tiết đều hỏi lại server; quan hệ hết thì server trả 404, không dựa vào dữ liệu cũ.
   async function openDetail(memberId: string) {
     const loadNumber = ++latestDetail.current;
+    setOpenMemberId(memberId);
     // Xóa ngay chi tiết của học viên trước để không hiện nhầm lịch/gói.
     setDetail(null);
     setDetailError(null);
@@ -96,6 +99,15 @@ function TraineesContent() {
     if (detailError?.retryMemberId) void openDetail(detailError.retryMemberId);
   }
 
+  // Nút "Thu gọn": đóng phần chi tiết; tăng số lần tải để kết quả đang tải về muộn bị bỏ qua.
+  function closeDetail() {
+    latestDetail.current++;
+    setOpenMemberId(null);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }
+
   return <>
     <form onSubmit={search} className="trainees-search">
       <label htmlFor="trainee-search">Tìm học viên</label>
@@ -113,24 +125,29 @@ function TraineesContent() {
       {/* US-30-TC04: account PT chưa có hồ sơ PT là trạng thái bình thường, không phải lỗi. */}
       {list && !list.profileLinked && <p>Tài khoản của bạn chưa được liên kết hồ sơ PT nên chưa có học viên.</p>}
       {list && list.profileLinked && list.items.length === 0 && <p>Danh sách học viên trống</p>}
-      {list?.items.map(item => <article key={item.memberId} aria-label={item.fullName}>
-        {/* US-30-TC08: tên hiện như chữ thường (React tự thoát HTML). */}
-        <p><strong>{item.fullName}</strong></p>
-        <p>{item.memberCode}</p>
-        <p>Số buổi với tôi: {item.relatedBookingCount}</p>
-        <p>{item.nextBookingAt ? `Buổi sắp tới: ${formatAsOf(item.nextBookingAt)}` : 'Chưa có buổi sắp tới'}</p>
-        <button type="button" onClick={() => void openDetail(item.memberId)}>Xem chi tiết</button>
-      </article>)}
+      {list?.items.map(item => <Fragment key={item.memberId}>
+        <article aria-label={item.fullName}>
+          {/* US-30-TC08: tên hiện như chữ thường (React tự thoát HTML). */}
+          <p><strong>{item.fullName}</strong></p>
+          <p>{item.memberCode}</p>
+          <p>Số buổi với tôi: {item.relatedBookingCount}</p>
+          <p>{item.nextBookingAt ? `Buổi sắp tới: ${formatAsOf(item.nextBookingAt)}` : 'Chưa có buổi sắp tới'}</p>
+          <button type="button" aria-expanded={openMemberId === item.memberId} onClick={() => void openDetail(item.memberId)}>Xem chi tiết</button>
+        </article>
+        {/* Phần chi tiết hiện NGAY DƯỚI thẻ học viên vừa bấm (không xuống cuối trang). Đang tải, lỗi, chi tiết đều ở đây. */}
+        {openMemberId === item.memberId && <div className="trainee-detail-panel">
+          {detailLoading && <p>Đang tải chi tiết học viên...</p>}
+          {detailError && <div role="alert">
+            <p>{detailError.text}</p>
+            {detailError.retryMemberId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
+          </div>}
+          {detail && <TraineeDetailView data={detail} />}
+          <button type="button" onClick={closeDetail}>Thu gọn</button>
+        </div>}
+      </Fragment>)}
       <div className="pagination">{list && list.page > 1 && <button type="button" onClick={() => setParams({ ...params, page: params.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
       {list && list.totalPages > list.page && <button type="button" onClick={() => setParams({ ...params, page: params.page + 1 })}><Icon name="next" label="Trang sau" /></button>}</div>
     </section>
-
-    {detailLoading && <p>Đang tải chi tiết học viên...</p>}
-    {detailError && <div role="alert">
-      <p>{detailError.text}</p>
-      {detailError.retryMemberId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
-    </div>}
-    {detail && <TraineeDetailView data={detail} />}
   </>;
 }
 
