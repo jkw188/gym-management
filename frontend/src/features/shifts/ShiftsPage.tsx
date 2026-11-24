@@ -17,6 +17,10 @@ const STATUS_LABELS: Record<ShiftStatus, string> = {
 // Số ca tối đa một lần tải (tối đa của API theo mục 2 spec). Mặc định server chỉ trả 20, không đủ cho một tuần.
 const WEEK_LIMIT = 100;
 
+// Các khu vực có sẵn trong phòng tập, hiện thành danh sách gợi ý ở ô "Địa điểm".
+// Chỉ là gợi ý cho nhanh: PT vẫn gõ được địa điểm khác (server nhận chuỗi tự do, tối đa 120 ký tự).
+const LOCATION_SUGGESTIONS = ['Khu tạ tầng 1', 'Khu tập chức năng', 'Phòng PT 1', 'Phòng PT 2', 'Phòng Yoga tầng 2', 'Phòng nhóm tầng 2'];
+
 // Dữ liệu form: shift = null là tạo mới, có shift là đang sửa ca đó.
 interface ShiftForm { shift: Shift | null; date: string; from: string; to: string; location: string }
 
@@ -269,6 +273,8 @@ export function ShiftsPage() {
   const countByStatus = (status: ShiftStatus) => data?.items.filter(shift => shift.status === status).length ?? 0;
   const bookedCount = cancelState?.detail?.bookedCount ?? 0;
   const preview = form && form.date && form.from && form.to ? previewSlots(form.from, form.to) : null;
+  // Gợi ý địa điểm = danh sách có sẵn + địa điểm PT đã dùng trong tuần đang xem; Set bỏ trùng.
+  const locationOptions = [...new Set([...LOCATION_SUGGESTIONS, ...(data?.items ?? []).map(shift => shift.location)])];
 
   return <section className="auth-card shifts-page">
     <h2>Ca làm việc</h2>
@@ -349,26 +355,44 @@ export function ShiftsPage() {
         </form>}
       </div>}
 
-      {form && <form onSubmit={submit} noValidate aria-busy={submitting} aria-label={form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'}>
+      {form && <form onSubmit={submit} noValidate aria-busy={submitting} aria-label={form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'} className="shift-form">
         <h3>{form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'}</h3>
-        <fieldset disabled={submitting}>
-          <label htmlFor="shift-date">Ngày</label>
-          <input id="shift-date" type="date" value={form.date} onChange={event => changeField('date', event.target.value)} />
-          <label htmlFor="shift-from">Giờ bắt đầu</label>
-          <input id="shift-from" type="time" value={form.from} onChange={event => changeField('from', event.target.value)} />
-          <label htmlFor="shift-to">Giờ kết thúc</label>
-          <input id="shift-to" type="time" value={form.to} onChange={event => changeField('to', event.target.value)} />
-          <label htmlFor="shift-location">Địa điểm</label>
-          <input id="shift-location" maxLength={120} value={form.location} onChange={event => changeField('location', event.target.value)} />
+        {/* Bốn ô trên cùng một hàng: Ngày, Giờ bắt đầu, Giờ kết thúc hẹp; Địa điểm rộng hơn. Màn hình hẹp thì tự xuống hàng. */}
+        <fieldset disabled={submitting} className="shift-form-fields">
+          <div className="shift-field">
+            <label htmlFor="shift-date">Ngày</label>
+            <input id="shift-date" type="date" value={form.date} onChange={event => changeField('date', event.target.value)} />
+          </div>
+          <div className="shift-field shift-field-time">
+            <label htmlFor="shift-from">Giờ bắt đầu</label>
+            <input id="shift-from" type="time" value={form.from} onChange={event => changeField('from', event.target.value)} />
+          </div>
+          <div className="shift-field shift-field-time">
+            <label htmlFor="shift-to">Giờ kết thúc</label>
+            <input id="shift-to" type="time" value={form.to} onChange={event => changeField('to', event.target.value)} />
+          </div>
+          <div className="shift-field shift-field-wide">
+            <label htmlFor="shift-location">Địa điểm</label>
+            {/* list= nối ô nhập với <datalist>: bấm vào ô sẽ hiện danh sách để chọn, gõ thì lọc theo chữ đã gõ. */}
+            <input id="shift-location" list="shift-location-options" maxLength={120} placeholder="Chọn hoặc nhập địa điểm"
+              value={form.location} onChange={event => changeField('location', event.target.value)} />
+            <datalist id="shift-location-options">
+              {locationOptions.map(location => <option key={location} value={location} />)}
+            </datalist>
+          </div>
         </fieldset>
 
-        {/* US-24-TC01, TC12: preview slot 60 phút; phần dư không mở đặt. */}
-        {preview && <section aria-label="Xem trước slot">
-          <h4>Xem trước slot</h4>
+        {/* US-24-TC01, TC12: preview slot 60 phút; phần dư không mở đặt.
+            Khung xem trước: dòng tiêu đề kèm số slot, các slot xếp thành lưới ô đều nhau, phần dư ghi bên dưới. */}
+        {preview && <section aria-label="Xem trước slot" className="shift-preview">
+          <div className="shift-preview-head">
+            <h4>Xem trước slot</h4>
+            {preview.slots.length > 0 && <span>{preview.slots.length} slot × 60 phút mở cho hội viên đặt</span>}
+          </div>
           {preview.slots.length > 0
             ? <ul>{preview.slots.map(slot => <li key={slot.from}>{slot.from}–{slot.to}</li>)}</ul>
             : <p>Ca chưa đủ 60 phút nên chưa có slot nào.</p>}
-          {preview.remainderMinutes > 0 && <p>Dư {preview.remainderMinutes} phút cuối ca, phần này không mở đặt.</p>}
+          {preview.remainderMinutes > 0 && <p className="shift-preview-rest">Dư {preview.remainderMinutes} phút cuối ca, phần này không mở đặt.</p>}
         </section>}
 
         {formError && <div className="form-error" role="alert">
@@ -383,7 +407,7 @@ export function ShiftsPage() {
           </>}
         </div>}
 
-        <div className="user-actions">
+        <div className="user-actions shift-form-actions">
           <button type="submit" disabled={submitting}>{submitting ? 'Đang lưu…' : 'Lưu ca nháp'}</button>
           <button type="button" className="secondary" onClick={closeForm} disabled={submitting}><Icon name="close" label="Đóng" /></button>
         </div>

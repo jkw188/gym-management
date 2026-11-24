@@ -1,6 +1,6 @@
 // Tầng giao diện – trang (US-30 bước 3): trang /trainer/trainees – PT tìm học viên của mình, xem lịch với mình và gói liên quan.
 // Chỉ hiển thị số liệu server trả (quota, đã dùng, giữ chỗ, còn lại); không có nút hoàn tất buổi hay nhận xét (thuộc S07).
-import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { ApiError, apiClient } from '../../api/client';
 import { formatAsOf, formatDate, formatRange, STATUS_LABELS } from '../pt-bookings/pt-booking-format';
 import {
@@ -43,6 +43,8 @@ function TraineesContent() {
   const [detail, setDetail] = useState<DetailData | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<DetailError>(null);
+  // Học viên đang mở chi tiết: phần chi tiết hiện ngay dưới thẻ của học viên này. null = không mở ai.
+  const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   // Kết quả tải cũ về muộn (đã tìm/mở học viên khác) thì bỏ qua.
   const latestList = useRef(0);
   const latestDetail = useRef(0);
@@ -68,6 +70,7 @@ function TraineesContent() {
   // US-30-TC09: mỗi lần mở chi tiết đều hỏi lại server; quan hệ hết thì server trả 404, không dựa vào dữ liệu cũ.
   async function openDetail(memberId: string) {
     const loadNumber = ++latestDetail.current;
+    setOpenMemberId(memberId);
     // Xóa ngay chi tiết của học viên trước để không hiện nhầm lịch/gói.
     setDetail(null);
     setDetailError(null);
@@ -96,6 +99,21 @@ function TraineesContent() {
     if (detailError?.retryMemberId) void openDetail(detailError.retryMemberId);
   }
 
+  // Đóng phần chi tiết; tăng số lần tải để kết quả đang tải về muộn bị bỏ qua.
+  function closeDetail() {
+    latestDetail.current++;
+    setOpenMemberId(null);
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }
+
+  // Bấm "Xem chi tiết" của học viên đang mở thì đóng lại; bấm học viên khác thì mở người đó.
+  function toggleDetail(memberId: string) {
+    if (openMemberId === memberId) closeDetail();
+    else void openDetail(memberId);
+  }
+
   return <>
     <form onSubmit={search} className="trainees-search">
       <label htmlFor="trainee-search">Tìm học viên</label>
@@ -113,57 +131,79 @@ function TraineesContent() {
       {/* US-30-TC04: account PT chưa có hồ sơ PT là trạng thái bình thường, không phải lỗi. */}
       {list && !list.profileLinked && <p>Tài khoản của bạn chưa được liên kết hồ sơ PT nên chưa có học viên.</p>}
       {list && list.profileLinked && list.items.length === 0 && <p>Danh sách học viên trống</p>}
-      {list?.items.map(item => <article key={item.memberId} aria-label={item.fullName}>
-        {/* US-30-TC08: tên hiện như chữ thường (React tự thoát HTML). */}
-        <p><strong>{item.fullName}</strong></p>
-        <p>{item.memberCode}</p>
-        <p>Số buổi với tôi: {item.relatedBookingCount}</p>
-        <p>{item.nextBookingAt ? `Buổi sắp tới: ${formatAsOf(item.nextBookingAt)}` : 'Chưa có buổi sắp tới'}</p>
-        <button type="button" onClick={() => void openDetail(item.memberId)}>Xem chi tiết</button>
-      </article>)}
+      {list?.items.map(item => <Fragment key={item.memberId}>
+        {/* Thẻ một hàng: tên + mã bên trái, số buổi và buổi sắp tới ở giữa, nút bên phải. */}
+        <article aria-label={item.fullName} className={openMemberId === item.memberId ? 'trainee-row is-open' : 'trainee-row'}>
+          <div className="trainee-row-name">
+            {/* US-30-TC08: tên hiện như chữ thường (React tự thoát HTML). */}
+            <strong>{item.fullName}</strong>
+            <span className="trainee-muted">{item.memberCode}</span>
+          </div>
+          <div className="trainee-row-info">
+            <span>Số buổi với tôi: {item.relatedBookingCount}</span>
+            <span className="trainee-muted">{item.nextBookingAt ? `Buổi sắp tới: ${formatAsOf(item.nextBookingAt)}` : 'Chưa có buổi sắp tới'}</span>
+          </div>
+          <button type="button" aria-expanded={openMemberId === item.memberId} onClick={() => toggleDetail(item.memberId)}>Xem chi tiết</button>
+        </article>
+        {/* Phần chi tiết hiện NGAY DƯỚI thẻ học viên vừa bấm (không xuống cuối trang). Đang tải, lỗi, chi tiết đều ở đây. */}
+        {openMemberId === item.memberId && <div className="trainee-detail-panel">
+          {detailLoading && <p>Đang tải chi tiết học viên...</p>}
+          {detailError && <div role="alert">
+            <p>{detailError.text}</p>
+            {detailError.retryMemberId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
+          </div>}
+          {detail && <TraineeDetailView data={detail} />}
+        </div>}
+      </Fragment>)}
       <div className="pagination">{list && list.page > 1 && <button type="button" onClick={() => setParams({ ...params, page: params.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
       {list && list.totalPages > list.page && <button type="button" onClick={() => setParams({ ...params, page: params.page + 1 })}><Icon name="next" label="Trang sau" /></button>}</div>
     </section>
-
-    {detailLoading && <p>Đang tải chi tiết học viên...</p>}
-    {detailError && <div role="alert">
-      <p>{detailError.text}</p>
-      {detailError.retryMemberId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
-    </div>}
-    {detail && <TraineeDetailView data={detail} />}
   </>;
 }
 
 // Chi tiết một học viên: hồ sơ tối thiểu, lịch với chính PT và gói liên quan. Chỉ hiển thị, không có nút ghi.
 function TraineeDetailView({ data }: { data: DetailData }) {
-  return <section aria-labelledby="trainee-detail-title">
-    <h3 id="trainee-detail-title">Chi tiết học viên</h3>
-    <p><strong>{data.detail.fullName}</strong></p>
-    <p>{data.detail.memberCode}</p>
+  return <section aria-labelledby="trainee-detail-title" className="trainee-detail">
+    {/* Dòng đầu: tiêu đề nhỏ, tên và mã học viên trên cùng một hàng. */}
+    <div className="trainee-detail-head">
+      <h3 id="trainee-detail-title">Chi tiết học viên</h3>
+      <strong>{data.detail.fullName}</strong>
+      <span className="trainee-muted">{data.detail.memberCode}</span>
+    </div>
 
-    <section aria-labelledby="trainee-schedule-title">
-      <h4 id="trainee-schedule-title">Lịch với tôi</h4>
-      <p>Tuần hiện tại.</p>
-      {data.bookings.length === 0 && <p>Không có buổi nào trong tuần này.</p>}
-      {data.bookings.map(booking => <article key={booking.id}>
-        {/* Giờ theo giờ Việt Nam: "09:00–10:00 25/11/2026". */}
-        <p>{formatRange(booking.startAt, booking.endAt)} {formatDate(booking.startAt)}</p>
-        <p>{booking.location}</p>
-        <p>{STATUS_LABELS[booking.status]}</p>
-      </article>)}
-    </section>
+    {/* Hai cột: lịch tuần này bên trái, gói liên quan bên phải (màn hình hẹp thì xếp dọc). */}
+    <div className="trainee-detail-columns">
+      <section aria-labelledby="trainee-schedule-title">
+        <div className="trainee-col-head">
+          <h4 id="trainee-schedule-title">Lịch với tôi</h4>
+          <span className="trainee-muted">Tuần hiện tại.</span>
+        </div>
+        {data.bookings.length === 0 && <p className="trainee-muted">Không có buổi nào trong tuần này.</p>}
+        {/* Mỗi buổi một dòng: giờ (giờ Việt Nam, vd "09:00–10:00 25/11/2026"), nơi tập, nhãn trạng thái. */}
+        {data.bookings.map(booking => <article key={booking.id} className="trainee-line">
+          <span>{formatRange(booking.startAt, booking.endAt)} {formatDate(booking.startAt)}</span>
+          <span className="trainee-muted">{booking.location}</span>
+          <span className="trainee-badge">{STATUS_LABELS[booking.status]}</span>
+        </article>)}
+      </section>
 
-    <section aria-labelledby="trainee-packs-title">
-      <h4 id="trainee-packs-title">Gói liên quan</h4>
-      <p>Cập nhật lúc {formatAsOf(data.memberships.asOf)}</p>
-      {data.memberships.items.length === 0 && <p>Không có gói liên quan.</p>}
-      {/* US-30-TC10: mỗi gói một thẻ theo thứ tự server trả, số liệu riêng từng gói, không cộng gói cũ vào gói mới. */}
-      {data.memberships.items.map(pack => <article key={pack.id}>
-        <p>Gói {pack.kind ?? ''} · {formatDay(pack.startDate)} – {formatDay(pack.endDate)}</p>
-        <p>{MEMBERSHIP_STATUS_LABELS[pack.storedStatus]}</p>
-        <p>Tổng: {pack.quota} · Đã dùng: {pack.sessionsUsed} · Đang giữ chỗ: {pack.reserved} · Còn lại: {pack.available}</p>
-        {pack.quotaInvalid && <p>Số liệu buổi của gói này bất thường, cần nhân viên kiểm tra lại.</p>}
-      </article>)}
-    </section>
+      <section aria-labelledby="trainee-packs-title">
+        <div className="trainee-col-head">
+          <h4 id="trainee-packs-title">Gói liên quan</h4>
+          <span className="trainee-muted">Cập nhật lúc {formatAsOf(data.memberships.asOf)}</span>
+        </div>
+        {data.memberships.items.length === 0 && <p className="trainee-muted">Không có gói liên quan.</p>}
+        {/* US-30-TC10: mỗi gói một thẻ theo thứ tự server trả, số liệu riêng từng gói, không cộng gói cũ vào gói mới. */}
+        {/* Mỗi gói 2 dòng: tên gói + thời hạn + nhãn trạng thái; rồi các con số buổi. */}
+        {data.memberships.items.map(pack => <article key={pack.id} className="trainee-pack">
+          <div className="trainee-line">
+            <span>Gói {pack.kind ?? ''} · {formatDay(pack.startDate)} – {formatDay(pack.endDate)}</span>
+            <span className="trainee-badge">{MEMBERSHIP_STATUS_LABELS[pack.storedStatus]}</span>
+          </div>
+          <p className="trainee-muted">Tổng: {pack.quota} · Đã dùng: {pack.sessionsUsed} · Đang giữ chỗ: {pack.reserved} · Còn lại: {pack.available}</p>
+          {pack.quotaInvalid && <p className="trainee-warning">Số liệu buổi của gói này bất thường, cần nhân viên kiểm tra lại.</p>}
+        </article>)}
+      </section>
+    </div>
   </section>;
 }

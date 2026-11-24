@@ -136,21 +136,47 @@ function TrainerReviewsContent() {
     if (detailError?.retryReviewId) void openDetail(detailError.retryReviewId);
   }
 
+  // Cửa sổ chi tiết đang mở khi đang tải, đã có chi tiết hoặc có lỗi tải chi tiết.
+  const detailOpen = detailLoading || detail !== null || detailError !== null;
+
+  // Đóng cửa sổ chi tiết: tăng số lần tải để kết quả đang tải về muộn bị bỏ qua, rồi xóa hết state chi tiết.
+  function closeDetail() {
+    latestDetail.current++;
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }
+
+  // Bấm phím Esc khi cửa sổ chi tiết đang mở thì đóng. Cửa sổ đóng thì gỡ listener.
+  useEffect(() => {
+    if (!detailOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeDetail(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [detailOpen]);
+
   return <>
+    {/* Bộ lọc gọn một hàng: mỗi ô gồm nhãn nằm trên ô nhập, nút Lọc ở cuối hàng. */}
     <form onSubmit={applyFilter} className="trainer-reviews-filter">
-      <label htmlFor="review-from-date">Từ ngày</label>
-      <input id="review-from-date" type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} />
-      <label htmlFor="review-to-date">Đến ngày</label>
-      <input id="review-to-date" type="date" value={toDate} onChange={event => setToDate(event.target.value)} />
-      <label htmlFor="review-rating">Điểm</label>
-      <select id="review-rating" value={rating} onChange={event => setRating(event.target.value)}>
-        <option value="">Tất cả</option>
-        {['1', '2', '3', '4', '5'].map(value => <option key={value} value={value}>{value} sao</option>)}
-      </select>
+      <div className="review-field">
+        <label htmlFor="review-from-date">Từ ngày</label>
+        <input id="review-from-date" type="date" value={fromDate} onChange={event => setFromDate(event.target.value)} />
+      </div>
+      <div className="review-field">
+        <label htmlFor="review-to-date">Đến ngày</label>
+        <input id="review-to-date" type="date" value={toDate} onChange={event => setToDate(event.target.value)} />
+      </div>
+      <div className="review-field">
+        <label htmlFor="review-rating">Điểm</label>
+        <select id="review-rating" value={rating} onChange={event => setRating(event.target.value)}>
+          <option value="">Tất cả</option>
+          {['1', '2', '3', '4', '5'].map(value => <option key={value} value={value}>{value} sao</option>)}
+        </select>
+      </div>
       <button type="submit"><Icon name="filter" label="Lọc" /></button>
-      {filterError && <p role="alert">{filterError}</p>}
+      {filterError && <p role="alert" className="review-filter-note">{filterError}</p>}
       {/* Bộ lọc mới bị từ chối nhưng vẫn giữ kết quả cũ → ghi rõ để không hiểu nhầm số liệu là của bộ lọc mới (F05). */}
-      {filterError && list && <p>Đang hiển thị kết quả của bộ lọc trước.</p>}
+      {filterError && list && <p className="review-filter-note">Đang hiển thị kết quả của bộ lọc trước.</p>}
     </form>
 
     {/* US-31-TC04: account PT chưa có hồ sơ PT là trạng thái bình thường, không phải lỗi; không hiện điểm 0. */}
@@ -159,10 +185,11 @@ function TrainerReviewsContent() {
     <section aria-labelledby="review-summary-title">
       <h3 id="review-summary-title">Tổng quan đánh giá</h3>
       {/* US-31-TC06, TC07: lấy nguyên summary của server (toàn bộ tập lọc); làm tròn 2 số lẻ khi hiển thị (F05). */}
-      {list?.profileLinked && <>
-        <p>Số lượt: {list.summary.reviewCount}</p>
-        <p>Điểm trung bình: {list.summary.averageRating === null ? 'chưa có' : list.summary.averageRating.toFixed(2)}</p>
-      </>}
+      {/* Hai số liệu nằm trên cùng một dòng. */}
+      {list?.profileLinked && <p className="review-summary-line">
+        <span>Số lượt: <strong>{list.summary.reviewCount}</strong></span>
+        <span>Điểm trung bình: <strong>{list.summary.averageRating === null ? 'chưa có' : list.summary.averageRating.toFixed(2)}</strong></span>
+      </p>}
     </section>
 
     <section aria-labelledby="review-list-title">
@@ -174,37 +201,57 @@ function TrainerReviewsContent() {
       {loading && <p>Đang tải danh sách đánh giá...</p>}
       {/* US-31-F02: buổi chưa có review không thành dòng điểm 0; tập rỗng ghi "Chưa có đánh giá". */}
       {list?.profileLinked && list.items.length === 0 && <p>Chưa có đánh giá</p>}
-      {list?.items.map(review => <article key={review.id} aria-label={`Đánh giá ${review.id}`}>
+      {list?.items.map(review => <article key={review.id} aria-label={`Đánh giá ${review.id}`} className="review-card">
         {/* US-31-TC09: tên và nhận xét hiện như chữ thường – React tự thoát HTML, URL không thành link. */}
-        <p><strong>{review.memberDisplayName}</strong></p>
-        <p>Điểm: {review.rating}/5</p>
-        <p>{review.comment}</p>
-        <p>Gửi lúc {formatAsOf(review.createdAt)}</p>
-        <p>Buổi tập: {sessionTime(review)}</p>
-        <button type="button" onClick={() => void openDetail(review.id)}>Xem chi tiết</button>
+        {/* Dòng 1: tên, điểm, giờ buổi tập. Dòng 2: nhận xét. Dòng 3: giờ gửi và nút chi tiết. */}
+        <div className="review-card-head">
+          <strong>{review.memberDisplayName}</strong>
+          <span>Điểm: {review.rating}/5</span>
+          <span className="review-muted">Buổi tập: {sessionTime(review)}</span>
+        </div>
+        {review.comment && <p className="review-comment">{review.comment}</p>}
+        <div className="review-card-foot">
+          <span className="review-muted">Gửi lúc {formatAsOf(review.createdAt)}</span>
+          <button type="button" onClick={() => void openDetail(review.id)}>Xem chi tiết</button>
+        </div>
       </article>)}
       <div className="pagination">{list && list.page > 1 && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page - 1 })}><Icon name="prev" label="Trang trước" /></button>}
       {list && list.totalPages > list.page && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page + 1 })}><Icon name="next" label="Trang sau" /></button>}</div>
     </section>
 
-    {detailLoading && <p>Đang tải chi tiết đánh giá...</p>}
-    {detailError && <div role="alert">
-      <p>{detailError.text}</p>
-      {detailError.retryReviewId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
+    {/* Cửa sổ chi tiết nổi giữa màn hình; bấm nền tối, nút "Đóng" hoặc phím Esc để đóng.
+        Đang tải, lỗi và nội dung chi tiết đều hiện trong cùng cửa sổ này. */}
+    {detailOpen && <div className="modal-backdrop" onClick={closeDetail}>
+      <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="review-detail-title"
+        onClick={event => event.stopPropagation()}>
+        <div className="modal-head">
+          <h3 id="review-detail-title">Chi tiết đánh giá</h3>
+          <button type="button" className="close-x" onClick={closeDetail}><Icon name="close" label="Đóng" /></button>
+        </div>
+        {detailLoading && <p>Đang tải chi tiết đánh giá...</p>}
+        {detailError && <div role="alert">
+          <p>{detailError.text}</p>
+          {detailError.retryReviewId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
+        </div>}
+        {detail && <ReviewDetailView review={detail} />}
+      </section>
     </div>}
-    {detail && <ReviewDetailView review={detail} />}
   </>;
 }
 
 // US-31-TC12: chi tiết một đánh giá – mã buổi và giờ buổi lấy từ API đích (đã kiểm owner). Chỉ hiển thị, không có nút ghi.
+// Vùng có tên "Chi tiết đánh giá" (dùng chung tiêu đề của cửa sổ) để trình đọc màn hình và test tìm được.
 function ReviewDetailView({ review }: { review: TrainerReview }) {
-  return <section aria-labelledby="review-detail-title">
-    <h3 id="review-detail-title">Chi tiết đánh giá</h3>
-    <p><strong>{review.memberDisplayName}</strong></p>
-    <p>Điểm: {review.rating}/5</p>
-    <p>{review.comment}</p>
-    <p>Gửi lúc {formatAsOf(review.createdAt)}</p>
-    <p>Mã buổi: {review.booking.id}</p>
-    <p>Buổi tập: {sessionTime(review)}</p>
+  return <section aria-labelledby="review-detail-title" className="review-detail">
+    <div className="review-card-head">
+      <strong>{review.memberDisplayName}</strong>
+      <span>Điểm: {review.rating}/5</span>
+    </div>
+    {review.comment && <p className="review-comment">{review.comment}</p>}
+    <div className="review-detail-list review-muted">
+      <p>Gửi lúc {formatAsOf(review.createdAt)}</p>
+      <p>Buổi tập: {sessionTime(review)}</p>
+      <p>Mã buổi: {review.booking.id}</p>
+    </div>
   </section>;
 }

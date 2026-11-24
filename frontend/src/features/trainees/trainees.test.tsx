@@ -359,6 +359,9 @@ describe('US-30 bước 3: chi tiết học viên', () => {
 
     // Học viên Hoa hủy buổi cuối: server không còn quan hệ, lần GET tiếp theo 404.
     delete dataByAccount[ptA.id].details[HOA];
+    // Bấm lại cùng học viên là đóng chi tiết; bấm thêm lần nữa mới mở lại và GET lần mới.
+    await userEvent.click(within(await card('Nguyễn Thị Hoa')).getByRole('button', { name: 'Xem chi tiết' }));
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Gói liên quan' })).toBeNull());
     await userEvent.click(within(await card('Nguyễn Thị Hoa')).getByRole('button', { name: 'Xem chi tiết' }));
 
     expect((await screen.findByRole('alert')).textContent).toContain('Không tìm thấy học viên');
