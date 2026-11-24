@@ -601,3 +601,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 .review-card-foot button { margin: 0; min-height: 32px; }
 .review-comment { margin: 6px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
 .review-muted { color: var(--muted); font-size: .8125rem; }
+/* Chi tiết đánh giá trong cửa sổ nổi: nhận xét nổi bật, các thông tin phụ xếp sát nhau bên dưới. */
+.review-detail .review-comment { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.review-detail-list { margin-top: 12px; }
+.review-detail-list p { margin: 2px 0; overflow-wrap: anywhere; }

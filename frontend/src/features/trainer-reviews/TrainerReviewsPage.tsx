@@ -136,6 +136,25 @@ function TrainerReviewsContent() {
     if (detailError?.retryReviewId) void openDetail(detailError.retryReviewId);
   }
 
+  // Cửa sổ chi tiết đang mở khi đang tải, đã có chi tiết hoặc có lỗi tải chi tiết.
+  const detailOpen = detailLoading || detail !== null || detailError !== null;
+
+  // Đóng cửa sổ chi tiết: tăng số lần tải để kết quả đang tải về muộn bị bỏ qua, rồi xóa hết state chi tiết.
+  function closeDetail() {
+    latestDetail.current++;
+    setDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+  }
+
+  // Bấm phím Esc khi cửa sổ chi tiết đang mở thì đóng. Cửa sổ đóng thì gỡ listener.
+  useEffect(() => {
+    if (!detailOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') closeDetail(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [detailOpen]);
+
   return <>
     {/* Bộ lọc gọn một hàng: mỗi ô gồm nhãn nằm trên ô nhập, nút Lọc ở cuối hàng. */}
     <form onSubmit={applyFilter} className="trainer-reviews-filter">
@@ -200,28 +219,39 @@ function TrainerReviewsContent() {
       {list && list.totalPages > list.page && <button type="button" onClick={() => setFilter({ ...shownFilter.current, page: list.page + 1 })}><Icon name="next" label="Trang sau" /></button>}</div>
     </section>
 
-    {detailLoading && <p>Đang tải chi tiết đánh giá...</p>}
-    {detailError && <div role="alert">
-      <p>{detailError.text}</p>
-      {detailError.retryReviewId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
+    {/* Cửa sổ chi tiết nổi giữa màn hình; bấm nền tối, nút "Đóng" hoặc phím Esc để đóng.
+        Đang tải, lỗi và nội dung chi tiết đều hiện trong cùng cửa sổ này. */}
+    {detailOpen && <div className="modal-backdrop" onClick={closeDetail}>
+      <section className="modal-card" role="dialog" aria-modal="true" aria-labelledby="review-detail-title"
+        onClick={event => event.stopPropagation()}>
+        <div className="modal-head">
+          <h3 id="review-detail-title">Chi tiết đánh giá</h3>
+          <button type="button" className="close-x" onClick={closeDetail}><Icon name="close" label="Đóng" /></button>
+        </div>
+        {detailLoading && <p>Đang tải chi tiết đánh giá...</p>}
+        {detailError && <div role="alert">
+          <p>{detailError.text}</p>
+          {detailError.retryReviewId && <button type="button" onClick={retryDetail}><Icon name="retry" label="Thử lại" /></button>}
+        </div>}
+        {detail && <ReviewDetailView review={detail} />}
+      </section>
     </div>}
-    {detail && <ReviewDetailView review={detail} />}
   </>;
 }
 
 // US-31-TC12: chi tiết một đánh giá – mã buổi và giờ buổi lấy từ API đích (đã kiểm owner). Chỉ hiển thị, không có nút ghi.
+// Vùng có tên "Chi tiết đánh giá" (dùng chung tiêu đề của cửa sổ) để trình đọc màn hình và test tìm được.
 function ReviewDetailView({ review }: { review: TrainerReview }) {
-  return <section aria-labelledby="review-detail-title" className="review-card">
-    <h3 id="review-detail-title">Chi tiết đánh giá</h3>
+  return <section aria-labelledby="review-detail-title" className="review-detail">
     <div className="review-card-head">
       <strong>{review.memberDisplayName}</strong>
       <span>Điểm: {review.rating}/5</span>
     </div>
     {review.comment && <p className="review-comment">{review.comment}</p>}
-    <div className="review-card-head review-muted">
-      <span>Gửi lúc {formatAsOf(review.createdAt)}</span>
-      <span>Buổi tập: {sessionTime(review)}</span>
-      <span>Mã buổi: {review.booking.id}</span>
+    <div className="review-detail-list review-muted">
+      <p>Gửi lúc {formatAsOf(review.createdAt)}</p>
+      <p>Buổi tập: {sessionTime(review)}</p>
+      <p>Mã buổi: {review.booking.id}</p>
     </div>
   </section>;
 }
