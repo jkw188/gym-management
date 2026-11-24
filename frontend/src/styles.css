@@ -646,3 +646,15 @@ article.trainee-line { padding: 6px 0; border-top: 1px solid var(--border); }
 .shift-preview li { padding: 6px 0; border: 1px solid #bfdbfe; border-radius: 8px; background: var(--surface); color: var(--ink-2); font-size: .8125rem; font-weight: 500; text-align: center; font-variant-numeric: tabular-nums; }
 .shift-preview p { margin: 0; color: var(--muted); font-size: .8125rem; }
 .shift-preview .shift-preview-rest { margin-top: 8px; }
+/* ===== Thẻ thông báo nổi góc phải dưới (PT/nhân viên/admin): tiêu đề + nút X một hàng, nội dung dài tự xuống dòng và cuộn trong thẻ ===== */
+/* Viết ".site-header + aside.notification-toast" để mạnh hơn rule chung ".site-header + aside[role=status]" (padding 20px) ở trên. */
+.site-header + aside.notification-toast { display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 14px 18px; }
+.notification-toast-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.notification-toast-head strong { color: var(--heading); font-size: .9375rem; line-height: 1.35; overflow-wrap: anywhere; }
+.notification-toast-head .close-x { flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; margin: -4px -6px 0 0; padding: 0; }
+.notification-toast-head .close-x:hover { background: var(--surface-2); color: var(--heading); }
+.notification-toast-body { max-height: 40vh; margin: 0; overflow-y: auto; color: var(--text); font-size: .875rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notification-toast-link:empty { display: none; }
+.notification-toast-link a { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); font-size: .8125rem; font-weight: 500; text-decoration: none; }
+.notification-toast-link a::after { content: "→"; }
+.notification-toast-link a:hover { text-decoration: underline; }
