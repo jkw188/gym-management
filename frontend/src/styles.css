@@ -584,3 +584,20 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 /* Vùng gia hạn nằm trong cửa sổ nổi (modal-card) thì bỏ viền/khoảng cách của thẻ, để không thành hai lớp khung chồng nhau. */
 .modal-card .renewal-panel { margin: 0; padding: 0; border: 0; box-shadow: none; }
 .modal-card .renewal-panel fieldset { margin: 12px 0; }
+
+/* ===== Trang Đánh giá của học viên (PT): bộ lọc một hàng, tổng quan một dòng, thẻ đánh giá gọn ===== */
+.trainer-reviews-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 20px; }
+.trainer-reviews-filter .review-field { flex: 1; min-width: 150px; }
+.trainer-reviews-filter .review-field label { display: block; margin-bottom: 4px; }
+.trainer-reviews-filter .review-field :is(input, select) { width: 100%; margin: 0; }
+.trainer-reviews-filter button { margin: 0; }
+.trainer-reviews-filter .review-filter-note { flex-basis: 100%; margin: 0; }
+.trainer-reviews h3 { margin: 20px 0 8px; font-size: 1rem; }
+.review-summary-line { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; padding: 12px 16px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.review-card { margin: 0 0 10px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.review-card h3 { margin-top: 0; }
+.review-card-head, .review-card-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.review-card-foot { justify-content: space-between; margin-top: 6px; }
+.review-card-foot button { margin: 0; min-height: 32px; }
+.review-comment { margin: 6px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.review-muted { color: var(--muted); font-size: .8125rem; }
