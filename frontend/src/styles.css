@@ -605,6 +605,24 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); box-shadow
 .review-detail .review-comment { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .review-detail-list { margin-top: 12px; }
 .review-detail-list p { margin: 2px 0; overflow-wrap: anywhere; }
-/* Trang Học viên của tôi: phần chi tiết hiện ngay dưới thẻ học viên vừa bấm, thụt vào và có vạch nhấn bên trái. */
-.trainee-detail-panel { margin: -4px 0 16px 16px; padding: 12px 16px; border-left: 3px solid var(--ink); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: var(--surface-2); }
-.trainee-detail-panel h3 { margin-top: 0; }
+/* ===== Trang Học viên của tôi: thẻ một hàng, chi tiết mở ngay bên dưới chia hai cột ===== */
+.trainee-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin: 0 0 8px; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.trainee-row.is-open { margin-bottom: 0; border-color: var(--ink); border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+.trainee-row-name { display: flex; flex-direction: column; min-width: 200px; }
+.trainee-row-info { display: flex; flex-wrap: wrap; gap: 4px 16px; flex: 1; }
+.trainee-row button { margin: 0 0 0 auto; min-height: 32px; }
+.trainee-muted { color: var(--muted); font-size: .8125rem; }
+.trainee-detail-panel { margin: 0 0 12px; padding: 14px 16px; border: 1px solid var(--ink); border-top: 0; border-radius: 0 0 var(--radius-sm) var(--radius-sm); background: var(--surface-2); }
+.trainee-detail-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 12px; }
+.trainee-detail-head h3 { margin: 0; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.trainee-detail-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.trainee-detail-columns > section { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface); }
+.trainee-col-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; margin-bottom: 8px; }
+.trainee-col-head h4 { margin: 0; font-size: .875rem; }
+.trainee-detail-columns p { margin: 0; }
+.trainee-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+article.trainee-line { padding: 6px 0; border-top: 1px solid var(--border); }
+.trainee-pack { padding: 8px 0; border-top: 1px solid var(--border); }
+.trainee-pack p { margin-top: 2px; }
+.trainee-badge { padding: 1px 8px; border-radius: 999px; background: var(--ink-soft); color: var(--ink-2); font-size: .75rem; font-weight: 500; white-space: nowrap; }
+.trainee-warning { color: var(--danger); font-size: .8125rem; }
