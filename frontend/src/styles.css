@@ -626,3 +626,19 @@ article.trainee-line { padding: 6px 0; border-top: 1px solid var(--border); }
 .trainee-pack p { margin-top: 2px; }
 .trainee-badge { padding: 1px 8px; border-radius: 999px; background: var(--ink-soft); color: var(--ink-2); font-size: .75rem; font-weight: 500; white-space: nowrap; }
 .trainee-warning { color: var(--danger); font-size: .8125rem; }
+/* ===== Trang Ca làm việc: form Thêm/Sửa ca nháp gọn một hàng ===== */
+.shift-form { margin: 16px 0; padding: 16px 20px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.shift-form h3 { margin: 0 0 12px; font-size: 1rem; }
+.shift-form-fields { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; padding: 0; border: 0; }
+.shift-field { flex: 1 1 150px; min-width: 0; }
+.shift-field-time { flex: 0 1 140px; }
+.shift-field-wide { flex: 2 1 220px; }
+.shift-field label { display: block; margin-bottom: 4px; }
+.shift-field input { width: 100%; margin: 0; }
+.shift-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; }
+.shift-preview h4 { margin: 0; font-size: .8125rem; color: var(--muted); font-weight: 500; }
+.shift-preview ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.shift-preview li { padding: 2px 10px; border-radius: 999px; background: var(--ink-soft); color: var(--ink-2); font-size: .8125rem; }
+.shift-preview p { margin: 0; color: var(--muted); font-size: .8125rem; }
+.shift-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.shift-form-actions button { margin: 0; }

@@ -349,21 +349,30 @@ export function ShiftsPage() {
         </form>}
       </div>}
 
-      {form && <form onSubmit={submit} noValidate aria-busy={submitting} aria-label={form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'}>
+      {form && <form onSubmit={submit} noValidate aria-busy={submitting} aria-label={form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'} className="shift-form">
         <h3>{form.shift ? 'Sửa ca nháp' : 'Thêm ca nháp'}</h3>
-        <fieldset disabled={submitting}>
-          <label htmlFor="shift-date">Ngày</label>
-          <input id="shift-date" type="date" value={form.date} onChange={event => changeField('date', event.target.value)} />
-          <label htmlFor="shift-from">Giờ bắt đầu</label>
-          <input id="shift-from" type="time" value={form.from} onChange={event => changeField('from', event.target.value)} />
-          <label htmlFor="shift-to">Giờ kết thúc</label>
-          <input id="shift-to" type="time" value={form.to} onChange={event => changeField('to', event.target.value)} />
-          <label htmlFor="shift-location">Địa điểm</label>
-          <input id="shift-location" maxLength={120} value={form.location} onChange={event => changeField('location', event.target.value)} />
+        {/* Bốn ô trên cùng một hàng: Ngày, Giờ bắt đầu, Giờ kết thúc hẹp; Địa điểm rộng hơn. Màn hình hẹp thì tự xuống hàng. */}
+        <fieldset disabled={submitting} className="shift-form-fields">
+          <div className="shift-field">
+            <label htmlFor="shift-date">Ngày</label>
+            <input id="shift-date" type="date" value={form.date} onChange={event => changeField('date', event.target.value)} />
+          </div>
+          <div className="shift-field shift-field-time">
+            <label htmlFor="shift-from">Giờ bắt đầu</label>
+            <input id="shift-from" type="time" value={form.from} onChange={event => changeField('from', event.target.value)} />
+          </div>
+          <div className="shift-field shift-field-time">
+            <label htmlFor="shift-to">Giờ kết thúc</label>
+            <input id="shift-to" type="time" value={form.to} onChange={event => changeField('to', event.target.value)} />
+          </div>
+          <div className="shift-field shift-field-wide">
+            <label htmlFor="shift-location">Địa điểm</label>
+            <input id="shift-location" maxLength={120} value={form.location} onChange={event => changeField('location', event.target.value)} />
+          </div>
         </fieldset>
 
-        {/* US-24-TC01, TC12: preview slot 60 phút; phần dư không mở đặt. */}
-        {preview && <section aria-label="Xem trước slot">
+        {/* US-24-TC01, TC12: preview slot 60 phút; phần dư không mở đặt. Các slot hiện thành dãy nhãn trên một hàng. */}
+        {preview && <section aria-label="Xem trước slot" className="shift-preview">
           <h4>Xem trước slot</h4>
           {preview.slots.length > 0
             ? <ul>{preview.slots.map(slot => <li key={slot.from}>{slot.from}–{slot.to}</li>)}</ul>
@@ -383,7 +392,7 @@ export function ShiftsPage() {
           </>}
         </div>}
 
-        <div className="user-actions">
+        <div className="user-actions shift-form-actions">
           <button type="submit" disabled={submitting}>{submitting ? 'Đang lưu…' : 'Lưu ca nháp'}</button>
           <button type="button" className="secondary" onClick={closeForm} disabled={submitting}><Icon name="close" label="Đóng" /></button>
         </div>
