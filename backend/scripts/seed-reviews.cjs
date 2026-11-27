@@ -1,10 +1,13 @@
 // Script vận hành (chỉ dùng máy dev): thêm đánh giá PT mẫu để demo (US-65), gọi đúng REST API như người dùng thật.
 // Cần chạy `npm run seed:sample` trước (dùng hội viên/PT mẫu). Chạy: npm run seed:reviews
+// Chế độ "pending" (npm run seed:pending-reviews): thêm buổi đã hoàn tất nhưng CHƯA đánh giá, để demo hội viên tự nhập đánh giá.
 require('dotenv').config({ quiet: true });
 
-const MARKER_ID = 'sample-reviews-v2';
+const PENDING = process.argv[2] === 'pending';
+const MARKER_ID = PENDING ? 'sample-pending-reviews-v1' : 'sample-reviews-v2';
 // Lùi đồng hồ nghiệp vụ 28 ngày để đặt được buổi "đã qua"; ca và buổi tập rơi vào 21–27 ngày trước hôm nay.
-const DAYS_BACK = 28;
+// Chế độ pending lùi 9 ngày để không trùng ca của lần thêm đánh giá.
+const DAYS_BACK = PENDING ? 9 : 28;
 
 // 4 PT mẫu của seed:sample.
 const TRAINER_PHONES = ['0912000201', '0912000202', '0912000203', '0912000204'];
@@ -93,7 +96,7 @@ async function main() {
 
   try {
     const marker = await db.collection('_seed_markers').findOne({ _id: MARKER_ID });
-    if (marker?.status === 'COMPLETED') { console.info('Đánh giá mẫu đã được thêm trước đó, không làm lại.'); return; }
+    if (marker?.status === 'COMPLETED') { console.info('Dữ liệu này đã được thêm trước đó, không làm lại.'); return; }
     await db.collection('_seed_markers').updateOne({ _id: MARKER_ID }, { $set: { status: 'RUNNING', startedAt: new Date() } }, { upsert: true });
 
     const plan = await db.collection('plans').findOne({ code: 'PT_8', status: 'ACTIVE' });
@@ -107,6 +110,8 @@ async function main() {
     }
 
     await login('ADMIN', adminPhone, adminPassword);
+
+    if (PENDING) { await addPendingReviews(); return; }
 
     // 0. Tạo tài khoản + hồ sơ hội viên mới và liên kết (bỏ qua nếu đã có).
     for (const person of NEW_REVIEWERS) {
@@ -143,8 +148,9 @@ async function main() {
         const transaction = await db.collection('transactions').findOne({ _id: new ObjectId(sale.transactionId) });
         await call('ADMIN', `/transactions/${sale.transactionId}/confirm-payment`, { method: 'CASH',
           amount: transaction.amount_due.toString(), evidenceNote: 'Dữ liệu mẫu demo: thu tiền mặt tại quầy' });
-        const membership = await db.collection('memberships').findOne({ service_sale_id: new ObjectId(sale.id ?? sale.saleId) })
-          || await db.collection('memberships').findOne({ member_id: member._id, plan_id: plan._id }, { sort: { _id: -1 } });
+        // memberships nối với phiếu bán qua service_sale_id (không lưu member/plan): lấy phiếu PT_8 mới nhất của hội viên.
+        const saleRow = await db.collection('service_sales').findOne({ member_id: member._id, plan_id: plan._id }, { sort: { _id: -1 } });
+        const membership = await db.collection('memberships').findOne({ service_sale_id: saleRow._id });
         membershipOf[phone] = String(membership._id); count('pt sales');
       });
     }
@@ -199,10 +205,59 @@ async function main() {
       });
     }
 
-    await db.collection('_seed_markers').updateOne({ _id: MARKER_ID }, { $set: { status: 'COMPLETED', completedAt: new Date(), stats, failures } });
-    console.info('Đã thêm đánh giá mẫu:');
-    for (const [name, value] of Object.entries(stats)) console.info(`  ${name}: ${value}`);
-    if (failures.length) { console.info(`Có ${failures.length} việc không làm được:`); for (const row of failures) console.info('  - ' + row); }
+    await finish('Đã thêm đánh giá mẫu:');
+
+    // Chế độ pending: mỗi hội viên đã có gói PT_8 (do lần thêm đánh giá tạo) đặt thêm 1 buổi, PT xác nhận hoàn tất,
+    // KHÔNG gửi đánh giá → trên trang "Lịch PT của tôi" buổi đó có nút "Đánh giá".
+    async function addPendingReviews() {
+      shiftClock(DAYS_BACK);
+      const shiftOf = {};
+      for (const [index, phone] of TRAINER_PHONES.entries()) {
+        const ok = await step(`login trainer ${phone}`, async () => { await login(`T${index}`, phone, samplePassword); return true; });
+        if (!ok) continue;
+        for (let day = 1; day <= 4; day++) {
+          const date = vnDate(day);
+          await step(`shift T${index} ${date}`, async () => {
+            const shift = await call(`T${index}`, '/me/work-shifts', { startAt: at(date, '07:00'), endAt: at(date, '11:00'),
+              location: index === 1 ? 'Phòng Yoga tầng 2' : 'Khu PT tầng 1' });
+            await call(`T${index}`, `/me/work-shifts/${shift.id}/confirm`, { version: shift.version ?? 0 });
+            shiftOf[`${index}:${day}`] = { id: shift.id, date }; count('shifts');
+          });
+        }
+      }
+      // Hội viên thứ i: PT i%4, nhóm k = i/4 (0–3) tập ngày 1+k lúc (7+k) giờ → không trùng lịch.
+      const bookings = [];
+      for (const [i, phone] of REVIEWERS.entries()) {
+        const member = await db.collection('members').findOne({ phone: toE164(phone) });
+        // memberships không lưu member/plan: tìm phiếu bán (service_sales) PT_8 mới nhất của hội viên rồi lấy gói theo service_sale_id.
+        const sale = member && await db.collection('service_sales').findOne({ member_id: member._id, plan_id: plan._id }, { sort: { _id: -1 } });
+        const membership = sale && await db.collection('memberships').findOne({ service_sale_id: sale._id, status: 'ACTIVE' });
+        if (!membership) continue;
+        const trainerIndex = i % TRAINER_PHONES.length, k = Math.floor(i / TRAINER_PHONES.length);
+        const shift = shiftOf[`${trainerIndex}:${1 + k}`];
+        if (!shift) continue;
+        await step(`booking ${phone}`, async () => {
+          await login(`M${phone}`, phone, samplePassword);
+          const created = await call(`M${phone}`, '/me/pt-bookings', { membershipId: String(membership._id), trainerId: trainerIds[trainerIndex],
+            shiftId: shift.id, startAt: at(shift.date, `${String(7 + k).padStart(2, '0')}:00`) });
+          bookings.push({ id: created.id, trainerIndex }); count('bookings');
+        });
+      }
+      restoreClock();
+      for (const booking of bookings) {
+        await step(`complete ${booking.id}`, async () => {
+          await call(`T${booking.trainerIndex}`, `/me/pt-bookings/${booking.id}/complete`, { version: 0 }); count('completed (chờ đánh giá)');
+        });
+      }
+      await finish('Đã thêm buổi chờ đánh giá:');
+    }
+
+    async function finish(title) {
+      await db.collection('_seed_markers').updateOne({ _id: MARKER_ID }, { $set: { status: 'COMPLETED', completedAt: new Date(), stats, failures } });
+      console.info(title);
+      for (const [name, value] of Object.entries(stats)) console.info(`  ${name}: ${value}`);
+      if (failures.length) { console.info(`Có ${failures.length} việc không làm được:`); for (const row of failures) console.info('  - ' + row); }
+    }
   } finally {
     restoreClock();
     for (const who of Object.keys(tokens)) await call(who, '/auth/logout', {}).catch(() => undefined);
