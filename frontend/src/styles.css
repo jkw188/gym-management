@@ -725,3 +725,24 @@ article.trainee-line { padding: 6px 0; border-top: 1px solid var(--border); }
 .pt-slot-day + .pt-slot-day { margin-top: 16px; }
 .pt-slot-day h4 { margin: 0 0 8px; font-size: .85rem; color: var(--muted); font-weight: 600; }
 .pt-range-hint { margin: 8px 0 0; font-size: .8rem; }
+
+/* ===== Đánh giá buổi PT (PtReviewPanel): thẻ gọn, thông tin chính trên một hàng ===== */
+.review-card { margin: 12px 0; padding: 16px 20px; border: 1px solid var(--border); border-left: 3px solid #f59e0b; border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.review-card p { margin: 0; }
+.review-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.review-card-head h4 { margin: 0; font-size: 1rem; }
+.review-stars { color: #f59e0b; font-size: 1.1rem; letter-spacing: 2px; line-height: 1; }
+.review-stars-empty { color: var(--border); }
+.review-rating-text { font-weight: 500; color: var(--heading); }
+.review-close { margin-left: auto; min-height: 34px; padding: 6px 10px; }
+.review-card .review-comment { margin-top: 10px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-card > .hint { margin-top: 8px; }
+.review-rating-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; padding: 0; border: 0; }
+.review-rating-options legend { margin-bottom: 8px; padding: 0; font-size: .8125rem; font-weight: 500; color: var(--heading); }
+.review-rating-options label { display: flex; align-items: center; gap: 6px; margin: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; font-weight: 400; }
+.review-rating-options label:has(input:checked) { border-color: var(--ink); background: var(--ink-soft); color: var(--ink); }
+.review-rating-options input { width: auto; min-height: 0; margin: 0; }
+.review-card textarea { min-height: 72px; }
+.review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.review-actions > p { margin-right: auto; }
+.review-warning { color: var(--danger); font-size: .85rem; }

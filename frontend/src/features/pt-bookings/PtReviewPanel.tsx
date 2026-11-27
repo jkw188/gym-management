@@ -11,6 +11,10 @@ import { formatAsOf, formatDate, formatRange } from './pt-booking-format';
 const RATING_LABELS: Record<number, string> = { 1: 'Rất tệ', 2: 'Tệ', 3: 'Bình thường', 4: 'Tốt', 5: 'Rất tốt' };
 const RATINGS = [1, 2, 3, 4, 5];
 const ratingText = (rating: number) => `${rating} sao – ${RATING_LABELS[rating] ?? ''}`;
+// Dãy sao để nhìn (★ đã chọn, ☆ còn lại); aria-hidden vì chữ "N sao – …" bên cạnh đã đọc được cho trình đọc màn hình.
+const Stars = ({ rating }: { rating: number }) => <span className="review-stars" aria-hidden="true">
+  {'★'.repeat(rating)}<span className="review-stars-empty">{'☆'.repeat(5 - rating)}</span>
+</span>;
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError && error.message ? error.message : fallback);
 
@@ -31,13 +35,17 @@ interface Props {
 // Hiển thị một đánh giá đã gửi: chỉ đọc, không có nút Sửa/Xóa hay ô nhập (US-65-TC07).
 // Nhận xét in bằng {} của React nên HTML hiện đúng dạng chữ, không thành thẻ (US-65-TC06).
 function ReviewView({ review, onClose }: { review: PtReview; onClose: () => void }) {
-  return <section aria-labelledby="pt-review-view">
-    <h4 id="pt-review-view">Đánh giá của bạn</h4>
-    <p>{ratingText(review.rating)}</p>
-    {review.comment ? <p className="review-comment">{review.comment}</p> : <p>(Không có nhận xét)</p>}
-    {/* US-65-F04: ngày gửi là giờ server lúc gửi, hiển thị theo giờ Việt Nam. */}
-    <p>Gửi lúc {formatAsOf(review.createdAt)}</p>
-    <button type="button" onClick={onClose}><Icon name="close" label="Đóng" /></button>
+  // Hàng trên: tiêu đề, sao, nhãn, giờ gửi, nút đóng; hàng dưới: nhận xét.
+  return <section className="review-card" aria-labelledby="pt-review-view">
+    <div className="review-card-head">
+      <h4 id="pt-review-view">Đánh giá của bạn</h4>
+      <Stars rating={review.rating} />
+      <p className="review-rating-text">{ratingText(review.rating)}</p>
+      {/* US-65-F04: ngày gửi là giờ server lúc gửi, hiển thị theo giờ Việt Nam. */}
+      <p className="hint">Gửi lúc {formatAsOf(review.createdAt)}</p>
+      <button type="button" className="secondary review-close" onClick={onClose}><Icon name="close" label="Đóng" /></button>
+    </div>
+    {review.comment ? <p className="review-comment">{review.comment}</p> : <p className="hint">(Không có nhận xét)</p>}
   </section>;
 }
 
@@ -142,13 +150,16 @@ export function PtReviewPanel({ booking, mode, onReload, onClose }: Props) {
 
   return <>
     {/* US-65-TC01: form đánh giá – tên PT, thời gian buổi, 5 mức sao kèm nhãn, nhận xét không bắt buộc. */}
-    {step !== 'closed' && <section aria-labelledby="pt-review-form">
-      <h4 id="pt-review-form">Đánh giá buổi PT</h4>
-      <p>PT: {booking.trainerName}</p>
-      <p>Buổi: {formatRange(booking.startAt, booking.endAt)} ngày {formatDate(booking.startAt)}</p>
+    {step !== 'closed' && <section className="review-card" aria-labelledby="pt-review-form">
+      {/* Tiêu đề, PT và thời gian buổi cùng một hàng. */}
+      <div className="review-card-head">
+        <h4 id="pt-review-form">Đánh giá buổi PT</h4>
+        <p>PT: {booking.trainerName}</p>
+        <p className="hint">Buổi: {formatRange(booking.startAt, booking.endAt)} ngày {formatDate(booking.startAt)}</p>
+      </div>
 
       {step === 'input' && <>
-        <fieldset>
+        <fieldset className="review-rating-options">
           <legend>Số sao</legend>
           {RATINGS.map(value => <label key={value}>
             <input type="radio" name="pt-review-rating" checked={rating === value} onChange={() => setRating(value)} /> {ratingText(value)}
@@ -157,20 +168,26 @@ export function PtReviewPanel({ booking, mode, onReload, onClose }: Props) {
         <label>Nhận xét (không bắt buộc)
           <textarea value={comment} onChange={event => setComment(event.target.value)} />
         </label>
-        <p className="hint">{trimmedComment.length}/{REVIEW_COMMENT_MAX} ký tự</p>
-        {/* US-65-TC05: chưa chọn sao hoặc nhận xét quá 1000 ký tự thì khóa nút. */}
-        <button type="button" disabled={!canPreview} onClick={() => setStep('preview')}>Xem trước</button>
-        {' '}<button type="button" onClick={onClose}><Icon name="close" label="Đóng" /></button>
+        {/* Đếm ký tự bên trái, nút bên phải trên cùng một hàng. */}
+        <div className="review-actions">
+          <p className="hint">{trimmedComment.length}/{REVIEW_COMMENT_MAX} ký tự</p>
+          {/* US-65-TC05: chưa chọn sao hoặc nhận xét quá 1000 ký tự thì khóa nút. */}
+          <button type="button" disabled={!canPreview} onClick={() => setStep('preview')}>Xem trước</button>
+          <button type="button" className="secondary" onClick={onClose}><Icon name="close" label="Đóng" /></button>
+        </div>
       </>}
 
       {/* US-65-TC01: xem trước nội dung sẽ gửi và cảnh báo không sửa được sau khi gửi. */}
       {step === 'preview' && rating !== null && <>
-        <p>{ratingText(rating)}</p>
-        {trimmedComment ? <p className="review-comment">{trimmedComment}</p> : <p>(Không có nhận xét)</p>}
-        <p><strong>Lưu ý: sau khi gửi bạn không thể sửa hay xóa đánh giá này.</strong></p>
-        {/* US-65-TC01: đang gửi thì khóa nút để không gửi kép. */}
-        <button type="button" disabled={sending} onClick={() => void submit()}>Xác nhận gửi</button>
-        {' '}<button type="button" disabled={sending} onClick={() => setStep('input')}>Quay lại</button>
+        <div className="review-card-head"><Stars rating={rating} /><p className="review-rating-text">{ratingText(rating)}</p></div>
+        {trimmedComment ? <p className="review-comment">{trimmedComment}</p> : <p className="hint">(Không có nhận xét)</p>}
+        {/* Cảnh báo bên trái, nút bên phải trên cùng một hàng. */}
+        <div className="review-actions">
+          <p className="review-warning"><strong>Lưu ý: sau khi gửi bạn không thể sửa hay xóa đánh giá này.</strong></p>
+          {/* US-65-TC01: đang gửi thì khóa nút để không gửi kép. */}
+          <button type="button" disabled={sending} onClick={() => void submit()}>Xác nhận gửi</button>
+          <button type="button" className="secondary" disabled={sending} onClick={() => setStep('input')}>Quay lại</button>
+        </div>
       </>}
     </section>}
 
