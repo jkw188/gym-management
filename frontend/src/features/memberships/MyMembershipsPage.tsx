@@ -13,6 +13,7 @@ import {
 import { Icon } from '../../components/Icon';
 import { RenewalPanel, type RenewalTarget } from './RenewalPanel';
 import { buyerLabel } from '../payments/payments-format';
+import { upgradesApi } from './upgrades.api';
 
 // membershipsTotal/salesTotal là total server trả về, để biết còn bản ghi chưa tải (US-17-TC10).
 interface PageData {
@@ -51,36 +52,54 @@ function historyLabel(item: MyMembership): string {
   return 'Đã hết hạn';
 }
 
-function MembershipCard({ item, inHistory, onRenew }: { item: MyMembership; inHistory: boolean; onRenew: (item: MyMembership) => void }) {
-  return <article aria-label={item.planName} className="membership-card">
-    <h4>{item.planName}</h4>
-    {inHistory && <p><strong>{historyLabel(item)}</strong></p>}
-    {/* US-17-TC12: ngày cuối vẫn được dùng nên ghi "đến hết ngày". */}
-    <p>Từ {formatDate(item.startDate)} đến hết ngày {formatDate(item.endDate)}</p>
-    <p>Nguồn: {OPERATION_LABELS[item.operation]}</p>
-    <p>{item.benefits}</p>
-    {item.kind === 'PT'
-      ? <ul>
-        <li>Đã dùng: {item.sessionsUsed}/{item.sessionsQuota} buổi</li>
-        <li>Đang giữ chỗ: {item.sessionsReserved} buổi</li>
-        {/* Gói trong lịch sử không còn đặt buổi được nên không hiện số còn lại. */}
-        {!inHistory && <li>Còn đặt được: {item.sessionsAvailable} buổi</li>}
-      </ul>
-      // US-17-TC12: gói GYM có quota 0 nhưng vẫn tập được, không ghi "hết buổi".
-      : <p>Không áp dụng số buổi PT</p>}
-    {/* US-19-TC12: chỉ kỳ đuôi còn gia hạn được (server trả renewal) mới có nút. */}
-    {item.renewal && <button type="button" onClick={() => onRenew(item)}>Gia hạn</button>}
-    {/* US-20-TC01: chỉ gói đang hiệu lực có link "Nâng cấp"; gói đích được phép vẫn do server quyết định. */}
-    {isCurrent(item) && <Link to={`/member/memberships/${item.id}/upgrade`}>Nâng cấp</Link>}
+// upgradeTargets: tên các gói đích server cho phép nâng cấp (undefined = chưa biết hoặc không hỏi được).
+function MembershipCard({ item, inHistory, onRenew, upgradeTargets }: {
+  item: MyMembership; inHistory: boolean; onRenew: (item: MyMembership) => void; upgradeTargets?: string[];
+}) {
+  // Có ít nhất 1 gói đích thì thẻ đổi màu (lớp can-upgrade) để hội viên nhìn là biết gói này nâng cấp được.
+  const canUpgrade = isCurrent(item) && upgradeTargets !== undefined && upgradeTargets.length > 0;
+  return <article aria-label={item.planName} className={canUpgrade ? 'membership-card can-upgrade' : 'membership-card'}>
+    {/* Hàng 1: tên gói | nhãn lịch sử | thời gian | nguồn. */}
+    <div className="ms-head">
+      <h4>{item.planName}</h4>
+      {inHistory && <p className="ms-history-label"><strong>{historyLabel(item)}</strong></p>}
+      {/* US-17-TC12: ngày cuối vẫn được dùng nên ghi "đến hết ngày". */}
+      <p className="ms-period">Từ {formatDate(item.startDate)} đến hết ngày {formatDate(item.endDate)}</p>
+      <p className="ms-source">Nguồn: {OPERATION_LABELS[item.operation]}</p>
+    </div>
+    {/* Hàng 2: quyền lợi | số buổi PT (nằm ngang) | nút Gia hạn canh phải. */}
+    <div className="ms-body">
+      <p className="ms-benefits">{item.benefits}</p>
+      {item.kind === 'PT'
+        ? <ul className="ms-quota">
+          <li>Đã dùng: {item.sessionsUsed}/{item.sessionsQuota} buổi</li>
+          <li>Đang giữ chỗ: {item.sessionsReserved} buổi</li>
+          {/* Gói trong lịch sử không còn đặt buổi được nên không hiện số còn lại. */}
+          {!inHistory && <li>Còn đặt được: {item.sessionsAvailable} buổi</li>}
+        </ul>
+        // US-17-TC12: gói GYM có quota 0 nhưng vẫn tập được, không ghi "hết buổi".
+        : <p className="ms-quota-none">Không áp dụng số buổi PT</p>}
+      {/* US-19-TC12: chỉ kỳ đuôi còn gia hạn được (server trả renewal) mới có nút. */}
+      {item.renewal && <button type="button" className="ms-renew" onClick={() => onRenew(item)}>Gia hạn</button>}
+    </div>
+    {/* US-20-TC01: chỉ gói đang hiệu lực có link "Nâng cấp"; gói đích được phép vẫn do server quyết định.
+        Dòng gợi ý: có gói đích → nền màu + tên các gói; không có → chữ xám "Chưa có gói để nâng cấp". */}
+    {isCurrent(item) && <div className={canUpgrade ? 'upgrade-hint can-upgrade' : 'upgrade-hint'}>
+      {canUpgrade && <span>Nâng cấp được lên: {upgradeTargets.join(', ')}</span>}
+      {upgradeTargets !== undefined && upgradeTargets.length === 0 && <span>Chưa có gói để nâng cấp</span>}
+      <Link to={`/member/memberships/${item.id}/upgrade`}>Nâng cấp</Link>
+    </div>}
   </article>;
 }
 
-function MembershipGroup({ title, id, items, inHistory, emptyText, onRenew }: {
+function MembershipGroup({ title, id, items, inHistory, emptyText, onRenew, upgradeTargets }: {
   title: string; id: string; items: MyMembership[]; inHistory: boolean; emptyText: string; onRenew: (item: MyMembership) => void;
+  upgradeTargets: Record<string, string[] | undefined>;
 }) {
   return <section aria-labelledby={id}>
     <h3 id={id}>{title}</h3>
-    {items.length === 0 ? <p>{emptyText}</p> : items.map(item => <MembershipCard key={item.id} item={item} inHistory={inHistory} onRenew={onRenew} />)}
+    {items.length === 0 ? <p>{emptyText}</p> : items.map(item => <MembershipCard key={item.id} item={item} inHistory={inHistory}
+      onRenew={onRenew} upgradeTargets={upgradeTargets[item.id]} />)}
   </section>;
 }
 
@@ -94,6 +113,8 @@ export function MyMembershipsPage() {
   const [detailError, setDetailError] = useState('');
   // US-19: kỳ đang mở vùng gia hạn (chép lại lúc bấm, để tải lại danh sách không làm mất vùng đang dùng).
   const [renewTarget, setRenewTarget] = useState<RenewalTarget | null>(null);
+  // US-20: id gói đang hiệu lực → tên các gói đích được nâng cấp (hỏi server qua upgrade-options).
+  const [upgradeTargets, setUpgradeTargets] = useState<Record<string, string[] | undefined>>({});
   // Số thứ tự lần tải mới nhất: kết quả cũ về muộn (ví dụ của account trước) thì bỏ qua.
   const latestLoad = useRef(0);
   // Account hiện tại, để bỏ kết quả xem giao dịch/chứng từ về sau khi đã đổi account.
@@ -112,6 +133,17 @@ export function MyMembershipsPage() {
         memberLinked: memberships.memberLinked, memberships: memberships.items, sales: sales.items,
         membershipsTotal: memberships.total, salesTotal: sales.total,
       });
+      // Hỏi gói đích cho từng gói đang hiệu lực. Hỏi lỗi thì để undefined: không tô màu, link "Nâng cấp" vẫn còn.
+      const currentIds = memberships.items.filter(isCurrent).map(item => item.id);
+      const entries = await Promise.all(currentIds.map(async id => {
+        try {
+          const options = await upgradesApi.options(id);
+          return [id, options.items.map(option => option.name)] as const;
+        } catch {
+          return [id, undefined] as const;
+        }
+      }));
+      if (loadNumber === latestLoad.current) setUpgradeTargets(Object.fromEntries(entries));
     } catch (error) {
       // US-17-TC11: lỗi mạng/server là lỗi, KHÔNG hiện như "chưa có gói" hay "chưa liên kết".
       if (loadNumber === latestLoad.current) setLoadError(errorMessage(error, 'Không tải được dữ liệu gói tập.'));
@@ -123,6 +155,7 @@ export function MyMembershipsPage() {
   // US-17-TC11: đổi account thì xóa ngay dữ liệu của account trước, rồi mới tải lại.
   useEffect(() => {
     setData(null);
+    setUpgradeTargets({});
     setTransaction(null);
     setInvoice(null);
     setDetailError('');
@@ -218,11 +251,11 @@ export function MyMembershipsPage() {
       {data.membershipsTotal > memberships.length &&
         <p role="note">Đang hiện {memberships.length} gói gần nhất trên tổng {data.membershipsTotal}.</p>}
       <MembershipGroup title="Gói hiện hành" id="memberships-current" items={memberships.filter(isCurrent)}
-        inHistory={false} emptyText="Không có gói đang hiệu lực." onRenew={openRenewal} />
+        inHistory={false} emptyText="Không có gói đang hiệu lực." onRenew={openRenewal} upgradeTargets={upgradeTargets} />
       <MembershipGroup title="Gói chờ hiệu lực" id="memberships-scheduled" items={memberships.filter(isScheduled)}
-        inHistory={false} emptyText="Không có gói chờ hiệu lực." onRenew={openRenewal} />
+        inHistory={false} emptyText="Không có gói chờ hiệu lực." onRenew={openRenewal} upgradeTargets={upgradeTargets} />
       <MembershipGroup title="Lịch sử gói" id="memberships-history"
-        items={memberships.filter(item => !isCurrent(item) && !isScheduled(item))} inHistory emptyText="Chưa có gói cũ." onRenew={openRenewal} />
+        items={memberships.filter(item => !isCurrent(item) && !isScheduled(item))} inHistory emptyText="Chưa có gói cũ." onRenew={openRenewal} upgradeTargets={upgradeTargets} />
 
       {/* US-17-F02, TC06: lần mua PENDING chỉ là chờ thu, không phải gói đã có. */}
       <section aria-labelledby="sales-pending">

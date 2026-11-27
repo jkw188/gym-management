@@ -247,51 +247,70 @@ export function MembershipUpgradePage() {
     {loadError && <div role="alert">{loadError}</div>}
 
     {/* US-20 mục 2: quyền lợi gói hiện tại để so sánh với gói đích. */}
-    {current && <section aria-label="Gói hiện tại">
+    {/* Khung gói hiện tại: tên, quyền lợi, ngày hết hạn nằm cùng một hàng. */}
+    {current && <section className="upgrade-current" aria-label="Gói hiện tại">
       <h3>Gói hiện tại</h3>
-      <p>{current.planName}</p>
-      <p>{current.benefits}</p>
-      <p>Hiệu lực đến hết ngày {formatDate(current.endDate)}</p>
+      <div className="upgrade-current-row">
+        <p className="upgrade-current-name">{current.planName}</p>
+        <p className="upgrade-current-benefits">{current.benefits}</p>
+        <p className="upgrade-current-end">Hiệu lực đến hết ngày {formatDate(current.endDate)}</p>
+      </div>
     </section>}
 
     {options && options.length === 0 && <p>Chưa có gói nào để nâng cấp từ gói này.</p>}
 
     {!result && options && options.length > 0 && <>
       {/* US-20-TC01: chỉ hiện các gói đích server cho phép. */}
+      {/* Các gói đích xếp thành lưới thẻ cạnh nhau; thẻ đang chọn được tô viền đậm. */}
       <section aria-labelledby="upgrade-targets-title">
         <h3 id="upgrade-targets-title">Gói có thể nâng cấp</h3>
-        {options.map(option => <article key={option.targetPlanId} aria-label={option.name}>
-          <h4>{option.name}</h4>
-          <p>Giá: {formatVnd(option.price)}</p>
-          <p>Thời hạn: {option.durationDays} ngày</p>
-          {option.sessionsQuota > 0 && <p>Số buổi PT: {option.sessionsQuota}</p>}
-          {/* US-20 spec bản 1.1: quyền lợi gói đích để so sánh với gói hiện tại. */}
-          <p>{option.benefits}</p>
-          <button type="button" aria-pressed={selected?.targetPlanId === option.targetPlanId} onClick={() => choose(option)}>
-            Chọn gói này
-          </button>
-        </article>)}
+        <div className="upgrade-target-grid">
+          {options.map(option => {
+            const isSelected = selected?.targetPlanId === option.targetPlanId;
+            return <article key={option.targetPlanId} className={isSelected ? 'upgrade-target selected' : 'upgrade-target'} aria-label={option.name}>
+              <div className="upgrade-target-head">
+                <h4>{option.name}</h4>
+                <p className="upgrade-target-price">Giá: {formatVnd(option.price)}</p>
+              </div>
+              <div className="upgrade-target-meta">
+                <p>Thời hạn: {option.durationDays} ngày</p>
+                {option.sessionsQuota > 0 && <p>Số buổi PT: {option.sessionsQuota}</p>}
+              </div>
+              {/* US-20 spec bản 1.1: quyền lợi gói đích để so sánh với gói hiện tại. */}
+              <p className="upgrade-target-benefits">{option.benefits}</p>
+              <button type="button" className={isSelected ? '' : 'secondary'} aria-pressed={isSelected} onClick={() => choose(option)}>
+                Chọn gói này
+              </button>
+            </article>;
+          })}
+        </div>
       </section>
 
-      <fieldset>
-        <legend>Cách thanh toán dự kiến</legend>
-        <label><input type="radio" name="upgrade-method" checked={method === 'CASH'} onChange={() => changeMethod('CASH')} />
-          Tiền mặt tại quầy</label>
-        <label><input type="radio" name="upgrade-method" checked={method === 'TRANSFER'} onChange={() => changeMethod('TRANSFER')} />
-          Chuyển khoản</label>
-      </fieldset>
-      <button type="button" disabled={!selected} onClick={() => void handlePreview()}>Xem báo giá</button>
+      {/* Cách trả dự kiến (2 nhãn ngang) và nút Xem báo giá nằm cùng một hàng. */}
+      <div className="upgrade-pay-row">
+        <fieldset className="reg-method">
+          <legend>Cách thanh toán dự kiến</legend>
+          <label><input type="radio" name="upgrade-method" checked={method === 'CASH'} onChange={() => changeMethod('CASH')} />
+            Tiền mặt tại quầy</label>
+          <label><input type="radio" name="upgrade-method" checked={method === 'TRANSFER'} onChange={() => changeMethod('TRANSFER')} />
+            Chuyển khoản</label>
+        </fieldset>
+        <button type="button" disabled={!selected} onClick={() => void handlePreview()}>Xem báo giá</button>
+      </div>
     </>}
 
     {/* US-20-TC06, TC13: hiện đúng số server trả; phần dư không hoàn, không thành ví. */}
-    {quote && <section aria-label="Báo giá nâng cấp">
+    {/* Báo giá: các con số xếp lưới 2 cột, số tiền phải trả nổi bật ở hàng riêng. */}
+    {quote && <section className="upgrade-quote" aria-label="Báo giá nâng cấp">
       <h3>Báo giá nâng cấp</h3>
-      <p>Số ngày còn lại của gói hiện tại: {quote.remainingDays}/{quote.totalDays} ngày (tính cả hôm nay)</p>
-      <p>Giá trị còn lại của gói hiện tại: {formatVnd(quote.rawCredit)}</p>
-      <p>Được trừ vào gói mới: {formatVnd(quote.appliedCredit)}</p>
-      <p>Phần dư không dùng được: {formatVnd(quote.excessCredit)}</p>
-      <p>Phần dư không được hoàn tiền và không chuyển thành ví.</p>
-      <p>Số tiền phải trả: {formatVnd(quote.amountDue)}</p>
+      <div className="upgrade-quote-grid">
+        <p>Số ngày còn lại của gói hiện tại: {quote.remainingDays}/{quote.totalDays} ngày (tính cả hôm nay)</p>
+        <p>Giá trị còn lại của gói hiện tại: {formatVnd(quote.rawCredit)}</p>
+        <p>Được trừ vào gói mới: {formatVnd(quote.appliedCredit)}</p>
+        <p>Phần dư không dùng được: {formatVnd(quote.excessCredit)}</p>
+      </div>
+      <p className="hint">Phần dư không được hoàn tiền và không chuyển thành ví.</p>
+      <p className="upgrade-quote-due">Số tiền phải trả: {formatVnd(quote.amountDue)}</p>
       {/* US-20-TC13: gói PT mang sang số buổi đã dùng, không reset về 0. */}
       {quote.targetSessions > 0 && <ul>
         <li>Buổi PT đã dùng: {quote.quotaSummary.used} (mang sang gói mới)</li>

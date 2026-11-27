@@ -26,7 +26,7 @@ export function LogoutButton() {
   const auth = useAuth();
   const logout = useLogoutAction();
   if (auth.status !== 'authenticated') return null;
-  return <button type="button" onClick={() => void logout()}><Icon name="logout" label="Đăng xuất" showLabel /></button>;
+  return <button type="button" className="logout-button" onClick={() => void logout()}><Icon name="logout" label="Đăng xuất" showLabel /></button>;
 }
 
 export function LogoutPending() {
@@ -99,7 +99,11 @@ export function HeaderAccount() {
     <MemberNotificationBell />
     <Link to={accountPath} className="account-chip" aria-label="Thông tin tài khoản" title="Thông tin tài khoản">
       <span className="account-avatar" aria-hidden="true">{initial}</span>
-      <span className="account-role" aria-hidden="true">{roleNames[role]}</span>
+      {/* Tên và vai trò xếp hai dòng như bản thiết kế; aria-label của link đã đọc "Thông tin tài khoản". */}
+      <span className="account-text" aria-hidden="true">
+        <strong className="account-name">{auth.user.fullName}</strong>
+        <span className="account-role">{roleNames[role]}</span>
+      </span>
     </Link>
     <LogoutButton />
   </div>;

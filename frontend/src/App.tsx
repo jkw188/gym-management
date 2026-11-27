@@ -3,11 +3,11 @@ import { NotificationToast } from './features/notifications/NotificationToast';
 import { ReturnsPage } from './features/returns/ReturnsPage';
 import { StockIssuesPage } from './features/stock/StockIssuesPage';
 import { StockAdjustmentsPage } from './features/stock/StockAdjustmentsPage';
-// Tầng giao diện – khung chung: thanh menu, banner, vùng nội dung <main>, chân trang và khai báo mọi route.
+// Tầng giao diện – khung chung: thông báo nổi, khung trang (AppLayout) và khai báo mọi route.
 import { FoundationStatus } from './features/foundation/FoundationStatus';
-import { BrowserRouter, Link, NavLink, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthProvider';
-import { AccountInfoPage, HeaderAccount, HomeRedirect, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
+import { AccountInfoPage, HomeRedirect, ProtectedRoute, RoleShell } from './features/auth/AuthRoutes';
 import { AppLayout } from './features/auth/RoleSidebar';
 import { AccountLayout } from './features/auth/AccountLayout';
 import { PageFrame } from './components/BackButton';
@@ -60,15 +60,8 @@ import { TrainerPerformancePage } from './features/reports/TrainerPerformancePag
 
 export default function App() {
   return <BrowserRouter><AuthProvider>
-    {/* Thanh trên cùng: logo | menu trang công khai | khối tài khoản (đăng nhập/đăng ký hoặc chuông, tài khoản, đăng xuất).
-        NavLink tự thêm class "active" cho trang đang mở. Banner lớn chỉ còn ở trang chủ (HomePage). */}
-    <header className="site-header"><div className="site-header-inner">
-      <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">GM</span>Gym Management</Link>
-      <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink><NavLink to="/shop">Cửa hàng</NavLink></nav>
-      <HeaderAccount />
-    </div></header>
     <NotificationToast />
-    {/* Đã đăng nhập: menu chức năng dọc bên trái, nội dung bên phải (AppLayout). */}
+    {/* AppLayout: Guest có thanh menu công khai + chân trang; đã đăng nhập có thanh bên tối màu + thanh trên (RoleSidebar.tsx). */}
     <AppLayout>
     <PageFrame scope="main">
     <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
@@ -165,7 +158,6 @@ export default function App() {
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
     </Routes>
     </PageFrame>
-    </AppLayout>
-    <footer className="site-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
+    </AppLayout>
   </AuthProvider></BrowserRouter>;
 }
