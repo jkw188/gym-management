@@ -52,16 +52,16 @@ const NEW_CATEGORY = 'Trang phục thể thao';
 const IMG = id => `https://images.unsplash.com/photo-${id}?w=600&h=600&fit=crop&q=80`;
 const NEW_PRODUCTS = [
   { category: 'Thực phẩm bổ sung', sku: 'MEAL_SHAKE', name: 'Sữa lắc thay bữa 1kg', price: '690000', imageUrl: IMG('1579722821273-0f6c7d44362f'), description: 'Bổ sung đạm và chất xơ, vị dâu.' },
-  { category: 'Thực phẩm bổ sung', sku: 'CREATINE_300', name: 'Creatine Monohydrate 300g', price: '520000', description: 'Hỗ trợ sức mạnh cho bài tập nặng.' },
-  { category: 'Thực phẩm bổ sung', sku: 'MASS_3KG', name: 'Mass Gainer 3kg', price: '1150000', description: 'Tăng cân, tăng cơ cho người gầy.' },
-  { category: 'Nước uống', sku: 'COCONUT_330', name: 'Nước dừa 330ml', price: '18000' },
-  { category: 'Nước uống', sku: 'COLDBREW', name: 'Cà phê ủ lạnh không đường', price: '30000' },
+  { category: 'Thực phẩm bổ sung', sku: 'CREATINE_300', name: 'Creatine Monohydrate 300g', price: '520000', imageUrl: IMG('1693996045838-980674653385'), description: 'Hỗ trợ sức mạnh cho bài tập nặng.' },
+  { category: 'Thực phẩm bổ sung', sku: 'MASS_3KG', name: 'Mass Gainer 3kg', price: '1150000', imageUrl: IMG('1704650311190-7eeb9c4f6e11'), description: 'Tăng cân, tăng cơ cho người gầy.' },
+  { category: 'Nước uống', sku: 'COCONUT_330', name: 'Nước dừa 330ml', price: '18000', imageUrl: IMG('1580984969071-a8da5656c2fb') },
+  { category: 'Nước uống', sku: 'COLDBREW', name: 'Cà phê ủ lạnh không đường', price: '30000', imageUrl: IMG('1461023058943-07fcbe16d735') },
   { category: 'Phụ kiện tập luyện', sku: 'BAND_SET', name: 'Bộ dây kháng lực 5 mức', price: '220000', imageUrl: IMG('1584735935682-2f2b69dff9d2'), description: 'Dùng khởi động và tập tại nhà.' },
   { category: 'Phụ kiện tập luyện', sku: 'DUMBBELL_5KG', name: 'Tạ tay bọc cao su 5kg', price: '280000', imageUrl: IMG('1576678927484-cc907957088c') },
-  { category: 'Phụ kiện tập luyện', sku: 'YOGA_MAT', name: 'Thảm tập yoga 6mm', price: '190000' },
-  { category: 'Phụ kiện tập luyện', sku: 'JUMP_ROPE', name: 'Dây nhảy có đếm số', price: '75000' },
+  { category: 'Phụ kiện tập luyện', sku: 'YOGA_MAT', name: 'Thảm tập yoga 6mm', price: '190000', imageUrl: IMG('1601925260368-ae2f83cf8b7f') },
+  { category: 'Phụ kiện tập luyện', sku: 'JUMP_ROPE', name: 'Dây nhảy có đếm số', price: '75000', imageUrl: IMG('1434596922112-19c563067271') },
   { category: NEW_CATEGORY, sku: 'TEE_BLACK', name: 'Áo thun tập gym màu đen', price: '180000', imageUrl: IMG('1622519407650-3df9883f76a5'), description: 'Vải thun lạnh, thấm hút mồ hôi.' },
-  { category: NEW_CATEGORY, sku: 'SHORTS', name: 'Quần short thể thao', price: '160000' },
+  { category: NEW_CATEGORY, sku: 'SHORTS', name: 'Quần short thể thao', price: '160000', imageUrl: IMG('1607962837359-5e7e89f86776') },
 ];
 // Lớp miễn phí buổi tối (không trùng giờ ca PT buổi sáng/chiều).
 const CLASS_TEMPLATES = [
