@@ -387,14 +387,20 @@ export function PtBookingsPage() {
             {trainers.map(trainer => <option key={trainer.id} value={trainer.id}>{trainer.displayName}</option>)}
           </select></label>
           <label>Ngày <input type="date" value={day} disabled={submitting} onChange={event => setDay(event.target.value)} /></label>
-          <label>Xem trong <select value={spanDays} disabled={submitting} onChange={event => setSpanDays(Number(event.target.value))}>
-            {SPAN_OPTIONS.map(days => <option key={days} value={days}>{days} ngày</option>)}
+          <label>Xem bao nhiêu ngày <select value={spanDays} disabled={submitting} onChange={event => setSpanDays(Number(event.target.value))}>
+            {SPAN_OPTIONS.map(days => <option key={days} value={days}>{days === 1 ? 'Chỉ ngày đã chọn' : `${days} ngày liên tiếp`}</option>)}
           </select></label>
           <label>Gói PT <select value={membershipId} disabled={submitting} onChange={event => setMembershipId(event.target.value)}>
             <option value="">-- Chưa chọn gói --</option>
             {plans?.items.map(plan => <option key={plan.id} value={plan.id}>{plan.planName}</option>)}
           </select></label>
           </div>
+          {/* Chú thích cho người dùng hiểu: "Ngày" là ngày bắt đầu, ô bên cạnh là xem thêm bao nhiêu ngày tính từ đó. */}
+          <p className="hint pt-range-hint">{day
+            ? spanDays === 1
+              ? `Đang xem giờ trống ngày ${formatDate(`${day}T00:00:00+07:00`)}.`
+              : `Đang xem giờ trống từ ${formatDate(`${day}T00:00:00+07:00`)} đến ${formatDate(`${addDays(day, spanDays - 1)}T00:00:00+07:00`)} (${spanDays} ngày).`
+            : 'Chọn "Ngày" là ngày bắt đầu, rồi chọn xem bao nhiêu ngày tính từ ngày đó.'}</p>
           {plans && !notLinked && plans.items.length === 0 && <p>Bạn chưa có gói PT nào đang dùng được. Vui lòng liên hệ quầy để mua gói PT.</p>}
 
           {/* US-27-TC12: số buổi lấy nguyên từ server (US-17), không đếm từ lịch đang thấy vì lịch có phân trang. */}
