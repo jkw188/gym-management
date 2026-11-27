@@ -53,18 +53,20 @@ function BookingCard({ booking, onCancel, onReview }: {
   onCancel: (booking: MyPtBooking) => void;
   onReview: (booking: MyPtBooking, mode: ReviewMode) => void;
 }) {
-  return <article aria-label={`Buổi PT ${formatDate(booking.startAt)} ${formatRange(booking.startAt, booking.endAt)}`}>
-    <p><strong>{booking.trainerName}</strong> · <span>{STATUS_LABELS[booking.status]}</span></p>
-    <p>{formatDate(booking.startAt)} · {formatRange(booking.startAt, booking.endAt)}</p>
-    <p>{booking.location}</p>
+  // Một hàng: PT + trạng thái | ngày giờ | địa điểm | hạn hủy, nút (màn hẹp tự xuống hàng).
+  return <article className={`pt-booking-card status-${booking.status.toLowerCase()}`}
+    aria-label={`Buổi PT ${formatDate(booking.startAt)} ${formatRange(booking.startAt, booking.endAt)}`}>
+    <p className="pt-booking-who"><strong>{booking.trainerName}</strong> <span>{STATUS_LABELS[booking.status]}</span></p>
+    <p className="pt-booking-when">{formatDate(booking.startAt)} · {formatRange(booking.startAt, booking.endAt)}</p>
+    <p className="pt-booking-where">{booking.location}</p>
     {/* US-29-TC01, TC02: chỉ buổi BOOKED mới nói tới hủy. cancelAllowed lấy từ server, không tự tính lại bằng đồng hồ máy. */}
     {booking.status === 'BOOKED' && (booking.cancelAllowed
-      ? <p>Hạn hủy: {formatCancelDeadline(booking.startAt)}{' '}
-        <button type="button" onClick={() => onCancel(booking)}>Hủy lịch</button></p>
-      : <p>Đã quá hạn tự hủy. Vui lòng liên hệ quầy để được hỗ trợ.</p>)}
+      ? <p className="pt-booking-action"><small>Hạn hủy: {formatCancelDeadline(booking.startAt)}</small>{' '}
+        <button type="button" className="secondary" onClick={() => onCancel(booking)}>Hủy lịch</button></p>
+      : <p className="pt-booking-action hint">Đã quá hạn tự hủy. Vui lòng liên hệ quầy để được hỗ trợ.</p>)}
     {/* US-65-TC04, TC07: nút đánh giá theo reviewState của server; không tự suy từ status hay gói còn hạn. */}
-    {booking.reviewState === 'ELIGIBLE' && <p><button type="button" onClick={() => onReview(booking, 'create')}>Đánh giá</button></p>}
-    {booking.reviewState === 'SUBMITTED' && <p><button type="button" onClick={() => onReview(booking, 'view')}>Xem đánh giá</button></p>}
+    {booking.reviewState === 'ELIGIBLE' && <p className="pt-booking-action"><button type="button" onClick={() => onReview(booking, 'create')}>Đánh giá</button></p>}
+    {booking.reviewState === 'SUBMITTED' && <p className="pt-booking-action"><button type="button" onClick={() => onReview(booking, 'view')}>Xem đánh giá</button></p>}
   </article>;
 }
 
@@ -290,9 +292,9 @@ export function PtBookingsPage() {
       Tài khoản của bạn chưa được liên kết hồ sơ hội viên. Vui lòng liên hệ quầy lễ tân để được liên kết trước khi đặt lịch PT.
     </p>}
 
-    <section aria-labelledby="pt-my-bookings">
+    <section className="pt-panel" aria-labelledby="pt-my-bookings">
       <h3 id="pt-my-bookings">Lịch của tôi</h3>
-      <div className="filters">
+      <div className="filters pt-filters">
         <label>Từ ngày <input type="date" value={filter.fromDate} onChange={event => changeFilter({ fromDate: event.target.value })} /></label>
         <label>Đến ngày <input type="date" value={filter.toDate} onChange={event => changeFilter({ toDate: event.target.value })} /></label>
         <label>Trạng thái <select value={filter.status} onChange={event => changeFilter({ status: event.target.value as PtBookingStatus | '' })}>
@@ -322,7 +324,7 @@ export function PtBookingsPage() {
 
       {/* US-29-TC01: xác nhận hủy – PT, thời gian buổi và hạn hủy (giờ VN), lý do bắt buộc 10–500 ký tự.
           Thời gian buổi và hạn hủy chung một dòng để mỗi mốc ngày chỉ xuất hiện một lần. */}
-      {cancelTarget && <section aria-labelledby="pt-confirm-cancel">
+      {cancelTarget && <section className="pt-confirm" aria-labelledby="pt-confirm-cancel">
         <h4 id="pt-confirm-cancel">Xác nhận hủy lịch</h4>
         <ul>
           <li>PT: {cancelTarget.trainerName}</li>
@@ -331,8 +333,10 @@ export function PtBookingsPage() {
         <label>Lý do hủy <textarea value={cancelReason} disabled={cancelling} onChange={event => setCancelReason(event.target.value)} /></label>
         <p className="hint">Lý do dài từ 10 đến 500 ký tự.</p>
         {/* US-29-TC06: lý do không hợp lệ hoặc đang gửi thì khóa nút (không gửi kép). */}
-        <button type="button" disabled={cancelling || !isValidCancelReason(cancelReason)} onClick={() => void submitCancel()}>Xác nhận hủy</button>
-        {' '}<button type="button" disabled={cancelling} onClick={() => setCancelTarget(null)}><Icon name="close" label="Đóng" /></button>
+        <div className="pt-confirm-actions">
+          <button type="button" disabled={cancelling || !isValidCancelReason(cancelReason)} onClick={() => void submitCancel()}>Xác nhận hủy</button>
+          <button type="button" className="secondary" disabled={cancelling} onClick={() => setCancelTarget(null)}><Icon name="close" label="Đóng" /></button>
+        </div>
       </section>}
       {cancelSuccess && <p role="status">{cancelSuccess}</p>}
       {cancelError && <p role="alert">{cancelError}</p>}
@@ -342,13 +346,18 @@ export function PtBookingsPage() {
         mode={reviewTarget.mode} onReload={loadBookings} onClose={() => setReviewTarget(null)} />}
     </section>
 
-    <section aria-labelledby="pt-book-panel">
-      <h3 id="pt-book-panel">Đặt lịch PT</h3>
+    <section className="pt-panel" aria-labelledby="pt-book-panel">
+      <div className="pt-panel-head">
+        <h3 id="pt-book-panel">Đặt lịch PT</h3>
+        <button type="button" className="secondary" onClick={() => void refreshAll()}><Icon name="retry" label="Tải lại lịch, giờ trống và số buổi" showLabel /></button>
+      </div>
       {baseError
         ? <div role="alert"><p>{baseError}</p><button type="button" onClick={() => void loadBase()}><Icon name="retry" label="Thử lại" /></button></div>
         : <>
           {/* US-28-TC10: đang gửi đặt lịch thì khóa PT/ngày/gói và các slot, để bảng xác nhận và key giữ đúng dữ liệu đã gửi;
               lỗi mạng/503 thì Member vẫn bấm lại "Xác nhận đặt" với đúng key cũ. */}
+          {/* PT, ngày, gói nằm cùng một hàng. */}
+          <div className="filters pt-book-fields">
           <label>Chọn PT <select value={trainerId} disabled={submitting} onChange={event => setTrainerId(event.target.value)}>
             <option value="">-- Chọn PT --</option>
             {trainers.map(trainer => <option key={trainer.id} value={trainer.id}>{trainer.displayName}</option>)}
@@ -358,6 +367,7 @@ export function PtBookingsPage() {
             <option value="">-- Chưa chọn gói --</option>
             {plans?.items.map(plan => <option key={plan.id} value={plan.id}>{plan.planName}</option>)}
           </select></label>
+          </div>
           {plans && !notLinked && plans.items.length === 0 && <p>Bạn chưa có gói PT nào đang dùng được. Vui lòng liên hệ quầy để mua gói PT.</p>}
 
           {/* US-27-TC12: số buổi lấy nguyên từ server (US-17), không đếm từ lịch đang thấy vì lịch có phân trang. */}
@@ -367,25 +377,25 @@ export function PtBookingsPage() {
               <li>Đang giữ chỗ: {selectedPlan.sessionsReserved} buổi</li>
               <li>Còn đặt được: {selectedPlan.sessionsAvailable} buổi</li>
             </ul>
-            <p>Cập nhật lúc {formatAsOf(plans.asOf)}</p>
+            <p className="hint">Cập nhật lúc {formatAsOf(plans.asOf)}</p>
           </div>}
 
           {availabilityError && <div role="alert"><p>{availabilityError}</p>
             <button type="button" onClick={() => void loadAvailability()}><Icon name="retry" label="Thử lại" /></button></div>}
           {availability && <div className="slots">
             {/* US-27-TC09: giờ trống chỉ để tham khảo, server kiểm lại khi đặt. */}
-            <p>Giờ trống (cập nhật lúc {formatAsOf(availability.asOf)}). Xem giờ không giữ chỗ.</p>
+            <p className="hint">Giờ trống (cập nhật lúc {formatAsOf(availability.asOf)}). Xem giờ không giữ chỗ.</p>
             {availability.slots.length === 0 ? <p>PT không có giờ trống trong ngày này.</p>
-              : <ul>{availability.slots.map(slot => <li key={slot.startAt}>
+              : <ul className="pt-slot-list">{availability.slots.map(slot => <li key={slot.startAt}>
                 {/* US-27-TC12: slot bookable=false bị khóa và có chữ giải thích. US-28: bấm slot mở bảng xác nhận. */}
                 <button type="button" disabled={!slot.bookable || submitting} onClick={() => openConfirm(slot)}>{formatRange(slot.startAt, slot.endAt)}</button>
-                {' '}{slot.location}
-                {!slot.bookable && slot.reason && <span> – {REASON_LABELS[slot.reason]}</span>}
+                {' '}<small>{slot.location}</small>
+                {!slot.bookable && slot.reason && <small className="pt-slot-reason"> – {REASON_LABELS[slot.reason]}</small>}
               </li>)}</ul>}
           </div>}
 
           {/* US-28-TC01: xác nhận PT, ngày, giờ VN, địa điểm, gói và số buổi còn (số server, không trừ trước khi server commit). */}
-          {confirmSlot && <section aria-labelledby="pt-confirm-booking">
+          {confirmSlot && <section className="pt-confirm" aria-labelledby="pt-confirm-booking">
             <h4 id="pt-confirm-booking">Xác nhận đặt lịch</h4>
             <ul>
               <li>PT: {selectedTrainer?.displayName}</li>
@@ -396,13 +406,13 @@ export function PtBookingsPage() {
               <li>Còn đặt được: {selectedPlan?.sessionsAvailable} buổi</li>
             </ul>
             {/* US-28-TC10: đang gửi thì khóa nút để không gửi kép. */}
-            <button type="button" disabled={submitting} onClick={() => void submitBooking()}>Xác nhận đặt</button>
-            {' '}<button type="button" disabled={submitting} onClick={() => setConfirmSlot(null)}><Icon name="close" label="Đóng" /></button>
+            <div className="pt-confirm-actions">
+              <button type="button" disabled={submitting} onClick={() => void submitBooking()}>Xác nhận đặt</button>
+              <button type="button" className="secondary" disabled={submitting} onClick={() => setConfirmSlot(null)}><Icon name="close" label="Đóng" /></button>
+            </div>
           </section>}
           {bookSuccess && <p role="status">{bookSuccess}</p>}
           {bookError && <p role="alert">{bookError}</p>}
-
-          <button type="button" onClick={() => void refreshAll()}><Icon name="retry" label="Tải lại lịch, giờ trống và số buổi" showLabel /></button>
         </>}
     </section>
   </section>;

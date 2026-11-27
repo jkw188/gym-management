@@ -681,3 +681,44 @@ article.trainee-line { padding: 6px 0; border-top: 1px solid var(--border); }
 @media (max-width: 768px) {
   .product-detail-grid { grid-template-columns: 1fr; gap: 24px; }
 }
+
+/* ===== Lịch PT của tôi (/member/pt-bookings): mỗi buổi một hàng, ô chọn cùng hàng, giờ trống dạng ô ===== */
+.pt-bookings > h2 { margin-top: 0; }
+.pt-panel { margin-top: 28px; }
+.pt-panel h3 { margin: 0 0 12px; }
+.pt-panel-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.pt-panel-head h3 { margin: 0; }
+.pt-filters label, .pt-book-fields label { margin: 0; }
+.pt-panel > .hint { margin: 6px 0 12px; font-size: .8rem; }
+/* Thẻ buổi PT: các phần nằm ngang, phần nút canh phải. */
+.pt-bookings .pt-booking-card { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 24px; margin: 10px 0; padding: 14px 20px; border-left: 3px solid var(--ink); }
+.pt-bookings .pt-booking-card.status-completed { border-left-color: #16a34a; }
+.pt-bookings .pt-booking-card.status-cancelled { border-left-color: var(--border); opacity: .75; }
+.pt-bookings .pt-booking-card p { margin: 0; white-space: nowrap; }
+.pt-booking-who { display: flex; gap: 8px; align-items: center; min-width: 220px; }
+.pt-booking-when { font-weight: 500; color: var(--heading); }
+.pt-booking-where { color: var(--muted); }
+.pt-bookings .pt-booking-card .pt-booking-action { display: flex; gap: 10px; align-items: center; margin-left: auto; white-space: normal; }
+.pt-booking-action button { min-height: 34px; padding: 6px 14px; }
+.pt-booking-card.status-completed .pt-booking-who span { background: #dcfce7; color: #15803d; }
+.pt-booking-card.status-cancelled .pt-booking-who span { background: var(--surface-2); color: var(--muted); }
+/* Số buổi của gói: 3 ô số nằm ngang. */
+.pt-bookings .quota { display: flex; flex-wrap: wrap; gap: 8px 24px; align-items: center; padding: 14px 20px; }
+.pt-bookings .quota ul { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0; padding: 0; list-style: none; font-weight: 500; color: var(--heading); }
+.pt-bookings .quota p { margin: 0 0 0 auto; font-size: .8rem; }
+/* Giờ trống: mỗi giờ một ô, xếp lưới. */
+.pt-bookings .slots { padding: 16px 20px; }
+.pt-bookings .slots > p { margin: 0 0 12px; }
+.pt-slot-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.pt-slot-list li { display: flex; flex-direction: column; gap: 2px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); text-align: center; }
+.pt-slot-list button { width: 100%; }
+.pt-slot-list small { color: var(--muted); font-size: .75rem; }
+.pt-slot-reason { color: var(--danger) !important; }
+/* Bảng xác nhận đặt/hủy: thông tin xếp 2–3 cột, nút cùng hàng. */
+.pt-bookings .pt-confirm ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 20px; margin: 8px 0 12px; padding: 0; list-style: none; }
+.pt-bookings .pt-confirm h4 { margin: 0; }
+.pt-confirm-actions { display: flex; gap: 10px; margin-top: 12px; }
+@media (max-width: 768px) {
+  .pt-bookings .pt-booking-card p { white-space: normal; }
+  .pt-bookings .pt-booking-card .pt-booking-action { margin-left: 0; }
+}
