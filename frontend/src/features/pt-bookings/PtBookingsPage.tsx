@@ -22,6 +22,28 @@ const REASON_LABELS: Record<SlotReason, string> = {
   MEMBERSHIP_NOT_ELIGIBLE: 'Gói không dùng được cho buổi này',
 };
 
+// Xem giờ trống trong 1, 3, 7 hoặc 14 ngày kể từ ngày đã chọn (mặc định 1 ngày như spec US-27).
+const SPAN_OPTIONS = [1, 3, 7, 14];
+
+// Cộng n ngày vào chuỗi "YYYY-MM-DD" (tính theo UTC để không lệch múi giờ), ví dụ ("2026-11-30", 2) → "2026-12-02".
+function addDays(day: string, days: number): string {
+  const date = new Date(`${day}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+// Nhóm slot theo ngày hiển thị (giữ thứ tự server trả), để xem nhiều ngày không bị lẫn.
+function groupSlotsByDay(slots: PtSlot[]): { day: string; slots: PtSlot[] }[] {
+  const groups: { day: string; slots: PtSlot[] }[] = [];
+  for (const slot of slots) {
+    const day = formatDate(slot.startAt);
+    const last = groups[groups.length - 1];
+    if (last && last.day === day) last.slots.push(slot);
+    else groups.push({ day, slots: [slot] });
+  }
+  return groups;
+}
+
 const errorMessage = (error: unknown, fallback: string) => (error instanceof ApiError && error.message ? error.message : fallback);
 
 // US-28-TC05–TC07: lý do server từ chối (409); không nêu ai đang chiếm lịch.
@@ -88,6 +110,8 @@ export function PtBookingsPage() {
   // Lựa chọn của Member và slot của lựa chọn đó.
   const [trainerId, setTrainerId] = useState('');
   const [day, setDay] = useState('');
+  // Số ngày muốn xem giờ trống, tính từ "day".
+  const [spanDays, setSpanDays] = useState(1);
   const [membershipId, setMembershipId] = useState('');
   const [availability, setAvailability] = useState<PtAvailability | null>(null);
   const [availabilityError, setAvailabilityError] = useState('');
@@ -156,12 +180,12 @@ export function PtBookingsPage() {
     // Cần đủ PT và ngày mới hỏi server giờ trống.
     if (!trainerId || !day) return;
     try {
-      const result = await ptBookingsApi.availability(trainerId, day, membershipId);
+      const result = await ptBookingsApi.availability(trainerId, day, addDays(day, spanDays - 1), membershipId);
       if (loadNumber === latestAvailability.current) setAvailability(result);
     } catch (error) {
       if (loadNumber === latestAvailability.current) setAvailabilityError(errorMessage(error, 'Không tải được giờ trống của PT.'));
     }
-  }, [trainerId, day, membershipId]);
+  }, [trainerId, day, spanDays, membershipId]);
 
   // Đổi account thì xóa dữ liệu của account trước.
   useEffect(() => {
@@ -177,7 +201,7 @@ export function PtBookingsPage() {
   useEffect(() => { void loadAvailability(); }, [loadAvailability]);
   useEffect(() => subscribeClassChanges(() => { setConfirmSlot(null); void loadAvailability(); }), [loadAvailability]);
   // US-28: đổi PT, ngày hoặc gói thì slot đang xác nhận không còn đúng lựa chọn → đóng bảng xác nhận.
-  useEffect(() => { setConfirmSlot(null); }, [trainerId, day, membershipId]);
+  useEffect(() => { setConfirmSlot(null); }, [trainerId, day, spanDays, membershipId]);
 
   // Spec mục "Giao diện": sau đặt/hủy (US-28/29) tải lại lịch, số buổi (quota) và giờ trống; Member cũng bấm được để xem số mới nhất.
   async function refreshAll() {
@@ -363,6 +387,9 @@ export function PtBookingsPage() {
             {trainers.map(trainer => <option key={trainer.id} value={trainer.id}>{trainer.displayName}</option>)}
           </select></label>
           <label>Ngày <input type="date" value={day} disabled={submitting} onChange={event => setDay(event.target.value)} /></label>
+          <label>Xem trong <select value={spanDays} disabled={submitting} onChange={event => setSpanDays(Number(event.target.value))}>
+            {SPAN_OPTIONS.map(days => <option key={days} value={days}>{days} ngày</option>)}
+          </select></label>
           <label>Gói PT <select value={membershipId} disabled={submitting} onChange={event => setMembershipId(event.target.value)}>
             <option value="">-- Chưa chọn gói --</option>
             {plans?.items.map(plan => <option key={plan.id} value={plan.id}>{plan.planName}</option>)}
@@ -385,13 +412,18 @@ export function PtBookingsPage() {
           {availability && <div className="slots">
             {/* US-27-TC09: giờ trống chỉ để tham khảo, server kiểm lại khi đặt. */}
             <p className="hint">Giờ trống (cập nhật lúc {formatAsOf(availability.asOf)}). Xem giờ không giữ chỗ.</p>
-            {availability.slots.length === 0 ? <p>PT không có giờ trống trong ngày này.</p>
-              : <ul className="pt-slot-list">{availability.slots.map(slot => <li key={slot.startAt}>
-                {/* US-27-TC12: slot bookable=false bị khóa và có chữ giải thích. US-28: bấm slot mở bảng xác nhận. */}
-                <button type="button" disabled={!slot.bookable || submitting} onClick={() => openConfirm(slot)}>{formatRange(slot.startAt, slot.endAt)}</button>
-                {' '}<small>{slot.location}</small>
-                {!slot.bookable && slot.reason && <small className="pt-slot-reason"> – {REASON_LABELS[slot.reason]}</small>}
-              </li>)}</ul>}
+            {availability.slots.length === 0
+              ? <p>{spanDays === 1 ? 'PT không có giờ trống trong ngày này.' : `PT không có giờ trống trong ${spanDays} ngày này.`}</p>
+              : groupSlotsByDay(availability.slots).map(group => <div key={group.day} className="pt-slot-day">
+                {/* Xem nhiều ngày thì có tiêu đề ngày cho từng nhóm giờ. */}
+                {spanDays > 1 && <h4>{group.day}</h4>}
+                <ul className="pt-slot-list">{group.slots.map(slot => <li key={slot.startAt}>
+                  {/* US-27-TC12: slot bookable=false bị khóa và có chữ giải thích. US-28: bấm slot mở bảng xác nhận. */}
+                  <button type="button" disabled={!slot.bookable || submitting} onClick={() => openConfirm(slot)}>{formatRange(slot.startAt, slot.endAt)}</button>
+                  {' '}<small>{slot.location}</small>
+                  {!slot.bookable && slot.reason && <small className="pt-slot-reason"> – {REASON_LABELS[slot.reason]}</small>}
+                </li>)}</ul>
+              </div>)}
           </div>}
 
           {/* US-28-TC01: xác nhận PT, ngày, giờ VN, địa điểm, gói và số buổi còn (số server, không trừ trước khi server commit). */}

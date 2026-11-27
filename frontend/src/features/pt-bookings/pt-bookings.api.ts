@@ -222,9 +222,10 @@ export const ptBookingsApi = {
     return apiClient.request<PtTrainerPage>('/me/pt-trainers?page=1&limit=100');
   },
 
-  // GET /api/me/pt-trainers/:id/availability cho đúng một ngày; membershipId chỉ gửi khi Member đã chọn gói.
-  availability(trainerId: string, day: string, membershipId: string) {
-    const params = new URLSearchParams({ fromDate: day, toDate: day });
+  // GET /api/me/pt-trainers/:id/availability từ fromDay đến toDay (một ngày thì hai ngày bằng nhau; server giới hạn 31 ngày).
+  // membershipId chỉ gửi khi Member đã chọn gói.
+  availability(trainerId: string, fromDay: string, toDay: string, membershipId: string) {
+    const params = new URLSearchParams({ fromDate: fromDay, toDate: toDay });
     if (membershipId) params.set('membershipId', membershipId);
     return apiClient.request<PtAvailability>(`/me/pt-trainers/${encodeURIComponent(trainerId)}/availability?${params.toString()}`);
   },

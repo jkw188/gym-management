@@ -722,3 +722,5 @@ article.trainee-line { padding: 6px 0; border-top: 1px solid var(--border); }
   .pt-bookings .pt-booking-card p { white-space: normal; }
   .pt-bookings .pt-booking-card .pt-booking-action { margin-left: 0; }
 }
+.pt-slot-day + .pt-slot-day { margin-top: 16px; }
+.pt-slot-day h4 { margin: 0 0 8px; font-size: .85rem; color: var(--muted); font-weight: 600; }
