@@ -14,6 +14,7 @@
     "uat": "node scripts/uat.cjs",
     "seed:demo": "npm run build && node scripts/uat.cjs seed-demo",
     "seed:sample": "npm run build && node scripts/seed-sample.cjs",
+    "seed:reviews": "npm run build && node scripts/seed-reviews.cjs",
     "ensure-indexes": "npm run build && node scripts/admin.cjs ensure-indexes",
     "check-environment": "npm run build && node scripts/admin.cjs check-environment",
     "reconcile:inventory": "npm run build && node scripts/admin.cjs reconcile-inventory",
