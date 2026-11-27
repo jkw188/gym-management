@@ -324,49 +324,57 @@ export function ServiceRegistrationPage() {
     <h2>Đăng ký gói tập</h2>
 
     {memberLinked === false ? <p className="hint">{NOT_LINKED}</p> : <>
-      <section aria-labelledby="registration-form">
+      {/* Lớp 1 – khung chọn gói: gói, ngày, cách trả và nút Xem trước nằm cùng một hàng. */}
+      <section className="reg-panel" aria-labelledby="registration-form">
         <h3 id="registration-form">Chọn gói</h3>
         {plansError && <p role="alert">{plansError}</p>}
-        <label>Gói tập
-          <select value={planId} onChange={event => { setPlanId(event.target.value); clearQuote(); }}>
-            <option value="">-- Chọn gói --</option>
-            {(plans ?? []).map(plan => <option key={plan.id} value={plan.id}>
-              {plan.name} ({plan.kind}) – {formatVnd(plan.price)}
-            </option>)}
-          </select>
-        </label>
-        <label>Ngày bắt đầu
-          <input type="date" value={startDate} min={todayVn()}
-            onChange={event => { setStartDate(event.target.value); clearQuote(); }} />
-        </label>
-        <fieldset>
-          <legend>Cách trả dự kiến</legend>
-          <label><input type="radio" name="preferred-method" checked={method === 'CASH'}
-            onChange={() => { setMethod('CASH'); clearQuote(); }} /> Tiền mặt tại quầy</label>
-          <label><input type="radio" name="preferred-method" checked={method === 'TRANSFER'}
-            onChange={() => { setMethod('TRANSFER'); clearQuote(); }} /> Chuyển khoản</label>
-        </fieldset>
-        <button type="button" onClick={() => void handlePreview()}>Xem trước</button>
+        <div className="reg-form-row">
+          <label className="reg-plan">Gói tập
+            <select value={planId} onChange={event => { setPlanId(event.target.value); clearQuote(); }}>
+              <option value="">-- Chọn gói --</option>
+              {(plans ?? []).map(plan => <option key={plan.id} value={plan.id}>
+                {plan.name} ({plan.kind}) – {formatVnd(plan.price)}
+              </option>)}
+            </select>
+          </label>
+          <label>Ngày bắt đầu
+            <input type="date" value={startDate} min={todayVn()}
+              onChange={event => { setStartDate(event.target.value); clearQuote(); }} />
+          </label>
+          <fieldset className="reg-method">
+            <legend>Cách trả dự kiến</legend>
+            <label><input type="radio" name="preferred-method" checked={method === 'CASH'}
+              onChange={() => { setMethod('CASH'); clearQuote(); }} /> Tiền mặt tại quầy</label>
+            <label><input type="radio" name="preferred-method" checked={method === 'TRANSFER'}
+              onChange={() => { setMethod('TRANSFER'); clearQuote(); }} /> Chuyển khoản</label>
+          </fieldset>
+          <button type="button" onClick={() => void handlePreview()}>Xem trước</button>
+        </div>
         {formError && <p role="alert">{formError}</p>}
         {canRetry && <button type="button" disabled={submitting} onClick={() => void handleConfirm()}>Thử lại</button>}
       </section>
 
-      {quote && <section aria-labelledby="registration-preview">
+      {/* Lớp 2 – xem trước: số tiền, thời gian và nút xác nhận cùng một hàng. */}
+      {quote && <section className="reg-panel" aria-labelledby="registration-preview">
         <h3 id="registration-preview">Xem trước</h3>
-        <p>Số tiền phải trả: {formatVnd(quote.amountDue)}</p>
-        <p>Thời gian dự kiến: {formatDay(quote.requestedStartDate)} – {formatDay(quote.expectedEndDate)}</p>
+        <div className="reg-info-row">
+          <p>Số tiền phải trả: {formatVnd(quote.amountDue)}</p>
+          <p>Thời gian dự kiến: {formatDay(quote.requestedStartDate)} – {formatDay(quote.expectedEndDate)}</p>
+          {quote.canProceed
+            ? <button type="button" className="reg-row-action" disabled={submitting} onClick={() => void handleConfirm()}>Xác nhận đăng ký</button>
+            : <p className="reg-blocked">{(quote.blockingCode && BLOCKING_LABELS[quote.blockingCode]) || 'Hiện chưa thể đăng ký gói này.'}</p>}
+        </div>
         <p className="hint">Số tiền và ngày do hệ thống tính. Gói chỉ có hiệu lực sau khi nhân viên xác nhận đã thu đủ tiền.</p>
-        {quote.canProceed
-          ? <button type="button" disabled={submitting} onClick={() => void handleConfirm()}>Xác nhận đăng ký</button>
-          : <p>{(quote.blockingCode && BLOCKING_LABELS[quote.blockingCode]) || 'Hiện chưa thể đăng ký gói này.'}</p>}
       </section>}
 
-      {result && <section aria-labelledby="registration-result">
+      {result && <section className="reg-panel" aria-labelledby="registration-result">
         <h3 id="registration-result">Kết quả đăng ký</h3>
-        <p>Mã giao dịch: {result.transactionCode}</p>
-        {result.transactionStatus !== 'CANCELLED' && <p>Số tiền: {formatVnd(result.amountDue)}</p>}
-        <p>Thời gian: {formatDay(result.startDate)} – {formatDay(result.endDate)}</p>
-        <p>{resultMessage(result)}</p>
+        <div className="reg-info-row">
+          <p>Mã giao dịch: {result.transactionCode}</p>
+          {result.transactionStatus !== 'CANCELLED' && <p>Số tiền: {formatVnd(result.amountDue)}</p>}
+          <p>Thời gian: {formatDay(result.startDate)} – {formatDay(result.endDate)}</p>
+        </div>
+        <p className="hint">{resultMessage(result)}</p>
       </section>}
 
       {/* Hướng dẫn thanh toán mở thành cửa sổ nổi; chỉ để đọc nên bấm nền tối cũng đóng. */}
@@ -377,7 +385,8 @@ export function ServiceRegistrationPage() {
         </div>
       </div>}
 
-      <section aria-labelledby="registration-history">
+      {/* Lớp 3 – lịch sử: mỗi yêu cầu là một thẻ nằm gọn trên một hàng. */}
+      <section className="reg-history" aria-labelledby="registration-history">
         <h3 id="registration-history">Yêu cầu mua gói của tôi</h3>
         {historyError && <p role="alert">{historyError}</p>}
         {/* Cửa sổ hủy đang mở thì lỗi hiện trong cửa sổ; đã đóng (server từ chối) thì hiện ở đây. */}
@@ -434,16 +443,23 @@ function PaymentGuide({ guide, error, onClose }: { guide: PaymentInstructions | 
   </section>;
 }
 
-// Một lần mua trong lịch sử. Nút "Hủy yêu cầu" chỉ khi server báo canCancel (US-18-TC11).
+// Một lần mua trong lịch sử, các phần nằm ngang một hàng: tên + nhãn trạng thái | số tiền | thời gian | kênh | nút.
+// Nút "Hủy yêu cầu" chỉ khi server báo canCancel (US-18-TC11).
 function SaleCard({ sale, onShowGuide, onOpenCancel }: { sale: MySale; onShowGuide: () => void; onOpenCancel: () => void }) {
-  return <article aria-label={sale.planName}>
-    <h4>{sale.planName}</h4>
-    <p>{sale.status ? STATUS_LABELS[sale.status] : 'Chưa rõ trạng thái'}</p>
-    {sale.amountDue !== undefined && <p>Số tiền: {formatVnd(sale.amountDue)}</p>}
+  // Lớp CSS theo trạng thái để tô màu viền trái và nhãn: status-pending / status-settled / status-cancelled.
+  const statusClass = sale.status ? `status-${sale.status.toLowerCase()}` : '';
+  return <article className={`sale-card ${statusClass}`} aria-label={sale.planName}>
+    <div className="sale-card-title">
+      <h4>{sale.planName}</h4>
+      <span className={`status-badge ${statusClass}`}>{sale.status ? STATUS_LABELS[sale.status] : 'Chưa rõ trạng thái'}</span>
+    </div>
+    {sale.amountDue !== undefined && <p className="sale-card-amount">Số tiền: {formatVnd(sale.amountDue)}</p>}
     <p>Thời gian: {formatDay(sale.startDate)} – {formatDay(sale.endDate)}</p>
-    <p>{sale.channel === 'SELF_SERVICE' ? 'Tự đăng ký' : 'Mua tại quầy'}</p>
-    {sale.status === 'PENDING' && <button type="button" onClick={onShowGuide}>Xem hướng dẫn thanh toán</button>}
-    {sale.canCancel && <button type="button" className="secondary" onClick={onOpenCancel}>Hủy yêu cầu</button>}
+    <p className="sale-card-channel">{sale.channel === 'SELF_SERVICE' ? 'Tự đăng ký' : 'Mua tại quầy'}</p>
+    {(sale.status === 'PENDING' || sale.canCancel) && <div className="sale-card-actions">
+      {sale.status === 'PENDING' && <button type="button" onClick={onShowGuide}>Xem hướng dẫn thanh toán</button>}
+      {sale.canCancel && <button type="button" className="secondary" onClick={onOpenCancel}>Hủy yêu cầu</button>}
+    </div>}
   </article>;
 }
 
