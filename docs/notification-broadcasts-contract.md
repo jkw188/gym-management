@@ -54,6 +54,20 @@ Trước khởi động production chạy `npm run ensure-indexes` tại backend
 - Khi mất response/503, UI giữ `{actorId,id,version,key}` trong sessionStorage (không nội dung/token), khóa soạn lệnh mới và cho lookup hoặc retry đúng key kể cả sau tải lại trang. Logout/đổi account xóa khóa của account cũ. Trình duyệt chặn sessionStorage thì chỉ giữ khóa trong bộ nhớ màn hình.
 - US-48 không thêm source_type/source_id hoặc điều hướng theo nguồn; broadcast tiếp tục truy vết qua event_key. US-49 bổ sung metadata tùy chọn chỉ cho nhắc gói/buổi theo [phụ lục EN-03/US-47](reminders-contract.md); broadcast hiện có giữ nguyên payload.
 
+## Thiết kế giao diện nội bộ
+
+`ADMIN` và `STAFF` xem thông báo đến qua thẻ nổi dùng chung. Thẻ hiển thị tiêu đề, nội dung,
+nút đóng và liên kết nguồn khi có quyền. Đóng thẻ chỉ đóng phần hiển thị. Hộp thư, bộ đếm
+chưa đọc và lệnh đánh dấu đã đọc thuộc `MEMBER` theo US-47.
+
+`ADMIN` xác nhận gửi tại `/admin/notifications/new`, với bản xem trước do chính mình tạo,
+còn hạn 5 phút, đúng phiên bản và nhóm nhận có người. Lịch sử và chi tiết chỉ đọc, kể cả
+bản `PREVIEW` còn hạn. Muốn gửi sau khi rời màn soạn trước lúc xác nhận, mở lại màn soạn
+và tạo bản xem trước mới. Lần gửi đã yêu cầu mà chưa rõ kết quả được tra cứu hoặc gửi lại
+cùng key tại màn soạn theo EN-02.
+
+Đối chiếu các quyết định V-01 và V-05 trong [danh mục UI](../GM_UI_Page_Inventory.md).
+
 ## Truy vết kiểm thử
 
 | Yêu cầu | Bằng chứng tự động |

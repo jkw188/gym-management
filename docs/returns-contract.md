@@ -85,6 +85,14 @@ sessionStorage theo actor/scope; remount lookup/replay cùng key, lookup404 vẫ
 Auth401/403 khóa replay; đổi actor remount workspace để không giữ evidence trên UI tài khoản mới.
 REST lịch sử độc lập socket. Không tự fail khi mạng lỗi.
 
+Trong thiết kế nội bộ, thực chi `TRANSFER` nhập tay `payoutAccountCode` theo thông tin
+vận hành đã cấp, xác minh bằng `PAYOUT_ACCOUNTS`. Hiển thị `PAYOUT_ACCOUNT_INVALID` cạnh ô mã,
+`PAYOUT_ACCOUNTS_NOT_CONFIGURED` hướng kiểm tra cấu hình và `PAYOUT_REFERENCE_USED`
+hướng đối soát chứng từ đã dùng. Thực chi `CASH` dùng `cashVoucherReference` của khoản
+đã chi thực tế. Khi kết quả xác nhận chưa rõ, tra operation trước khi thực hiện tiếp.
+Mã tài khoản nhận dùng cho [luồng thu](settlement-contract.md). Xem V-04 trong
+[danh mục UI](../GM_UI_Page_Inventory.md).
+
 Tests: returns-policy.spec.ts, returns.integration-spec.ts (MongoDB8.0.17 replica set, JWT/session/RBAC,
 hai Node process, POS/stock writers HTTP thật), frontend returns.test.tsx; hồi quy US45/POS và unit oracle.
 Bao gồm partial/damaged/zero, budget, rollback, ref/CAS races, mất response, ngày VN, migration và auth.
