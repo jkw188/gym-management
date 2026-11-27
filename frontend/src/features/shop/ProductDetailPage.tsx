@@ -146,28 +146,40 @@ export function ProductDetailPage() {
   // US-35-F05: chỉ Guest và Member thấy nút mua; vai trò khác có màn nghiệp vụ riêng. Đang kiểm phiên thì chưa hiện.
   const showBuy = auth.status !== 'checking' && (!auth.user || auth.user.roleCode === 'MEMBER');
 
-  return <section className="auth-card">
-    <p><Link to="/shop">Quay lại cửa hàng</Link></p>
-    <h1>{product.name}</h1>
-    <ShopImage url={product.imageUrl} name={product.name} size={240} />
-    <p>Mã: {product.sku}</p>
-    <p>Danh mục: {product.category.name}</p>
-    {/* US-35-TC12: giá "0" hiện "0 ₫". */}
-    <p><strong>{formatVnd(product.price)}</strong></p>
-    <p>{AVAILABILITY_TEXT[product.availability]}</p>
-    {/* US-35-TC04: mô tả hiện bằng {} nên là chữ nguyên văn, không chèn HTML. */}
-    {product.description && <p className="shop-description">{product.description}</p>}
-    <p>Cập nhật lúc {formatTime(product.asOf)}. Giá và tồn có thể đổi khi thêm vào giỏ.</p>
+  // Bố cục 2 cột: ảnh bên trái, thông tin và nút mua bên phải (màn hẹp thì xếp chồng).
+  return <section className="auth-card product-detail">
+    <Link className="product-back" to="/shop"><span aria-hidden="true">← </span>Quay lại cửa hàng</Link>
+    <div className="product-detail-grid">
+      <div className="product-detail-media">
+        <ShopImage url={product.imageUrl} name={product.name} size={560} />
+      </div>
 
-    {showBuy && <div className="toolbar">
-      <label>Số lượng
-        <input type="number" min={1} max={MAX_QUANTITY} step={1} value={quantityText} disabled={!canBuy}
-          onChange={event => setQuantityText(event.target.value)} />
-      </label>
-      <button type="button" disabled={!canBuy || adding} onClick={addToCart}>Thêm vào giỏ</button>
-    </div>}
-    {added && <p role="status">Đã thêm vào giỏ. <Link to="/member/cart">Xem giỏ hàng</Link></p>}
-    {addError && <div className="form-error" role="alert"><p>{addError}</p>
-      {pendingAdd && <button type="button" disabled={adding} onClick={() => void retryAdd()}><Icon name="retry" label="Thử lại" /></button>}</div>}
+      <div className="product-detail-info">
+        <h1>{product.name}</h1>
+        {/* US-35-TC12: giá "0" hiện "0 ₫". */}
+        <p className="product-detail-price">{formatVnd(product.price)}</p>
+        <span className={canBuy ? 'product-stock in-stock' : 'product-stock out-of-stock'}>{AVAILABILITY_TEXT[product.availability]}</span>
+        {/* US-35-TC04: mô tả hiện bằng {} nên là chữ nguyên văn, không chèn HTML. */}
+        {product.description && <p className="shop-description">{product.description}</p>}
+
+        <dl className="product-detail-meta">
+          <dt>Mã</dt><dd>{product.sku}</dd>
+          <dt>Danh mục</dt><dd>{product.category.name}</dd>
+        </dl>
+
+        {showBuy && <div className="product-buy">
+          <label>Số lượng
+            <input type="number" min={1} max={MAX_QUANTITY} step={1} value={quantityText} disabled={!canBuy}
+              onChange={event => setQuantityText(event.target.value)} />
+          </label>
+          <button type="button" disabled={!canBuy || adding} onClick={addToCart}>Thêm vào giỏ</button>
+        </div>}
+        {added && <p role="status">Đã thêm vào giỏ. <Link to="/member/cart">Xem giỏ hàng</Link></p>}
+        {addError && <div className="form-error" role="alert"><p>{addError}</p>
+          {pendingAdd && <button type="button" disabled={adding} onClick={() => void retryAdd()}><Icon name="retry" label="Thử lại" /></button>}</div>}
+
+        <p className="hint">Cập nhật lúc {formatTime(product.asOf)}. Giá và tồn có thể đổi khi thêm vào giỏ.</p>
+      </div>
+    </div>
   </section>;
 }
