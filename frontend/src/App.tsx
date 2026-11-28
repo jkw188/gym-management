@@ -61,7 +61,6 @@ import { TrainerPerformancePage } from './features/reports/TrainerPerformancePag
 export default function App() {
   return <BrowserRouter><AuthProvider>
     <NotificationToast />
-    {/* AppLayout: Guest có thanh menu công khai + chân trang; đã đăng nhập có thanh bên tối màu + thanh trên (RoleSidebar.tsx). */}
     <AppLayout>
     <PageFrame scope="main">
     <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
@@ -158,6 +157,6 @@ export default function App() {
       <Route path="*" element={<section><h2>Không tìm thấy trang</h2><Link to="/">Về trang chính</Link></section>} />
     </Routes>
     </PageFrame>
-    </AppLayout>
+    </AppLayout>
   </AuthProvider></BrowserRouter>;
 }

@@ -1,12 +1,13 @@
-// Tầng giao diện – thành phần: khung trang chung. Guest: thanh menu công khai + nội dung. Đã đăng nhập (mọi vai trò):
-// thanh bên tối màu (menu chia nhóm có icon) + thanh trên (tìm trang, chuông, tài khoản) + vùng nội dung sáng bo góc.
-// Chỉ là điều hướng; quyền vào từng trang vẫn do ProtectedRoute và API quyết định.
-import { useState, type ReactNode } from 'react';
+// Khung trang theo phiên đăng nhập. ProtectedRoute và API kiểm tra quyền truy cập.
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthProvider';
-import { HeaderAccount } from './AuthRoutes';
-import type { RoleCode } from './auth.types';
-import { IconSvg, type IconName } from '../../components/Icon';
+import { HeaderAccount, LogoutButton } from './AuthRoutes';
+import { roleNames, rolePaths } from './auth.routes';
+import type { AuthUser, RoleCode } from './auth.types';
+import { Icon, IconSvg, type IconName } from '../../components/Icon';
+import { operationsNavigation, publicPages, type OperationsItem, type OperationsRole } from './operations.routes';
+import './operations.css';
 
 interface MenuItem { to: string; label: string; icon: IconName }
 interface MenuGroup { title: string; items: MenuItem[] }
@@ -22,43 +23,7 @@ const exploreGroup: MenuGroup = {
   ],
 };
 
-// Các nhóm chung của Admin và Staff (đường dẫn bắt đầu bằng /admin hoặc /staff).
-function counterGroups(home: string): MenuGroup[] {
-  return [
-    { title: 'Hội viên', items: [
-      { to: `${home}/members`, label: 'Tra cứu hội viên', icon: 'users' },
-      { to: `${home}/members/new`, label: 'Tạo hồ sơ hội viên', icon: 'userPlus' },
-    ] },
-    { title: 'Vận hành', items: [
-      { to: `${home}/transactions`, label: 'Đối chiếu thanh toán', icon: 'card' },
-      // US-29: tra cứu và hủy hỗ trợ lịch PT.
-      { to: `${home}/pt-bookings`, label: 'Tra cứu lịch PT', icon: 'calendar' },
-      { to: `${home}/trainer-attendance`, label: 'Chấm công huấn luyện viên', icon: 'clock' },
-    ] },
-    { title: 'Bán hàng', items: [
-      { to: `${home}/pos`, label: 'Bán sản phẩm tại quầy', icon: 'cart' },
-      { to: `${home}/orders`, label: 'Chuẩn bị đơn website', icon: 'bag' },
-      { to: `${home}/returns`, label: 'Tiếp nhận hàng trả', icon: 'returnArrow' },
-      { to: `${home}/refunds`, label: 'Nghĩa vụ hoàn tiền', icon: 'coin' },
-    ] },
-  ];
-}
-
-// Nhóm kho: Staff có 2 mục, Admin có thêm xuất ngoài bán và kiểm kê.
-function stockGroup(home: string, isAdmin: boolean): MenuGroup {
-  const items: MenuItem[] = [
-    { to: `${home}/stock-receipts`, label: 'Phiếu nhập kho', icon: 'receipt' },
-    { to: `${home}/inventory`, label: 'Tra cứu tồn kho', icon: 'box' },
-  ];
-  if (isAdmin) {
-    items.push({ to: '/admin/stock-issues', label: 'Phiếu xuất ngoài bán', icon: 'truck' });
-    items.push({ to: '/admin/stock-adjustments', label: 'Kiểm kê và điều chỉnh kho', icon: 'clipboard' });
-  }
-  return { title: 'Kho', items };
-}
-
-// "Thông tin tài khoản" không nằm ở đây vì đã có ô tài khoản trên thanh trên.
-const MENUS: Record<RoleCode, MenuGroup[]> = {
+const MENUS: Record<Exclude<RoleCode, OperationsRole>, MenuGroup[]> = {
   MEMBER: [
     // US-17: gói tập, lịch sử mua và chứng từ. US-18: tự đăng ký mua gói. US-27: lịch PT và giờ trống của PT.
     { title: 'Gói tập', items: [
@@ -80,32 +45,6 @@ const MENUS: Record<RoleCode, MenuGroup[]> = {
       { to: '/trainer/bookings', label: 'Buổi dạy của tôi', icon: 'calendar' },
       { to: '/trainer/trainees', label: 'Học viên của tôi', icon: 'users' },
       { to: '/trainer/reviews', label: 'Đánh giá của học viên', icon: 'star' },
-    ] },
-    exploreGroup,
-  ],
-  STAFF: [...counterGroups('/staff'), stockGroup('/staff', false), exploreGroup],
-  ADMIN: [
-    { title: 'Hệ thống', items: [
-      { to: '/admin/users', label: 'Quản lý tài khoản', icon: 'shield' },
-      { to: '/admin/notifications', label: 'Thông báo nhóm', icon: 'megaphone' },
-    ] },
-    ...counterGroups('/admin'),
-    stockGroup('/admin', true),
-    { title: 'Huấn luyện viên', items: [
-      { to: '/admin/trainers', label: 'Quản lý huấn luyện viên', icon: 'user' },
-      { to: '/admin/trainers/activity', label: 'Đối chiếu chấm công và buổi PT', icon: 'activity' },
-      { to: '/admin/trainer-reviews', label: 'Tổng hợp đánh giá PT', icon: 'star' },
-      { to: '/admin/classes', label: 'Quản lý lớp miễn phí', icon: 'calendar' },
-    ] },
-    { title: 'Danh mục', items: [
-      { to: '/admin/plans', label: 'Danh mục gói tập và PT', icon: 'dumbbell' },
-      { to: '/admin/categories', label: 'Danh mục bán lẻ', icon: 'layers' },
-      { to: '/admin/products', label: 'Sản phẩm bán lẻ', icon: 'tag' },
-    ] },
-    { title: 'Báo cáo', items: [
-      { to: '/admin/reports/memberships', label: 'Báo cáo hội viên và membership', icon: 'chart' },
-      { to: '/admin/reports/cash-flow', label: 'Báo cáo khoản thu và hoàn tiền', icon: 'coin' },
-      { to: '/admin/reports/trainers', label: 'Báo cáo hiệu suất huấn luyện viên', icon: 'activity' },
     ] },
     exploreGroup,
   ],
@@ -150,7 +89,7 @@ function Sidebar({ groups, open, onNavigate }: { groups: MenuGroup[]; open: bool
         const isOpen = !collapsed.includes(group.title);
         return <div key={group.title} className="nav-group">
           <button type="button" className="nav-group-title" aria-expanded={isOpen} onClick={() => toggle(group.title)}>
-            {group.title}<IconSvg name="chevronDown" size={14} />
+            {group.title}<IconSvg name="down" size={14} />
           </button>
           {isOpen && group.items.map(item => <NavLink key={item.to} to={item.to} end onClick={onNavigate}>
             <IconSvg name={item.icon} />{item.label}
@@ -161,13 +100,15 @@ function Sidebar({ groups, open, onNavigate }: { groups: MenuGroup[]; open: bool
   </aside>;
 }
 
+const normalizePageName = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/đ/g, 'd').trim();
+
 // Ô "Tìm trang…": gõ chữ thì hiện các mục menu có tên khớp; Enter mở mục đầu tiên.
 function PageSearch({ groups }: { groups: MenuGroup[] }) {
   const navigate = useNavigate();
   const [text, setText] = useState('');
   const allItems = groups.flatMap(group => group.items);
-  const keyword = text.trim().toLowerCase();
-  const matches = keyword ? allItems.filter(item => item.label.toLowerCase().includes(keyword)).slice(0, 8) : [];
+  const keyword = normalizePageName(text);
+  const matches = keyword ? allItems.filter(item => normalizePageName(item.label).includes(keyword)).slice(0, 8) : [];
   function go(to: string) {
     setText('');
     navigate(to);
@@ -180,20 +121,39 @@ function PageSearch({ groups }: { groups: MenuGroup[] }) {
     {keyword && <ul className="page-search-results">
       {matches.length === 0 && <li className="page-search-empty">Không có trang nào khớp.</li>}
       {matches.map(item => <li key={item.to}>
-        <button type="button" onClick={() => go(item.to)}><IconSvg name={item.icon} size={16} />{item.label}</button>
+        <button className="secondary" type="button" onClick={() => go(item.to)}><IconSvg name={item.icon} size={16} />{item.label}</button>
       </li>)}
     </ul>}
   </div>;
 }
 
-// Đã đăng nhập: thanh bên + thanh trên + vùng nội dung. Chưa đăng nhập: PublicLayout.
+const normalizePath = (pathname: string) => pathname.toLowerCase().replace(/\/+$/, '') || '/';
+const matchesPage = (pathname: string, to: string) => pathname === to || pathname.startsWith(`${to}/`);
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const location = useLocation();
-  // Trên điện thoại thanh bên ẩn, bấm nút ba gạch để mở; chọn trang xong thì tự đóng.
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { pathname } = useLocation();
   if (!user) return <PublicLayout>{children}</PublicLayout>;
-  const groups = MENUS[user.roleCode];
+
+  const role = user.roleCode;
+  if (role === 'ADMIN' || role === 'STAFF') {
+    const path = normalizePath(pathname);
+    if (/^\/(admin|staff)(\/|$)/.test(path) || publicPages.some(page => matchesPage(path, page.to))) {
+      return <OperationsLayout user={user} role={role}>{children}</OperationsLayout>;
+    }
+    const { pinned, groups } = operationsNavigation(role, rolePaths[role]);
+    const sidebarGroups = [
+      { title: 'Vào nhanh', items: pinned },
+      ...groups.map(({ label, items }) => ({ title: label, items })),
+    ];
+    return <SignedInLayout groups={sidebarGroups}>{children}</SignedInLayout>;
+  }
+  return <SignedInLayout groups={MENUS[role]}>{children}</SignedInLayout>;
+}
+
+function SignedInLayout({ children, groups }: { children: ReactNode; groups: MenuGroup[] }) {
+  const { pathname } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
   return <div className="app-shell">
     <Sidebar groups={groups} open={menuOpen} onNavigate={() => setMenuOpen(false)} />
     <div className="app-main-col">
@@ -202,7 +162,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <IconSvg name="menu" /><span className="sr-only">Mở menu</span>
         </button>
         {/* key: đổi trang thì ô tìm kiếm được làm mới (xóa chữ đang gõ). */}
-        <PageSearch key={location.pathname} groups={groups} />
+        <PageSearch key={pathname} groups={groups} />
         <HeaderAccount />
       </header>
       <div className="app-content">
@@ -210,5 +170,141 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <footer className="app-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
       </div>
     </div>
+  </div>;
+}
+
+function OperationsLayout({ children, user, role }: {
+  children: ReactNode; user: AuthUser; role: OperationsRole;
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const home = rolePaths[role];
+  const { pinned, groups, account } = operationsNavigation(role, home);
+  const pages = [...pinned, ...groups.flatMap(group => group.items), account];
+  const currentPath = normalizePath(location.pathname);
+  const active = pages.find(item => item.to === currentPath) ?? pages
+    .filter(item => item.to !== home && matchesPage(currentPath, item.to))
+    .sort((first, second) => second.to.length - first.to.length)[0];
+  const nameParts = user.fullName.trim().split(/\s+/);
+  const initials = (nameParts.length > 1 ? [nameParts[0], nameParts[nameParts.length - 1]] : nameParts)
+    .map(part => part.charAt(0)).join('').toUpperCase() || '?';
+  const search = useRef<HTMLDialogElement>(null);
+  const drawer = useRef<HTMLDialogElement>(null);
+  const accountMenu = useRef<HTMLDetailsElement>(null);
+  const main = useRef<HTMLElement>(null);
+  const [query, setQuery] = useState('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const terms = normalizePageName(query).split(/\s+/);
+  const matches = pages.filter(item => {
+    const label = normalizePageName(`${item.label} ${item.keywords ?? ''}`);
+    return terms.every(term => label.includes(term));
+  });
+
+  useLayoutEffect(() => {
+    if (search.current?.open) search.current.close();
+    if (drawer.current?.open) drawer.current.close();
+    accountMenu.current?.removeAttribute('open');
+    main.current?.scrollTo?.(0, 0);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const mobile = window.matchMedia?.('(max-width: 900px)');
+    const closeOnDesktop = (event: MediaQueryListEvent) => { if (!event.matches) drawer.current?.close(); };
+    mobile?.addEventListener('change', closeOnDesktop);
+    return () => mobile?.removeEventListener('change', closeOnDesktop);
+  }, []);
+
+  function openNavigation() {
+    drawer.current?.showModal();
+    drawer.current?.querySelector('button')?.focus();
+    setDrawerOpen(true);
+  }
+
+  function navItem(item: OperationsItem) {
+    return <Link className="gm-nav-link" key={item.to} to={item.to} aria-current={item.to === active?.to ? 'page' : undefined}
+      onClick={() => { if (drawer.current?.open) drawer.current.close(); }}>
+      <span className="gm-nav-icon"><Icon name={item.icon} /></span><span className="gm-nav-label">{item.label}</span>
+    </Link>;
+  }
+  function navigation() {
+    return <nav key={currentPath} aria-label="Menu chức năng">
+      <div className="gm-nav-primary">{pinned.map(navItem)}</div>
+      {groups.map(group => <details className="gm-nav-group" key={group.label}
+        open={group.items.some(item => item.to === active?.to)}>
+        <summary>{group.label}<Icon name="down" /></summary>
+        <div className="gm-nav-children">{group.items.map(navItem)}</div>
+      </details>)}
+    </nav>;
+  }
+  function brand() {
+    return <Link className="gm-brand" to={home} aria-label="Gym Management, trang chủ"
+      onClick={() => { if (drawer.current?.open) drawer.current.close(); }}>
+      <span className="gm-brand-icon"><span className="gm-brand-mark"><Icon name="weights" /></span></span>
+      <span className="gm-brand-copy"><strong>Gym Management</strong><small>Quản lý phòng tập</small></span>
+    </Link>;
+  }
+  return <div className="gm-shell">
+    <aside className="gm-sidebar">{brand()}{navigation()}</aside>
+    <header className="gm-toolbar">
+      <div className="gm-toolbar-start">
+        <button className="gm-drawer-toggle secondary" type="button" aria-haspopup="dialog" aria-controls="gm-navigation"
+          aria-expanded={drawerOpen} onClick={openNavigation}>
+          <Icon name="menu" label="Mở menu" />
+        </button>
+        <button className="gm-find secondary" type="button" aria-label="Tìm trang" aria-haspopup="dialog" aria-controls="gm-page-search"
+          onClick={() => { setQuery(''); search.current?.showModal(); search.current?.querySelector('input')?.focus(); }}>
+          <span className="gm-find-label">Tìm trang…</span><Icon name="search" />
+        </button>
+        <span className="gm-toolbar-route">{active?.label}</span>
+      </div>
+      <details className="gm-account" ref={accountMenu} onBlur={event => {
+        if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+      }} onKeyDown={event => {
+        if (event.key === 'Escape' && event.currentTarget.open) {
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector('summary')?.focus();
+        }
+      }}>
+        <summary aria-label={`Tài khoản ${user.fullName}, ${roleNames[role]}`}>
+          <span className="gm-avatar" data-role={role} aria-hidden="true">{initials}</span>
+          <span className="gm-account-name"><strong>{user.fullName}</strong><small>{roleNames[role]}</small></span><Icon name="down" />
+        </summary>
+        <div className="gm-account-actions">
+          <Link to={account.to} onClick={() => accountMenu.current?.removeAttribute('open')}><Icon name={account.icon} />{account.label}</Link>
+          <LogoutButton className="secondary" />
+        </div>
+      </details>
+    </header>
+    <main className="gm-main" ref={main}>{children}</main>
+    <dialog className="gm-dialog gm-drawer" id="gm-navigation" aria-label="Điều hướng" ref={drawer}
+      onClose={event => setDrawerOpen(event.currentTarget.open)}
+      onClick={event => { if (event.target === event.currentTarget) drawer.current?.close(); }}>
+      <div className="gm-drawer-body">
+        <div className="gm-dialog-head">{brand()}<button type="button" className="secondary" onClick={() => drawer.current?.close()}><Icon name="close" label="Đóng menu" /></button></div>
+        {navigation()}
+      </div>
+    </dialog>
+    <dialog className="gm-dialog" id="gm-page-search" aria-labelledby="gm-page-search-title" ref={search}
+      onClick={event => { if (event.target === event.currentTarget) search.current?.close(); }}>
+      <div className="gm-dialog-body">
+        <div className="gm-dialog-head">
+          <h2 id="gm-page-search-title">Tìm trang</h2>
+          <button type="button" className="secondary" onClick={() => search.current?.close()}><Icon name="close" label="Đóng tìm trang" /></button>
+        </div>
+        <form onSubmit={event => {
+          event.preventDefault();
+          if (matches[0]) { search.current?.close(); navigate(matches[0].to); }
+        }}>
+          <label htmlFor="gm-page-query">Tên trang</label>
+          <input id="gm-page-query" placeholder="Ví dụ: hội viên, bán tại quầy" value={query}
+            onChange={event => setQuery(event.target.value)} />
+        </form>
+        <div className="gm-page-results" aria-live="polite">
+          {matches.length ? matches.map(item => <Link key={item.to} to={item.to} onClick={() => search.current?.close()}>
+            <span className="gm-icon-tile"><Icon name={item.icon} /></span>{item.label}<Icon name="next" />
+          </Link>) : <p>Không tìm thấy trang phù hợp.</p>}
+        </div>
+      </div>
+    </dialog>
   </div>;
 }

@@ -51,14 +51,26 @@ describe('US-11 TC14: list debounce, stale responses, pagination, error/retry an
     await waitFor(() => expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, kind: 'PT', membershipState: 'EXPIRED' }), expect.any(AbortSignal)));
   });
 
+  it('retains consecutive filter edits before the router renders the new query string', async () => {
+    const list = vi.spyOn(membersApi, 'list').mockResolvedValue(pageOf([]));
+    listPage();
+    act(() => {
+      fireEvent.change(screen.getByLabelText('Mã, tên hoặc số điện thoại'), { target: { value: 'An' } });
+      fireEvent.change(screen.getByLabelText('Loại dịch vụ'), { target: { value: 'PT' } });
+      fireEvent.change(screen.getByLabelText('Trạng thái gói'), { target: { value: 'EXPIRED' } });
+    });
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith(
+      { q: 'An', kind: 'PT', membershipState: 'EXPIRED', page: 1, limit: 20 }, expect.any(AbortSignal)));
+  });
+
   it('keeps errors separate from empty results and retries with the active filter', async () => {
     const list = vi.spyOn(membersApi, 'list').mockRejectedValueOnce(new ApiError('Tạm mất kết nối', 503))
       .mockResolvedValue(pageOf([]));
     listPage();
     expect(await screen.findByRole('alert')).toBeTruthy();
-    expect(screen.queryByText('Không tìm thấy hội viên phù hợp.')).toBeNull();
+    expect(screen.queryByText('Chưa có hồ sơ hội viên.')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại' }));
-    expect(await screen.findByText('Không tìm thấy hội viên phù hợp.')).toBeTruthy();
+    expect(await screen.findByText('Chưa có hồ sơ hội viên.')).toBeTruthy();
     expect(list).toHaveBeenCalledTimes(2);
   });
 
@@ -67,8 +79,8 @@ describe('US-11 TC14: list debounce, stale responses, pagination, error/retry an
     vi.spyOn(membersApi, 'memberships').mockReturnValue(new Promise(resolve => { finish = resolve; }));
     const pending: MemberTransaction = { id: first.id, code: 'GD-01', kind: 'PT', status: 'PENDING', amountDue: '150000', createdAt: '2026-11-08T18:00:00Z' };
     vi.spyOn(membersApi, 'transactions').mockResolvedValue(pageOf([pending]));
-    render(<MemberHistory id={first.id} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Lịch sử giao dịch' }));
+    const { rerender } = render(<MemberHistory id={first.id} tab="memberships" />);
+    rerender(<MemberHistory id={first.id} tab="transactions" />);
     expect(await screen.findByText('GD-01 (PT)')).toBeTruthy();
     await act(async () => finish(pageOf([{ membershipId: first.id, saleId: first.id, kind: 'PT', planName: 'Gói cũ về trễ',
       startDate: '2026-11-01', endDate: '2026-11-30', storedStatus: 'ACTIVE', timeState: 'CURRENT', sessionsQuota: 12, sessionsUsed: 2, transactionStatus: 'SETTLED' }])));
@@ -82,7 +94,7 @@ describe('US-11 TC14: list debounce, stale responses, pagination, error/retry an
       startDate: '2026-10-01', endDate: '2026-10-31', storedStatus: 'SUPERSEDED', timeState: 'NONE', sessionsQuota: 12, sessionsUsed: 3, transactionStatus: 'SETTLED' };
     const history = vi.spyOn(membersApi, 'memberships').mockRejectedValueOnce(new ApiError('Chưa tải được lịch sử', 503))
       .mockResolvedValue(pageOf([membership], 1, 21));
-    render(<MemberHistory id={first.id} />);
+    render(<MemberHistory id={first.id} tab="memberships" />);
     await screen.findByRole('alert');
     fireEvent.click(screen.getByRole('button', { name: 'Thử lại lịch sử' }));
     expect(await screen.findByText('Buổi đã dùng: 3/12')).toBeTruthy();
@@ -100,11 +112,30 @@ describe('US-11 TC14: list debounce, stale responses, pagination, error/retry an
     render(<MemoryRouter initialEntries={[`/admin/members/${first.id}`]}><Routes>
       <Route path="/admin/members/:id" element={<MemberDetailPage />} />
     </Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('tab', { name: 'Quyền lợi' }));
     expect(await screen.findByText('GYM: Đang hiệu lực')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Về danh sách hội viên' }).getAttribute('href')).toBe('/admin/members');
     read.mockResolvedValue({ ...detail, entitlementSummary: { GYM: ['EXPIRED'], PT: ['NONE'] } });
     fireEvent.click(screen.getByRole('button', { name: 'Làm mới hồ sơ và quyền lợi' }));
     expect(await screen.findByText('GYM: Đã hết hạn')).toBeTruthy(); expect(write).not.toHaveBeenCalled();
+  });
+
+  it('returns from detail to the exact filtered list and page', async () => {
+    const list = vi.spyOn(membersApi, 'list').mockResolvedValue(pageOf([first], 2, 21));
+    vi.spyOn(membersApi, 'detail').mockResolvedValue({
+      member: { ...first, version: 0, createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-08T00:00:00Z' },
+      entitlementSummary: first.entitlementSummary, businessDate: '2026-11-09', asOf: '2026-11-08T18:00:00Z',
+    });
+    render(<MemoryRouter initialEntries={['/staff/members?q=An&kind=PT&membershipState=EXPIRED&page=2']}><Routes>
+      <Route path="/staff/members" element={<MembersPage />} />
+      <Route path="/staff/members/:id" element={<MemberDetailPage />} />
+    </Routes></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('link', { name: 'Xem hồ sơ' }));
+    expect(await screen.findByText('Chưa liên kết')).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Về danh sách hội viên' }));
+    expect((screen.getByLabelText('Mã, tên hoặc số điện thoại') as HTMLInputElement).value).toBe('An');
+    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    expect(list).toHaveBeenLastCalledWith({ q: 'An', kind: 'PT', membershipState: 'EXPIRED', page: 2, limit: 20 }, expect.any(AbortSignal));
   });
 
   it('uses internal read-only API endpoints and allows list returnTo for the matching operator role', async () => {

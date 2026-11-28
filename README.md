@@ -160,7 +160,9 @@ Cookie host-only `gym_refresh`: HttpOnly, SameSite=Lax, Path=/api/auth, Expires 
 
 Frontend AuthProvider có checking/authenticated/anonymous; reload gọi refresh rồi me trước khi render route bảo vệ. Access chỉ trong memory, không dùng localStorage/sessionStorage; fetch login/refresh có credentials: include. API có auth dùng `apiClient.request<T>(path, init)`, shared refresh promise và retry tối đa một lần; 403 giữ role và báo thiếu quyền, lỗi mạng giữ trạng thái/thông báo để thử lại. `apiGet` tiếp tục dành cho health public. Nhiều tab có thể tranh cookie: tab thua refresh chuyển về login cục bộ, không thu hồi phiên của tab thắng.
 
-Route mặc định: ADMIN `/admin`, STAFF `/staff`, TRAINER `/trainer`, MEMBER `/member`. `/login` khi đã xác thực chuyển về shell đúng vai trò; returnTo chỉ chấp nhận route đã triển khai đúng role, loại URL ngoài/role khác. Form có label, hiện/ẩn password, lỗi trường, pending chống gửi lặp và giữ input khi lỗi mạng. Shell chưa có nghiệp vụ dashboard; không có chức năng logout của US-03.
+Route mặc định theo vai trò gồm `ADMIN` vào `/admin`, `STAFF` vào `/staff`, `TRAINER` vào `/trainer` và `MEMBER` vào `/member`. `/login` khi đã xác thực chuyển về shell đúng vai trò. `returnTo` dùng danh sách đích hợp lệ của từng vai trò. Form có nhãn, hiện/ẩn mật khẩu, lỗi theo trường, trạng thái chờ và giữ input khi lỗi mạng. Đăng xuất thành công về `/` theo US-03.
+
+Với `ADMIN` và `STAFF`, trang đích hiển thị Trang chủ và menu nghiệp vụ tương ứng. `ADMIN` mở báo cáo qua menu. Ô tài khoản mở `/{role}/account` để xem danh tính phiên. `ADMIN` quản lý danh tính qua `/admin/users`. Quên mật khẩu dùng OTP theo US-05, còn đổi mật khẩu chủ động US-67 dành cho `MEMBER` và `TRAINER`. Xem V-06 trong [danh mục UI](GM_UI_Page_Inventory.md).
 
 Báo cáo DOCX trong `docs` được cập nhật UC-04 (bao gồm Staff), mục 4.2.5 và sơ đồ login/refresh theo [nguồn Mermaid](docs/auth-sequence.mmd). Requirement US-02 là nguồn cho phone và lỗi chung; sơ đồ email/lỗi riêng cũ được thay thế.
 

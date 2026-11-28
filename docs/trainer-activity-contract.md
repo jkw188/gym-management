@@ -82,6 +82,27 @@ US-52 chọn interval giao kỳ và cắt độ dài; không lấy tổng S07 th
 S08 hoặc gọi completedCount là attendanceCount. Drill-down US-52 truyền sourceID
 tới attendance/booking endpoint hiện hành, nên ca bắt đầu trước kỳ vẫn truy được.
 
+## Thiết kế luồng hỗ trợ và sửa xác nhận
+
+`TRAINER` quản lý ca của mình theo US-24/25. `MEMBER` đặt buổi của mình theo US-28.
+`ADMIN` và `STAFF` tra cứu/hủy hỗ trợ booking có sẵn theo US-29, xem ca và ghi chấm công
+theo US-63. `ADMIN` có quyền sửa giờ công ở trang chấm công và quyền `ptBookings.correct`
+riêng cho xác nhận buổi.
+
+**Đề xuất UI.** Đặt hộp thoại xác nhận hỗ trợ hoặc rút xác nhận trong chi tiết nguồn booking
+ở `/admin/trainers/activity`. Dùng `POST /api/admin/pt-bookings/:id/corrections` với
+`{version, action, reason}` và key EN-02 của operation `PT_BOOKING_CORRECT`. `COMPLETE`
+áp dụng cho `BOOKED` đã hết giờ và còn đủ điều kiện. `REOPEN` áp dụng cho `COMPLETED`
+khi gói nguồn và quota đủ điều kiện. Nhập lý do 10–500 ký tự sau trim. Sau khi ghi
+thành công, tải lại chi tiết nguồn, quota, lịch sử và tổng.
+
+Khi `VERSION_CONFLICT`, tải lại phiên bản mới để Admin kiểm tra và xác nhận lại.
+Khi `COMPLETION_RECONCILIATION_REQUIRED` do review hoặc thay đổi gói nguồn, dừng thao
+tác rút, hiển thị nguyên nhân và cung cấp ID booking, `membershipId` cùng lịch sử để
+đối chiếu. Dùng thông tin nguồn trong trang đánh giá và báo cáo hiệu suất khi cần.
+
+Đối chiếu V-02 và V-03 trong [danh mục UI](../GM_UI_Page_Inventory.md).
+
 ## Truy vết kiểm thử
 
 | AC / TC | Kiểm thử |
