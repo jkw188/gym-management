@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ApiError } from '../../api/client';
 import { membersApi, type Member, type MemberDetail } from './members.api';
@@ -6,6 +6,7 @@ import { MemberEntitlements, MemberReadTime } from './MemberEntitlements';
 import { MemberHistory } from './MemberHistory';
 import { ServiceSalePanel } from '../sales/ServiceSalePanel';
 import { Icon } from '../../components/Icon';
+import { MemberAccountLink } from './MemberAccountLink';
 
 const fields = ['fullName', 'phone', 'birthDate', 'address'] as const;
 type Field = typeof fields[number];
@@ -14,6 +15,13 @@ type FieldErrors = Partial<Record<Field, string>>;
 const draftOf = (member: Member): Draft => ({ fullName: member.fullName, phone: member.phone,
   birthDate: member.birthDate ?? '', address: member.address ?? '' });
 const vietnamToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+const profileTabs = [
+  { id: 'overview', label: 'Thông tin' },
+  { id: 'rights', label: 'Quyền lợi' },
+  { id: 'memberships', label: 'Lịch sử gói' },
+  { id: 'transactions', label: 'Giao dịch' },
+] as const;
+type ProfileTab = typeof profileTabs[number]['id'];
 
 function validate(draft: Draft): FieldErrors {
   const errors: FieldErrors = {};
@@ -47,7 +55,9 @@ export function MemberDetailPage() {
 }
 
 function MemberProfileEditor({ id }: { id: string }) {
-  const { pathname } = useLocation();
+  const { pathname, state } = useLocation();
+  const listPath = pathname.toLowerCase().startsWith('/admin') ? '/admin/members' : '/staff/members';
+  const listSearch = typeof state?.memberListSearch === 'string' ? state.memberListSearch : '';
   const [member, setMember] = useState<Member | null>(null);
   const [detail, setDetail] = useState<MemberDetail | null>(null);
   const [draft, setDraft] = useState<Draft>({ fullName: '', phone: '', birthDate: '', address: '' });
@@ -59,6 +69,13 @@ function MemberProfileEditor({ id }: { id: string }) {
   const [blocked, setBlocked] = useState(false);
   const [stopped, setStopped] = useState(false);
   const [confirmReload, setConfirmReload] = useState(false);
+  const [tab, setTab] = useState<ProfileTab>('overview');
+  const [linkLocked, setLinkLocked] = useState(false);
+  const [linkRevision, setLinkRevision] = useState(0);
+  const [historyRevision, setHistoryRevision] = useState(0);
+  const [rightsRevision, setRightsRevision] = useState(0);
+  const [rightsError, setRightsError] = useState('');
+  const tabButtons = useRef<Partial<Record<ProfileTab, HTMLButtonElement | null>>>({});
   const form = useRef<HTMLFormElement>(null);
   const busy = useRef(false);
   const alive = useRef(true);
@@ -74,6 +91,17 @@ function MemberProfileEditor({ id }: { id: string }) {
     });
     return () => { alive.current = false; controller.abort(); };
   }, [id]);
+  useEffect(() => {
+    if (!rightsRevision) return;
+    const controller = new AbortController();
+    setRightsError('');
+    void membersApi.detail(id, controller.signal).then(result => {
+      if (!controller.signal.aborted) setDetail(result);
+    }, cause => {
+      if (!controller.signal.aborted) setRightsError(cause instanceof ApiError ? cause.message : 'Không tải được quyền lợi.');
+    });
+    return () => controller.abort();
+  }, [id, rightsRevision]);
   useEffect(() => {
     if (editing && !pending) {
       if (fields.some(field => errors[field])) focusError(errors);
@@ -94,9 +122,21 @@ function MemberProfileEditor({ id }: { id: string }) {
       const result = await membersApi.detail(id);
       if (!alive.current) return;
       setMember(result.member); setDetail(result); setDraft(draftOf(result.member)); setEditing(edit);
+      setRightsError(''); setLinkRevision(value => value + 1);
       setErrors({}); setBlocked(false); setStopped(false); setConfirmReload(false);
     } catch (cause) { if (alive.current) report(cause); }
     finally { busy.current = false; if (alive.current) setPending(false); }
+  }
+  function selectTabFromKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const last = profileTabs.length - 1;
+    const indexes: Record<string, number> = {
+      ArrowRight: (index + 1) % profileTabs.length, ArrowLeft: (index + last) % profileTabs.length, Home: 0, End: last,
+    };
+    const next = profileTabs[indexes[event.key]];
+    if (!next) return;
+    event.preventDefault();
+    setTab(next.id);
+    tabButtons.current[next.id]?.focus();
   }
   function closeReload() { setConfirmReload(false); reloadButton.current?.focus(); }
   function focusError(fieldErrors: FieldErrors) {
@@ -135,21 +175,38 @@ function MemberProfileEditor({ id }: { id: string }) {
     } });
   const fieldError = (field: Field) => errors[field] && <p className="field-error" id={`edit-${field}-error`}>{errors[field]}</p>;
 
-  return <section className="auth-card" aria-busy={pending}>
-    <h2>Hồ sơ hội viên</h2>
-    <Link to={pathname.startsWith('/admin') ? '/admin/members' : '/staff/members'}>Về danh sách hội viên</Link>
-    <p>Thông tin hội viên độc lập với thông tin tài khoản đăng nhập. Sửa hồ sơ không đổi tài khoản hoặc gói tập.</p>
+  return <section className="gm-member-profile" aria-busy={pending}>
+    <Link className="gm-profile-back" to={{ pathname: listPath, search: listSearch }}><Icon name="back" />Về danh sách hội viên</Link>
+    {member && !stopped ? <ServiceSalePanel memberId={id} heading={<h1>Hồ sơ hội viên</h1>}
+      disabled={editing} onUpdated={() => { setHistoryRevision(value => value + 1); setRightsRevision(value => value + 1); }} />
+      : <h1>Hồ sơ hội viên</h1>}
     {pending && <p role="status">Đang xử lý…</p>}
     {error && <div role="alert"><p>{error.message}</p>{error.requestId && <small>Mã tra cứu: {error.requestId}</small>}</div>}
     {status && <p role="status">{status}</p>}
     {stopped && <p>Đã dừng thao tác vì hồ sơ không tồn tại hoặc bạn không còn quyền truy cập.</p>}
     {!member && !pending && !stopped && <button type="button" onClick={() => void load(false)}><Icon name="retry" label="Tải lại hồ sơ" showLabel /></button>}
     {member && !stopped && <>
-      <dl><dt>Mã hội viên</dt><dd>{member.memberCode}</dd><dt>Liên kết tài khoản (chỉ đọc)</dt><dd>{member.accountId ?? 'Chưa liên kết'}</dd></dl>
-      {detail && <><MemberEntitlements summary={detail.entitlementSummary} /><MemberReadTime time={detail} /></>}
-      {!editing ? <><dl><dt>Họ tên</dt><dd>{member.fullName}</dd><dt>Số điện thoại</dt><dd>{member.phone}</dd>
-        <dt>Ngày sinh</dt><dd>{member.birthDate ?? 'Chưa có'}</dd><dt>Địa chỉ</dt><dd>{member.address ?? 'Chưa có'}</dd></dl>
-        <button type="button" disabled={pending} onClick={() => void load(true)}>Chỉnh sửa</button></> : <>
+      <header className="gm-panel gm-profile-summary">
+        <span className="gm-avatar" aria-hidden="true">{member.fullName.trim().split(/\s+/).pop()?.charAt(0).toUpperCase()}</span>
+        <div><h2>{member.fullName}</h2><p><span>{member.memberCode}</span> · {member.phone}</p></div>
+        <span className="gm-chip" data-state={member.accountId ? 'LINKED' : 'NONE'}>{member.accountId ? 'Đã liên kết' : 'Chưa liên kết'}</span>
+        {!editing && <button type="button" disabled={pending || blocked || linkLocked}
+          onClick={() => { setTab('overview'); void load(true); }}>Chỉnh sửa</button>}
+      </header>
+      <div className="gm-profile-tabs" role="tablist" aria-label="Hồ sơ hội viên">
+        {profileTabs.map((item, index) => <button type="button" role="tab" key={item.id} id={`gm-member-tab-${item.id}`}
+          ref={element => { tabButtons.current[item.id] = element; }} aria-selected={tab === item.id}
+          aria-controls={`gm-member-panel-${item.id}`} tabIndex={tab === item.id ? 0 : -1}
+          onClick={() => setTab(item.id)} onKeyDown={event => selectTabFromKey(event, index)}>{item.label}</button>)}
+      </div>
+      <section className="gm-panel gm-profile-panel" role="tabpanel" id="gm-member-panel-overview" aria-labelledby="gm-member-tab-overview"
+        hidden={tab !== 'overview'} tabIndex={0}>
+      <h3>Thông tin cá nhân</h3>
+      <dl className="gm-profile-facts"><div><dt>Số điện thoại</dt><dd>{member.phone}</dd></div>
+        <div><dt>Ngày sinh</dt><dd>{member.birthDate ?? 'Chưa có'}</dd></div>
+        <div><dt>Địa chỉ</dt><dd>{member.address ?? 'Chưa có'}</dd></div>
+        <div><dt>Tài khoản</dt><dd>{member.accountId ?? 'Chưa có tài khoản liên kết'}</dd></div></dl>
+      {editing && <>
         <form ref={form} noValidate onSubmit={save}><fieldset disabled={pending || blocked}><legend>Chỉnh sửa thông tin hội viên</legend>
           <label htmlFor="edit-fullName">Họ tên *</label><input ref={firstInput} {...props('fullName')} required />{fieldError('fullName')}
           <label htmlFor="edit-phone">Số điện thoại *</label><input {...props('phone')} type="tel" required maxLength={32} />{fieldError('phone')}
@@ -175,8 +232,22 @@ function MemberProfileEditor({ id }: { id: string }) {
         <button type="button" autoFocus disabled={pending} onClick={() => void load(false)}>Xác nhận tải lại</button>
         <button type="button" disabled={pending} onClick={closeReload}>Giữ bản nhập</button>
       </div>}
-      {!editing && <><button type="button" disabled={pending} onClick={() => void load(false)}><Icon name="retry" label="Làm mới hồ sơ và quyền lợi" showLabel /></button>
-        <ServiceSalePanel memberId={id} /><MemberHistory id={id} /></>}
+      {!member.accountId && <details className="gm-link-account" hidden={editing || blocked}>
+        <summary>Liên kết tài khoản</summary>
+        <MemberAccountLink key={`${member.version}:${linkRevision}`} member={member} onLockChange={setLinkLocked}
+          onReloaded={setMember} onLinked={saved => { setMember(saved); setStatus('Đã liên kết tài khoản và lưu ghi nhận đối chiếu.'); }} />
+      </details>}
+      </section>
+      <section className="gm-panel gm-profile-panel" role="tabpanel" id="gm-member-panel-rights" aria-labelledby="gm-member-tab-rights"
+        hidden={tab !== 'rights'} tabIndex={0}>
+        <div className="gm-section-head"><h3>Quyền lợi tập luyện</h3>
+          <button type="button" disabled={pending || editing || blocked || linkLocked} onClick={() => void load(false)}>
+            <Icon name="retry" label="Làm mới hồ sơ và quyền lợi" showLabel /></button></div>
+        {rightsError && <p role="alert">{rightsError}</p>}
+        {detail && <><MemberEntitlements summary={detail.entitlementSummary} /><MemberReadTime time={detail} /></>}
+      </section>
+      <MemberHistory id={id} tab={tab === 'memberships' || tab === 'transactions' ? tab : null}
+        revision={historyRevision} onUpdated={() => setRightsRevision(value => value + 1)} />
     </>}
   </section>;
 }

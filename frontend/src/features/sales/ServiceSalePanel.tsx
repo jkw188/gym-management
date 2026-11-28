@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { apiClient, ApiError } from '../../api/client';
 import { vietnamDate } from '../shifts/shift-time';
 import { salesApi, type PendingSales, type SaleDetail, type SaleInput, type SalePlan, type SalePreview } from './sales.api';
@@ -25,15 +25,27 @@ function recoverCommand(storageKey: string, memberId: string): Command | null {
   return null;
 }
 
-export function ServiceSalePanel({ memberId }: { memberId: string }) {
+export function ServiceSalePanel({ memberId, heading, disabled, onUpdated }: {
+  memberId: string; heading?: ReactNode; disabled?: boolean; onUpdated?: () => void;
+}) {
   const [open, setOpen] = useState(false);
-  return <section><h3>Đăng ký gói tại quầy</h3>
-    <button type="button" onClick={() => setOpen(true)} disabled={open}>Đăng ký gói</button>
-    {open && <SaleWizard key={memberId} memberId={memberId} />}
+  const [started, setStarted] = useState(false);
+  const title = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (open) title.current?.focus(); }, [open]);
+  return <section>
+    <div className="gm-page-head">{heading ?? <h3>Đăng ký gói tại quầy</h3>}
+      <button type="button" className="gm-primary" aria-expanded={open} aria-controls="gm-sale-wizard"
+        onClick={() => { setStarted(true); setOpen(value => !value); }} disabled={disabled}>
+        <Icon name={open ? 'close' : 'plus'} />{open ? 'Ẩn đăng ký gói' : 'Đăng ký gói'}
+      </button></div>
+    {started && <div className="gm-panel gm-profile-panel" id="gm-sale-wizard" hidden={!open}>
+      <h3 ref={title} tabIndex={-1}>Đăng ký gói và xử lý giao dịch chờ</h3>
+      <SaleWizard key={memberId} memberId={memberId} onUpdated={onUpdated} />
+    </div>}
   </section>;
 }
 
-function SaleWizard({ memberId }: { memberId: string }) {
+function SaleWizard({ memberId, onUpdated }: { memberId: string; onUpdated?: () => void }) {
   const storageKey = `service-sale:${apiClient.getSnapshot().user?.id ?? 'session'}:${memberId}`;
   const [plans, setPlans] = useState<SalePlan[]>([]);
   const [pendingSales, setPendingSales] = useState<PendingSales | null>(null);
@@ -74,7 +86,7 @@ function SaleWizard({ memberId }: { memberId: string }) {
   }
   async function load() {
     await run(async () => {
-      const results = await Promise.all([salesApi.catalog(), salesApi.pending(memberId)]);
+      const results = await Promise.all([salesApi.catalog(), salesApi.pending(memberId, pendingSales?.page ?? 1)]);
       if (mounted.current) { setPlans(results[0].items); setPendingSales(results[1]); setPreview(null); }
     });
   }
@@ -112,7 +124,8 @@ function SaleWizard({ memberId }: { memberId: string }) {
         }
         throw problem;
       }
-      const list = await salesApi.pending(memberId);
+      if (mounted.current) onUpdated?.();
+      const list = await salesApi.pending(memberId, pendingSales?.page ?? 1);
       if (mounted.current) setPendingSales(list);
     });
   }
@@ -121,6 +134,12 @@ function SaleWizard({ memberId }: { memberId: string }) {
     await run(async () => {
       const response = await salesApi.detail(id);
       if (mounted.current) { setResult(response); setPreview(null); setConfirmCancel(false); setReason(''); }
+    });
+  }
+  async function changePendingPage(page: number) {
+    await run(async () => {
+      const list = await salesApi.pending(memberId, page);
+      if (mounted.current) setPendingSales(list);
     });
   }
 
@@ -182,6 +201,13 @@ function SaleWizard({ memberId }: { memberId: string }) {
       {!pendingSales.items.length && <p>Không có đăng ký chờ.</p>}
       <ul>{pendingSales.items.map(item => <li key={item.saleId}>{item.transactionCode} ({item.kind}){' '}
         <button type="button" disabled={busy || !!command} onClick={() => void openSale(item.saleId)}>Mở đăng ký chờ</button></li>)}</ul>
+      {(pendingSales.total > 20 || pendingSales.page > 1) && <div className="gm-pagination">
+        <button type="button" disabled={busy || !!command || pendingSales.page <= 1} onClick={() => void changePendingPage(pendingSales.page - 1)}>
+          <Icon name="prev" label="Trang giao dịch chờ trước" /></button>
+        <span>Trang {pendingSales.page}/{Math.max(1, Math.ceil(pendingSales.total / 20))}</span>
+        <button type="button" disabled={busy || !!command || pendingSales.page * 20 >= pendingSales.total}
+          onClick={() => void changePendingPage(pendingSales.page + 1)}><Icon name="next" label="Trang giao dịch chờ sau" /></button>
+      </div>}
     </section>}
   </div>;
 }

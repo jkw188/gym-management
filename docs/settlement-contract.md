@@ -54,6 +54,14 @@ Giữ immutable input+key trong bộ nhớ và sessionStorage theo accountId/tra
 
 409 reference không tự đổi mã để lách lỗi, input còn nguyên và cần preview lại. Giao dịch đã hoàn tất/hủy được tải lại. Sau200 hiển thị số chứng từ, kỳ actual, membershipId và notificationState; đọc chứng từ lỗi hoặc socket không kết nối không phủ nhận settlement đã commit. Trang US-14 có liên kết sang đối chiếu thanh toán. Không upload, gọi ngân hàng, tạo PDF/email/hóa đơn điện tử, RETAIL hoặc giả lập refund.
 
+Trong thiết kế nội bộ, biểu mẫu thu và ghi nhận tiền đến muộn nhận mã `receivingAccountCode`
+nhập tay theo thông tin vận hành đã cấp. Backend kiểm theo `RECEIVING_ACCOUNTS`.
+Trong giao diện, `RECEIVING_ACCOUNT_INVALID` là lỗi ở ô mã. `RECEIVING_ACCOUNTS_NOT_CONFIGURED` hướng
+người vận hành kiểm tra cấu hình, còn `PAYMENT_REFERENCE_USED` hướng về khoản thu gốc
+để đối soát. Áp dụng riêng cho khoản thực nhận bằng `TRANSFER`. Tiền mặt đi qua biểu mẫu
+và căn cứ thực tế của `CASH`. Mã tài khoản chi tách riêng theo [US-46](returns-contract.md).
+Xem V-04 trong [danh mục UI](../GM_UI_Page_Inventory.md).
+
 ## Kiểm chứng
 
 - `backend/test/settlement.integration-spec.ts`: hai Nest instance, JWT/role/session thật, MongoDB replica set8.0.17 riêng với DB `gym_test_us22_<suffix>`. End-to-end HTTP từ tạo member US-09 → sale US-14 → preview US-21 → confirm → đọc invoice/gói. Test TC01–TC16, rollback invoice/activation/outbox/transaction/operation, snapshot buyer khi US-10 cạnh tranh, hai key/cùng key, cùng reference, cancel race, time/free sale. Barrier buộc cả hai confirm đọc xong trước khi ghi payment để kiểm unique reference thực tế. Test commit thành công rồi giả lập mất reply kiểm503 → lookup/replay đúng IDs. Fault injection được giới hạn ở điểm lỗi; không override guard/transaction/database bằng mock.
