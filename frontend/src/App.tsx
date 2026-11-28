@@ -62,14 +62,11 @@ export default function App() {
   return <BrowserRouter><AuthProvider>
     {/* Thanh trên cùng: logo | menu trang công khai | khối tài khoản (đăng nhập/đăng ký hoặc chuông, tài khoản, đăng xuất).
         NavLink tự thêm class "active" cho trang đang mở. Banner lớn chỉ còn ở trang chủ (HomePage). */}
-    <header className="site-header"><div className="site-header-inner">
+    <AppLayout header={<header className="site-header"><div className="site-header-inner">
       <Link to="/" className="brand"><span className="brand-mark" aria-hidden="true">GM</span>Gym Management</Link>
       <nav aria-label="Điều hướng chính"><NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink><NavLink to="/services">Gói dịch vụ</NavLink><NavLink to="/shop">Cửa hàng</NavLink></nav>
       <HeaderAccount />
-    </div></header>
-    <NotificationToast />
-    {/* Đã đăng nhập: menu chức năng dọc bên trái, nội dung bên phải (AppLayout). */}
-    <AppLayout>
+    </div></header>} footer={<footer className="site-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>}>
     <PageFrame scope="main">
     <Routes><Route element={<ProtectedRoute role="ADMIN" />}>
       <Route path="/admin/notifications" element={<BroadcastsPage />} />
@@ -166,6 +163,6 @@ export default function App() {
     </Routes>
     </PageFrame>
     </AppLayout>
-    <footer className="site-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
+    <NotificationToast />
   </AuthProvider></BrowserRouter>;
 }

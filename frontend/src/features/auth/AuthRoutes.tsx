@@ -6,6 +6,7 @@ import type { RoleCode } from './auth.types';
 import { NotificationBell } from '../notifications/NotificationBell';
 import { Icon } from '../../components/Icon';
 import { HomePage } from '../home/HomePage';
+import { OperationsHome } from '../home/OperationsHome';
 
 export function AuthChecking() {
   const auth = useAuth();
@@ -22,11 +23,11 @@ function useLogoutAction() {
   return () => auth.logout().then(() => navigate('/', { replace: true }), () => undefined);
 }
 
-export function LogoutButton() {
+export function LogoutButton({ className }: { className?: string }) {
   const auth = useAuth();
   const logout = useLogoutAction();
   if (auth.status !== 'authenticated') return null;
-  return <button type="button" onClick={() => void logout()}><Icon name="logout" label="Đăng xuất" showLabel /></button>;
+  return <button type="button" className={className} onClick={() => void logout()}><Icon name="logout" label="Đăng xuất" showLabel /></button>;
 }
 
 export function LogoutPending() {
@@ -65,6 +66,9 @@ export function HomeRedirect() {
 
 export function RoleShell({ role }: { role: RoleCode }) {
   const { user } = useAuth();
+  if (user && (role === 'ADMIN' || role === 'STAFF')) {
+    return <><p className="sr-only" role="status">Đăng nhập thành công.</p><OperationsHome role={role} name={user.fullName} /></>;
+  }
   // Đăng nhập xong vào thẳng trang chủ; phía trên chỉ có một dòng chào. Các chức năng nằm ở menu bên trái (AppLayout).
   return <div className="role-home">
     <div className="welcome-bar"><p role="status">Đăng nhập thành công.</p><p>Xin chào, <strong>{user?.fullName}</strong>.</p></div>

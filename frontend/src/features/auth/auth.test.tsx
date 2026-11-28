@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { ApiClient, ApiError, apiClient } from '../../api/client';
 import { AuthProvider } from './AuthProvider';
 import { HomeRedirect, ProtectedRoute, RoleShell } from './AuthRoutes';
 import { LoginPage } from './LoginPage';
+import { AppLayout } from './RoleSidebar';
 import { resolveReturnTo, rolePaths } from './auth.routes';
 import type { AuthResponse, AuthSnapshot, AuthUser, RoleCode } from './auth.types';
 
@@ -201,5 +202,51 @@ describe('TC02/17–19/22: login and role routes', () => {
   });
   it('permits a matching internal role path and preserves its query/hash', () => {
     expect(resolveReturnTo('/member?tab=profile#top', 'MEMBER')).toBe('/member?tab=profile#top');
+  });
+  it.each([
+    ['/admin/reports/cash-flow?period=month#chart', 'ADMIN', '/admin/reports/cash-flow?period=month#chart'],
+    ['/admin/notifications/new', 'ADMIN', '/admin/notifications/new'],
+    [`/admin/notifications/${'a'.repeat(24)}`, 'ADMIN', `/admin/notifications/${'a'.repeat(24)}`],
+    ['/staff/pos', 'STAFF', '/staff/pos'],
+    ['/admin/reports/cash-flow', 'STAFF', '/staff'],
+    ['/admin/notifications/new', 'STAFF', '/staff'],
+    ['/staff/users', 'STAFF', '/staff'],
+  ] as const)('restores %s for %s according to the operations menu', (target, role, expected) => {
+    expect(resolveReturnTo(target, role)).toBe(expected);
+  });
+});
+
+describe('operations navigation', () => {
+  const layout = (role: 'ADMIN' | 'STAFF', path: string) => {
+    mockAuth({ status: 'authenticated', user: { ...user, roleCode: role } });
+    const { container } = render(<MemoryRouter initialEntries={[path]}><AuthProvider>
+      <AppLayout header={null} footer={null}><h1>Trang đang mở</h1></AppLayout>
+    </AuthProvider></MemoryRouter>);
+    return container.querySelector<HTMLElement>('.gm-sidebar nav')!;
+  };
+
+  it.each([
+    ['ADMIN', ['/admin', '/admin/members', '/admin/pos'], ['Vận hành', 'Kho và bán lẻ', 'Quản trị', 'Báo cáo', 'Danh mục công khai']],
+    ['STAFF', ['/staff', '/staff/members', '/staff/pos'], ['Vận hành', 'Kho và bán lẻ', 'Danh mục công khai']],
+  ] as const)('pins three links and starts with only permitted groups collapsed for %s', (role, paths, groups) => {
+    const nav = layout(role, rolePaths[role]);
+    expect(Array.from(nav.querySelectorAll('.gm-nav-primary a'), link => link.getAttribute('href'))).toEqual(paths);
+    expect(Array.from(nav.querySelectorAll('summary'), summary => summary.textContent)).toEqual(groups);
+    expect(nav.querySelector('details[open]')).toBeNull();
+    expect(nav.querySelector('[aria-current="page"]')?.textContent).toBe('Trang chủ');
+  });
+
+  it.each([
+    ['/admin/notifications/new', 'Quản trị', '/admin/notifications'],
+    ['/admin/trainers/activity', 'Quản trị', '/admin/trainers/activity'],
+    ['/admin/members/new', 'Vận hành', '/admin/members/new'],
+    ['/shop/example', 'Danh mục công khai', '/shop'],
+    ['/', 'Danh mục công khai', '/'],
+  ])('expands the group and highlights the closest menu entry for %s', async (path, label, href) => {
+    const nav = layout('ADMIN', path);
+    expect(nav.querySelector('details[open] summary')?.textContent).toBe(label);
+    expect(nav.querySelector('[aria-current="page"]')?.getAttribute('href')).toBe(href);
+    await userEvent.click(within(nav).getByRole('link', { name: 'Trang chủ' }));
+    expect(screen.getByRole('navigation', { name: 'Menu chức năng' }).querySelector('details[open]')).toBeNull();
   });
 });

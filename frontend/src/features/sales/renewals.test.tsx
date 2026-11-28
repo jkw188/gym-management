@@ -131,7 +131,7 @@ describe('US-15-TC14: staff renewal UI, stale sources, immutable keys and distin
     const latest = { ...source, saleId: result.saleId, membershipId: '723456789012345678901234', planName: 'PT kỳ tương lai', startDate: '2026-12-01', endDate: '2026-12-30' };
     vi.spyOn(membersApi, 'memberships').mockResolvedValue({ items: [latest, source], page: 1, limit: 20, total: 2, totalPages: 1,
       asOf: preview.asOf, businessDate: '2026-11-14' });
-    render(<MemberHistory id={memberId} />, { wrapper: MemoryRouter });
+    render(<MemberHistory id={memberId} tab="memberships" />, { wrapper: MemoryRouter });
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Gia hạn PT kỳ tương lai' }));
     await user.click(await screen.findByRole('button', { name: 'Xem trước gia hạn' }));

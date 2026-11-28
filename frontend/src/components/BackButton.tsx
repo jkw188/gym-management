@@ -29,6 +29,7 @@ export function PageFrame({ scope, children }: { scope: 'main' | 'account'; chil
   const { user } = useAuth();
   const home = user ? rolePaths[user.roleCode] : '/';
   const noFrame = pathname === '/' || pathname === home || AUTH_PAGES.includes(pathname)
+    || /^\/(admin|staff)\/members(?:\/(?!new\/?$)[^/]+)?\/?$/i.test(pathname)
     || (scope === 'main' && isAccountPage(pathname));
   if (noFrame) return <>{children}</>;
   return <div className="page-frame">

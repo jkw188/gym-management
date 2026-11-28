@@ -388,7 +388,7 @@ button:has(> .icon-label > .sr-only) { padding: 0 10px; line-height: 0; }
 }
 
 /* Hộp thông báo realtime (NotificationToast) cho Admin/Staff/PT: nổi ở góc dưới phải, không đẩy nội dung xuống. */
-.site-header + aside[role="status"] { position: fixed; right: 24px; bottom: 24px; z-index: 20; width: min(380px, calc(100% - 48px)); margin: 0; padding: 20px; border-left: 3px solid var(--ink); box-shadow: 0 8px 24px rgb(15 23 42 / 12%); }
+.notification-toast { position: fixed; right: 24px; bottom: 24px; z-index: 20; width: min(380px, calc(100% - 48px)); margin: 0; border-left: 3px solid var(--ink); box-shadow: 0 8px 24px rgb(15 23 42 / 12%); }
 /* Lịch tuần trong khung tài khoản hẹp hơn: cột tối thiểu 110px để vừa 7 ngày không phải cuộn ngang. */
 .account-content .shift-week { grid-template-columns: repeat(7, minmax(110px, 1fr)); }
 
@@ -647,8 +647,7 @@ article.trainee-line { padding: 6px 0; border-top: 1px solid var(--border); }
 .shift-preview p { margin: 0; color: var(--muted); font-size: .8125rem; }
 .shift-preview .shift-preview-rest { margin-top: 8px; }
 /* ===== Thẻ thông báo nổi góc phải dưới (PT/nhân viên/admin): tiêu đề + nút X một hàng, nội dung dài tự xuống dòng và cuộn trong thẻ ===== */
-/* Viết ".site-header + aside.notification-toast" để mạnh hơn rule chung ".site-header + aside[role=status]" (padding 20px) ở trên. */
-.site-header + aside.notification-toast { display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 14px 18px; }
+.notification-toast { display: flex; flex-direction: column; gap: 8px; padding: 16px 16px 14px 18px; }
 .notification-toast-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .notification-toast-head strong { color: var(--heading); font-size: .9375rem; line-height: 1.35; overflow-wrap: anywhere; }
 .notification-toast-head .close-x { flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; margin: -4px -6px 0 0; padding: 0; }
