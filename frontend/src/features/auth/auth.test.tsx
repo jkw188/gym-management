@@ -220,7 +220,7 @@ describe('operations navigation', () => {
   const layout = (role: 'ADMIN' | 'STAFF', path: string) => {
     mockAuth({ status: 'authenticated', user: { ...user, roleCode: role } });
     const { container } = render(<MemoryRouter initialEntries={[path]}><AuthProvider>
-      <AppLayout header={null} footer={null}><h1>Trang đang mở</h1></AppLayout>
+      <AppLayout><h1>Trang đang mở</h1></AppLayout>
     </AuthProvider></MemoryRouter>);
     return container.querySelector<HTMLElement>('.gm-sidebar nav')!;
   };
@@ -248,5 +248,37 @@ describe('operations navigation', () => {
     expect(nav.querySelector('[aria-current="page"]')?.getAttribute('href')).toBe(href);
     await userEvent.click(within(nav).getByRole('link', { name: 'Trang chủ' }));
     expect(screen.getByRole('navigation', { name: 'Menu chức năng' }).querySelector('details[open]')).toBeNull();
+  });
+});
+
+describe('shared navigation', () => {
+  it('shows public navigation and sign-in links for guests', () => {
+    mockAuth({ status: 'anonymous', user: null });
+    render(<MemoryRouter><AuthProvider><AppLayout><h1>Trang đang mở</h1></AppLayout></AuthProvider></MemoryRouter>);
+
+    const nav = screen.getByRole('navigation', { name: 'Điều hướng chính' });
+    expect(within(nav).getByRole('link', { name: 'Gói dịch vụ' }).getAttribute('href')).toBe('/services');
+    expect(screen.getByRole('link', { name: 'Đăng nhập' }).getAttribute('href')).toBe('/login');
+    expect(screen.queryByRole('navigation', { name: 'Menu chức năng' })).toBeNull();
+  });
+
+  it.each([
+    ['MEMBER', 'goi tap cua toi', 'Gói tập của tôi', '/member/memberships'],
+    ['TRAINER', 'ca lam viec', 'Ca làm việc', '/trainer/shifts'],
+  ] as const)('opens a permitted page from the %s search bar', async (role, keyword, label, path) => {
+    mockAuth({ status: 'authenticated', user: { ...user, roleCode: role } });
+    render(<MemoryRouter initialEntries={[rolePaths[role]]}><AuthProvider>
+      <AppLayout><Routes><Route path={rolePaths[role]} element={<h1>Trang chính</h1>} />
+        <Route path={path} element={<h1>{label}</h1>} /></Routes></AppLayout>
+    </AuthProvider></MemoryRouter>);
+
+    const nav = screen.getByRole('navigation', { name: 'Menu chức năng' });
+    const link = within(nav).getByRole('link', { name: label });
+    expect(link.getAttribute('href')).toBe(path);
+    expect(within(nav).queryByRole('link', { name: 'Quản lý tài khoản' })).toBeNull();
+    const browser = userEvent.setup();
+    await browser.type(screen.getByRole('searchbox', { name: 'Tìm trang' }), `${keyword}{Enter}`);
+    expect(screen.getByRole('heading', { name: label })).toBeDefined();
+    expect(link.getAttribute('aria-current')).toBe('page');
   });
 });

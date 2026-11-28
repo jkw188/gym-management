@@ -3,7 +3,8 @@
 
 export type IconName = 'search' | 'filter' | 'retry' | 'eye' | 'eyeOff' | 'prev' | 'next' | 'close' | 'logout' | 'bell' | 'back'
   | 'menu' | 'home' | 'weights' | 'users' | 'calendar' | 'cart' | 'chart' | 'box' | 'plus' | 'down'
-  | 'user' | 'cash' | 'clock' | 'bag' | 'refund' | 'document' | 'lock' | 'trophy' | 'bolt' | 'arrow';
+  | 'user' | 'cash' | 'clock' | 'bag' | 'refund' | 'document' | 'lock' | 'trophy' | 'bolt' | 'arrow'
+  | 'card' | 'dumbbell' | 'star';
 
 // Mỗi icon là vài nét vẽ (thuộc tính d của <path>) trên khung 24x24, nét dày 2px.
 const iconPaths: Record<IconName, string[]> = {
@@ -38,16 +39,24 @@ const iconPaths: Record<IconName, string[]> = {
   trophy: ['M8 21h8m-4-4v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H3v2a4 4 0 0 0 4 4m10-6h4v2a4 4 0 0 1-4 4'],
   bolt: ['M13 2 5 14h6l-1 8 9-12h-6z'],
   arrow: ['M4 12h15m-6-6 6 6-6 6'],
+  card: ['M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z', 'M2 10h20', 'M6 15h4'], // thẻ thanh toán
+  dumbbell: ['M6 7v10', 'M3 9v6', 'M18 7v10', 'M21 9v6', 'M6 12h12'],               // tạ tay
+  star: ['M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z'], // ngôi sao (đánh giá)
 };
+
+// Chỉ vẽ hình, không kèm chữ: dùng khi chữ đã nằm ngay cạnh (mục menu), tránh trình đọc màn hình đọc tên hai lần.
+export function IconSvg({ name, size = 18 }: { name: IconName; size?: number }) {
+  return <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2"
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {iconPaths[name].map(d => <path key={d} d={d} />)}
+  </svg>;
+}
 
 // showLabel = false: chỉ hiện icon, chữ bị ẩn nhưng rê chuột vào sẽ thấy chú thích (title).
 // showLabel = true: hiện cả icon và chữ (dùng cho nút có tên dài, cần đọc mới hiểu).
 export function Icon({ name, label, showLabel = false }: { name: IconName; label?: string; showLabel?: boolean }) {
   return <span className="icon-label" title={showLabel ? undefined : label}>
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {iconPaths[name].map(d => <path key={d} d={d} />)}
-    </svg>
+    <IconSvg name={name} />
     {label && <span className={showLabel ? undefined : 'sr-only'}>{label}</span>}
   </span>;
 }

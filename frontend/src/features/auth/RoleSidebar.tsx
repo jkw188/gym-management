@@ -1,74 +1,177 @@
-// Tầng giao diện – thành phần: khung trang khi đã đăng nhập = menu chức năng dọc bên trái (theo vai trò) + nội dung bên phải.
-// Chỉ là điều hướng; quyền vào từng trang vẫn do ProtectedRoute và API quyết định. Guest không có menu này.
+// Khung trang theo phiên đăng nhập. ProtectedRoute và API kiểm tra quyền truy cập.
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Icon } from '../../components/Icon';
 import { useAuth } from './AuthProvider';
-import { LogoutButton } from './AuthRoutes';
+import { HeaderAccount, LogoutButton } from './AuthRoutes';
 import { roleNames, rolePaths } from './auth.routes';
 import type { AuthUser, RoleCode } from './auth.types';
+import { Icon, IconSvg, type IconName } from '../../components/Icon';
 import { operationsNavigation, publicPages, type OperationsItem, type OperationsRole } from './operations.routes';
 import './operations.css';
 
-interface TaskbarItem { to: string; label: string }
+interface MenuItem { to: string; label: string; icon: IconName }
+interface MenuGroup { title: string; items: MenuItem[] }
 
-// "Thông tin tài khoản" không nằm ở đây vì đã có ô tài khoản trên header.
-const MENUS: Record<Exclude<RoleCode, OperationsRole>, TaskbarItem[]> = {
-  MEMBER: [
-    // US-17: gói tập, lịch sử mua và chứng từ. US-18: tự đăng ký mua gói. US-27: lịch PT và giờ trống của PT.
-    { to: '/member/memberships', label: 'Gói tập của tôi' },
-    { to: '/member/service-registrations', label: 'Đăng ký gói tập' },
-    { to: '/member/pt-bookings', label: 'Lịch PT của tôi' },
-    { to: '/member/orders', label: 'Đơn hàng của tôi' },
-    { to: '/member/cart', label: 'Giỏ hàng của tôi' },
-    { to: '/member/notifications', label: 'Hộp thư thông báo' },
-  ],
-  TRAINER: [
-    // US-64: buổi dạy và xác nhận đã dạy. US-30: học viên có buổi với mình. US-31: đánh giá của học viên.
-    { to: '/trainer/shifts', label: 'Ca làm việc' },
-    { to: '/trainer/bookings', label: 'Buổi dạy của tôi' },
-    { to: '/trainer/trainees', label: 'Học viên của tôi' },
-    { to: '/trainer/reviews', label: 'Đánh giá của học viên' },
+// Nhóm "Khám phá": các trang công khai, vai trò nào cũng thấy.
+const exploreGroup: MenuGroup = {
+  title: 'Khám phá',
+  items: [
+    { to: '/', label: 'Trang chủ', icon: 'home' },
+    { to: '/classes', label: 'Lịch lớp', icon: 'calendar' },
+    { to: '/services', label: 'Gói dịch vụ', icon: 'dumbbell' },
+    { to: '/shop', label: 'Cửa hàng', icon: 'bag' },
   ],
 };
+
+const MENUS: Record<Exclude<RoleCode, OperationsRole>, MenuGroup[]> = {
+  MEMBER: [
+    // US-17: gói tập, lịch sử mua và chứng từ. US-18: tự đăng ký mua gói. US-27: lịch PT và giờ trống của PT.
+    { title: 'Gói tập', items: [
+      { to: '/member/memberships', label: 'Gói tập của tôi', icon: 'dumbbell' },
+      { to: '/member/service-registrations', label: 'Đăng ký gói tập', icon: 'card' },
+      { to: '/member/pt-bookings', label: 'Lịch PT của tôi', icon: 'calendar' },
+    ] },
+    { title: 'Mua sắm', items: [
+      { to: '/member/cart', label: 'Giỏ hàng của tôi', icon: 'cart' },
+      { to: '/member/orders', label: 'Đơn hàng của tôi', icon: 'bag' },
+    ] },
+    { title: 'Tin nhắn', items: [{ to: '/member/notifications', label: 'Hộp thư thông báo', icon: 'bell' }] },
+    exploreGroup,
+  ],
+  TRAINER: [
+    // US-24: ca làm việc. US-64: buổi dạy. US-30: học viên. US-31: đánh giá của học viên.
+    { title: 'Công việc', items: [
+      { to: '/trainer/shifts', label: 'Ca làm việc', icon: 'clock' },
+      { to: '/trainer/bookings', label: 'Buổi dạy của tôi', icon: 'calendar' },
+      { to: '/trainer/trainees', label: 'Học viên của tôi', icon: 'users' },
+      { to: '/trainer/reviews', label: 'Đánh giá của học viên', icon: 'star' },
+    ] },
+    exploreGroup,
+  ],
+};
+
+// Logo dùng chung cho thanh công khai và thanh bên.
+function Brand() {
+  return <Link to="/" className="brand">
+    <span className="brand-mark" aria-hidden="true"><IconSvg name="dumbbell" size={20} /></span>
+    <span className="brand-text"><strong>Gym Management</strong><small>Quản lý phòng tập</small></span>
+  </Link>;
+}
+
+// Guest: thanh menu công khai trên cùng, nội dung và chân trang như trước.
+function PublicLayout({ children }: { children: ReactNode }) {
+  return <>
+    <header className="site-header"><div className="site-header-inner">
+      <Brand />
+      <nav aria-label="Điều hướng chính">
+        <NavLink to="/" end>Trang chính</NavLink><NavLink to="/classes">Lịch lớp</NavLink>
+        <NavLink to="/services">Gói dịch vụ</NavLink><NavLink to="/shop">Cửa hàng</NavLink>
+      </nav>
+      <HeaderAccount />
+    </div></header>
+    <main>{children}</main>
+    <footer className="site-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
+  </>;
+}
+
+// Thanh bên: logo + các nhóm menu. Bấm tên nhóm để thu gọn / mở lại nhóm đó.
+function Sidebar({ groups, open, onNavigate }: { groups: MenuGroup[]; open: boolean; onNavigate: () => void }) {
+  // Tên các nhóm đang thu gọn. Mặc định mở hết.
+  const [collapsed, setCollapsed] = useState<string[]>([]);
+  function toggle(title: string) {
+    setCollapsed(current => current.includes(title) ? current.filter(item => item !== title) : [...current, title]);
+  }
+  return <aside className={open ? 'app-sidebar open' : 'app-sidebar'}>
+    <Brand />
+    {/* NavLink "end" để /staff/members không sáng khi đang ở /staff/members/new. */}
+    <nav aria-label="Menu chức năng">
+      {groups.map(group => {
+        const isOpen = !collapsed.includes(group.title);
+        return <div key={group.title} className="nav-group">
+          <button type="button" className="nav-group-title" aria-expanded={isOpen} onClick={() => toggle(group.title)}>
+            {group.title}<IconSvg name="down" size={14} />
+          </button>
+          {isOpen && group.items.map(item => <NavLink key={item.to} to={item.to} end onClick={onNavigate}>
+            <IconSvg name={item.icon} />{item.label}
+          </NavLink>)}
+        </div>;
+      })}
+    </nav>
+  </aside>;
+}
+
+const normalizePageName = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/đ/g, 'd').trim();
+
+// Ô "Tìm trang…": gõ chữ thì hiện các mục menu có tên khớp; Enter mở mục đầu tiên.
+function PageSearch({ groups }: { groups: MenuGroup[] }) {
+  const navigate = useNavigate();
+  const [text, setText] = useState('');
+  const allItems = groups.flatMap(group => group.items);
+  const keyword = normalizePageName(text);
+  const matches = keyword ? allItems.filter(item => normalizePageName(item.label).includes(keyword)).slice(0, 8) : [];
+  function go(to: string) {
+    setText('');
+    navigate(to);
+  }
+  return <div className="page-search">
+    <input type="search" placeholder="Tìm trang…" aria-label="Tìm trang" value={text}
+      onChange={event => setText(event.target.value)}
+      onKeyDown={event => { if (event.key === 'Enter' && matches.length > 0) go(matches[0].to); }} />
+    <IconSvg name="search" size={16} />
+    {keyword && <ul className="page-search-results">
+      {matches.length === 0 && <li className="page-search-empty">Không có trang nào khớp.</li>}
+      {matches.map(item => <li key={item.to}>
+        <button className="secondary" type="button" onClick={() => go(item.to)}><IconSvg name={item.icon} size={16} />{item.label}</button>
+      </li>)}
+    </ul>}
+  </div>;
+}
 
 const normalizePath = (pathname: string) => pathname.toLowerCase().replace(/\/+$/, '') || '/';
 const matchesPage = (pathname: string, to: string) => pathname === to || pathname.startsWith(`${to}/`);
 
-// Guest: chỉ có <main>. Đã đăng nhập: menu trái (tên, vai trò, các chức năng xếp từ trên xuống) + <main> bên phải.
-export function AppLayout({ children, header, footer }: { children: ReactNode; header: ReactNode; footer: ReactNode }) {
+export function AppLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { pathname } = useLocation();
-  if (!user) return <>{header}<main>{children}</main>{footer}</>;
+  if (!user) return <PublicLayout>{children}</PublicLayout>;
+
   const role = user.roleCode;
-  let menu: TaskbarItem[];
   if (role === 'ADMIN' || role === 'STAFF') {
     const path = normalizePath(pathname);
     if (/^\/(admin|staff)(\/|$)/.test(path) || publicPages.some(page => matchesPage(path, page.to))) {
       return <OperationsLayout user={user} role={role}>{children}</OperationsLayout>;
     }
     const { pinned, groups } = operationsNavigation(role, rolePaths[role]);
-    menu = [...pinned.slice(1), ...groups.flatMap(group => group.items.filter(item => item.to.startsWith(`${rolePaths[role]}/`)))];
-  } else {
-    menu = MENUS[role];
+    const sidebarGroups = [
+      { title: 'Vào nhanh', items: pinned },
+      ...groups.map(({ label, items }) => ({ title: label, items })),
+    ];
+    return <SignedInLayout groups={sidebarGroups}>{children}</SignedInLayout>;
   }
-  const initial = user.fullName.trim().split(/\s+/).pop()?.charAt(0).toUpperCase() ?? '?';
-  return <>{header}<div className="app-with-sidebar">
-    <aside className="role-sidebar">
-      <div className="role-sidebar-head">
-        <span className="account-avatar" aria-hidden="true">{initial}</span>
-        <span><strong>{user.fullName}</strong><small>{roleNames[user.roleCode]}</small></span>
-      </div>
-      {/* NavLink "end" để /staff/members không sáng khi đang ở /staff/members/new. */}
-      <nav aria-label="Menu chức năng">
-        {menu.map(item => <NavLink key={item.to} to={item.to} end>{item.label}</NavLink>)}
-      </nav>
-    </aside>
-    <main>{children}</main>
-  </div>{footer}</>;
+  return <SignedInLayout groups={MENUS[role]}>{children}</SignedInLayout>;
 }
 
-const normalizePageName = (value: string) => value.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/đ/g, 'd').trim();
+function SignedInLayout({ children, groups }: { children: ReactNode; groups: MenuGroup[] }) {
+  const { pathname } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  return <div className="app-shell">
+    <Sidebar groups={groups} open={menuOpen} onNavigate={() => setMenuOpen(false)} />
+    <div className="app-main-col">
+      <header className="app-topbar">
+        <button type="button" className="menu-toggle" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+          <IconSvg name="menu" /><span className="sr-only">Mở menu</span>
+        </button>
+        {/* key: đổi trang thì ô tìm kiếm được làm mới (xóa chữ đang gõ). */}
+        <PageSearch key={pathname} groups={groups} />
+        <HeaderAccount />
+      </header>
+      <div className="app-content">
+        <main>{children}</main>
+        <footer className="app-footer">© 2026 Gym Management – Nhóm 02 · <Link to="/health">Kiểm tra nền tảng</Link></footer>
+      </div>
+    </div>
+  </div>;
+}
 
 function OperationsLayout({ children, user, role }: {
   children: ReactNode; user: AuthUser; role: OperationsRole;
